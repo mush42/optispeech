@@ -1,0 +1,8 @@
+defaults:
+  - _self_
+  - generator: default.yaml
+  - optimizer: adam.yaml
+
+_target_: le2e.model.LE2E
+dim: 256
+n_feats: 80

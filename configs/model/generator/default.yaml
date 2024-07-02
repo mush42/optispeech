@@ -1,0 +1,7 @@
+defaults:
+  - _self_
+  - encoder: default.yaml
+  - duration_predictor: default.yaml
+  - decoder: default.yaml
+
+

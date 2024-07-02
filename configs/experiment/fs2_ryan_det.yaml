@@ -1,0 +1,19 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=multispeaker
+
+defaults:
+  - override /data: ryan.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["ryan"]
+
+run_name: fs2_ryan_det 
+
+
+trainer:
+  max_epochs: 3001
+  max_steps: 200000
