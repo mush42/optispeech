@@ -1,11 +1,14 @@
+from time import perf_counter
 import torch
 from torch import nn
 from torch.nn import functional as F
 
 from le2e.utils import sequence_mask
+from .lightspeech import TransformerEncoder, TransformerDecoder, DurationPredictor, PitchPredictor, EnergyPredictor
+from .losses import DurationPredictorLoss
 from .melgan import MultibandMelganGenerator
-from .modules import TextEncoder, DurationPredictor, Decoder, LengthRegulator
-
+from .length_regulator import LengthRegulator
+from .variance_adaptor import VarianceAdaptor
 
 class LE2EGenerator(nn.Module):
     def __init__(
@@ -15,27 +18,27 @@ class LE2EGenerator(nn.Module):
         encoder,
         duration_predictor,
         decoder,
+        data_statistics,
     ):
         super().__init__()
 
-        self.encoder = TextEncoder(
-            n_vocab=encoder.n_vocab,
-            dim=dim,
-            kernel_sizes=encoder.kernel_sizes,
-        )
-        self.duration_predictor = DurationPredictor(
-            dim=dim,
-            kernel_sizes=duration_predictor.kernel_sizes,
-        )
+        self.encoder = TransformerEncoder()
+        self.duration_predictor = DurationPredictor()
         self.length_regulator = LengthRegulator()
-        self.decoder = Decoder(
-            n_mel_channels=n_feats,
+        self.variance_adaptor = VarianceAdaptor(
             dim=dim,
-            kernel_sizes=decoder.kernel_sizes,
+            pitch_predictor=PitchPredictor(),
+            energy_predictor=EnergyPredictor(),
+            pitch_min=data_statistics["pitch_min"],
+            pitch_max=data_statistics["pitch_max"],
+            energy_min=data_statistics["energy_min"],
+            energy_max=data_statistics["energy_max"],
         )
+        self.decoder = TransformerDecoder()
         self.melgan = MultibandMelganGenerator( in_channels=dim)
+        self.dur_loss_criteria = DurationPredictorLoss()
 
-    def forward(self, x, x_lengths, y, y_lengths, durations,):
+    def forward(self, x, x_lengths, y, y_lengths, durations, pitches, energies):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
@@ -56,34 +59,46 @@ class LE2EGenerator(nn.Module):
             dur_loss: (torch.Tensor): scaler representing durations loss
             mel_loss: (torch.Tensor): scaler representing mel spectogram loss
         """
+        losses = {}
+
         x_mask = torch.unsqueeze(sequence_mask(x_lengths, x.size(1)), 1).to(x.dtype)
         y_max_length = y_lengths.max()
         y_mask = sequence_mask(y_lengths, y_max_length).unsqueeze(1).to(x_mask.dtype)
         x_lengths = x_lengths.long().to("cpu")
         y_lengths = y_lengths.long().to("cpu")
+        padding_mask = ~x_mask.squeeze(1).bool()
 
         # Encoder
-        x = self.encoder(x, x_lengths, x_mask)
+        enc_out = self.encoder(x, padding_mask)
+        x = enc_out["encoder_out"]
+        x = x.transpose(0, 1)
 
         # Duration predictor
-        logw= self.duration_predictor(x, x_lengths, x_mask)
+        logw= self.duration_predictor(x, padding_mask)
+        losses["dur_loss"] = self.dur_loss_criteria(logw, durations, padding_mask)
+
+        # variance_adapter predictor
+        x, vp_losses = self.variance_adaptor(x, x_mask, pitches, energies)
+        losses.update(vp_losses)
 
         # Length regulator
-        x, dur_loss, attn= self.length_regulator(x, x_lengths, x_mask, y, y_lengths, y_mask, logw, durations)
+        z, attn= self.length_regulator(x, x_lengths, x_mask, y, y_lengths, y_mask, logw, durations)
+        target_padding_mask = ~y_mask.squeeze(0).bool()
 
         # Decoder
-        x = self.decoder(x, y_lengths, y_mask)
+        z = self.decoder(z, target_padding_mask)
+        z = z.transpose(1, 2) * y_mask
 
         # Latents -> waveform
-        waveform = self.melgan(x)
+        waveform = self.melgan(z)
 
         return {
             "wav": waveform,
-            "dur_loss": dur_loss,
+            **losses
         }
 
     @torch.inference_mode()
-    def synthesize(self, x, x_lengths, length_scale=1.0):
+    def synthesize(self, x, x_lengths, length_scale=1.0, pitch_scale=1.0, energy_scale=1.0):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
@@ -100,28 +115,46 @@ class LE2EGenerator(nn.Module):
             w_ceil: (torch.Tensor): predicted phoneme durations
                 shape: (batch_size, max_text_length)
         """
+        am_t0 = perf_counter()
         x_mask = torch.unsqueeze(sequence_mask(x_lengths, x.size(1)), 1).to(x.dtype)
         x_lengths = x_lengths.long().to("cpu")
+        padding_mask = ~x_mask.squeeze(1).bool()
 
         # Encoder
-        x = self.encoder(x, x_lengths, x_mask)
+        enc_out = self.encoder(x, padding_mask)
+        x = enc_out["encoder_out"]
+        x = x.transpose(0, 1)
+
+        # variance adapter
+        x, __ = self.variance_adaptor.infer(x, x_mask, p_factor=pitch_scale, e_factor=energy_scale)
 
         # Duration predictor
-        logw= self.duration_predictor(x, x_lengths, x_mask)
+        logw= self.duration_predictor.infer(x, padding_mask)
 
         # length regulator
-        w_ceil, attn, y, y_lengths, y_mask = self.length_regulator.infer(x, x_mask, logw, length_scale)
-        y_lengths = y_lengths.long().to("cpu")
+        y, y_mask, w_ceil = self.length_regulator.infer(x, x_mask, logw, length_scale)
+        target_padding_mask = ~y_mask.squeeze(0).bool()
 
         # Decoder
-        x = self.decoder(y, y_lengths, y_mask)
+        y = self.decoder(y, target_padding_mask)
+        y = y.transpose(1, 2) * y_mask
+        am_infer = (perf_counter() - am_t0) * 1000
 
         # Latents -> waveform
-        waveform = self.melgan(x)
+        v_t0 = perf_counter()
+        wav = self.melgan(y)
+        v_infer  = (perf_counter() - v_t0) * 1000
+        wav_t = wav.shape[-1] / 22.05
+
+        am_rtf = am_infer / wav_t
+        v_rtf = v_infer / wav_t
+        total_rtf = am_rtf + v_rtf
 
         return {
-            "wav": waveform,
+            "wav": wav,
             "w_ceil": w_ceil.squeeze(1),
-            "attn": attn,
+            "am_rtf": am_rtf,
+            "v_rtf": v_rtf,
+            "total_rtf": total_rtf,
         }
 

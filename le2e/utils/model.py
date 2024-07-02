@@ -1,7 +1,11 @@
 """ from https://github.com/jaywalnut310/glow-tts """
 
+import math
+from collections import defaultdict
+
 import numpy as np
 import torch
+from torch import nn
 import torch.nn.functional as F
 
 
@@ -181,3 +185,99 @@ def trim_or_pad_to_target_length(
                 axis=0
             )
     return data_1d_or_2d
+
+
+INCREMENTAL_STATE_INSTANCE_ID = defaultdict(lambda: 0)
+
+
+def pad_list(xs, pad_value, max_len=None):
+    """Perform padding for the list of tensors.
+    Args:
+        xs (List): List of Tensors [(T_1, `*`), (T_2, `*`), ..., (T_B, `*`)].
+        pad_value (float): Value for padding.
+    Returns:
+        Tensor: Padded tensor (B, Tmax, `*`).
+    Examples:
+        >>> x = [torch.ones(4), torch.ones(2), torch.ones(1)]
+        >>> x
+        [tensor([1., 1., 1., 1.]), tensor([1., 1.]), tensor([1.])]
+        >>> pad_list(x, 0)
+        tensor([[1., 1., 1., 1.],
+                [1., 1., 0., 0.],
+                [1., 0., 0., 0.]])
+    """
+    n_batch = len(xs)
+    if max_len is None:
+        max_len = max(x.size(0) for x in xs)
+    pad = xs[0].new(n_batch, max_len, *xs[0].size()[1:]).fill_(pad_value)
+
+    for i in range(n_batch):
+        pad[i, :min(xs[i].size(0), max_len)] = xs[i][:max_len]
+
+    return pad
+
+
+
+def build_activation(act_func, inplace=True):
+    if act_func == 'relu':
+        return nn.ReLU(inplace=inplace)
+    elif act_func == 'relu6':
+        return nn.ReLU6(inplace=inplace)
+    elif act_func == 'gelu':
+        return GeLU()
+    elif act_func == 'gelu_accurate':
+        return GeLUAcc()
+    elif act_func == 'tanh':
+        return nn.Tanh()
+    elif act_func == 'sigmoid':
+        return nn.Sigmoid()
+    elif act_func is None:
+        return None
+    else:
+        raise ValueError('do not support: %s' % act_func)
+
+def make_positions(tensor, padding_idx):
+    """Replace non-padding symbols with their position numbers.
+
+    Position numbers begin at padding_idx+1. Padding symbols are ignored.
+    """
+    # The series of casts and type-conversions here are carefully
+    # balanced to both work with ONNX export and XLA. In particular XLA
+    # prefers ints, cumsum defaults to output longs, and ONNX doesn't know
+    # how to handle the dtype kwarg in cumsum.
+    mask = tensor.ne(padding_idx).int()
+    return (
+                   torch.cumsum(mask, dim=1).type_as(mask) * mask
+           ).long() + padding_idx
+
+
+def softmax(x, dim):
+    return F.softmax(x, dim=dim, dtype=torch.float32)
+
+
+def _get_full_incremental_state_key(module_instance, key):
+    module_name = module_instance.__class__.__name__
+
+    # assign a unique ID to each module instance, so that incremental state is
+    # not shared across module instances
+    if not hasattr(module_instance, '_instance_id'):
+        INCREMENTAL_STATE_INSTANCE_ID[module_name] += 1
+        module_instance._instance_id = INCREMENTAL_STATE_INSTANCE_ID[module_name]
+
+    return '{}.{}.{}'.format(module_name, module_instance._instance_id, key)
+
+
+def get_incremental_state(module, incremental_state, key):
+    """Helper for getting incremental state for an nn.Module."""
+    full_key = _get_full_incremental_state_key(module, key)
+    if incremental_state is None or full_key not in incremental_state:
+        return None
+    return incremental_state[full_key]
+
+
+def set_incremental_state(module, incremental_state, key, value):
+    """Helper for setting incremental state for an nn.Module."""
+    if incremental_state is not None:
+        full_key = _get_full_incremental_state_key(module, key)
+        incremental_state[full_key] = value
+

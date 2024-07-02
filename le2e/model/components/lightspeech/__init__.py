@@ -5,10 +5,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .layers import (
-    build_activation, pad_list,
-    ConvSeparable, EncSepConvLayer, SinusoidalPositionalEmbedding
-)
+from le2e.utils.model import build_activation, pad_list
+from .layers import ConvSeparable, EncSepConvLayer, ScaledSinusoidalEmbedding
 
 
 DEFAULT_MAX_SOURCE_POSITIONS = 2000
@@ -50,14 +48,9 @@ class TransformerEncoder(nn.Module):
     ):
         super().__init__()
         self.last_layernorm = last_layernorm
-        self.padding_idx = padding_idx
         self.embed_scale = math.sqrt(hidden_size)
         self.embed_tokens = nn.Embedding(n_vocab, hidden_size, padding_idx)
-        self.embed_positions = SinusoidalPositionalEmbedding(
-            hidden_size,
-            padding_idx,
-            init_size=max_source_positions + padding_idx + 1
-        )
+        self.embed_positions = ScaledSinusoidalEmbedding(hidden_size, theta=max_source_positions)
         self.emb_dropout = nn.Dropout(dropout)
         if self.last_layernorm:
             self.layer_norm = LayerNorm(hidden_size)
@@ -75,13 +68,12 @@ class TransformerEncoder(nn.Module):
         x = self.emb_dropout(x)
         return x, embed
 
-    def forward(self, src_tokens):
+    def forward(self, src_tokens, padding_mask):
         """
-
         :param src_tokens: [B, T]
+        :param padding_mask: [B, T]
         :return: {
             'encoder_out': [T x B x C]
-            'encoder_padding_mask': [B x T]
             'encoder_embedding': [B x T x C]
             'attn_w': []
         }
@@ -91,8 +83,8 @@ class TransformerEncoder(nn.Module):
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
-        # compute padding mask
-        encoder_padding_mask = src_tokens.eq(self.padding_idx).data
+        # padding mask
+        encoder_padding_mask = padding_mask.to("cpu")
 
         # encoder layers
         for layer in self.layers:
@@ -101,11 +93,10 @@ class TransformerEncoder(nn.Module):
         if self.last_layernorm:
             x = self.layer_norm(x)
             x = x * (1 - encoder_padding_mask.float()).transpose(0, 1)[..., None]
+
         return {
             'encoder_out': x,  # T x B x C
-            'encoder_padding_mask': encoder_padding_mask,  # B x T
             'encoder_embedding': encoder_embedding,  # B x T x C
-            'attn_w': []
         }
 
 
@@ -120,13 +111,8 @@ class TransformerDecoder(nn.Module):
         padding_idx=0,
     ):
         super().__init__()
-        self.padding_idx = padding_idx
         self.pos_emb_alpha = nn.Parameter(torch.Tensor([1]))
-        self.pos_emb = SinusoidalPositionalEmbedding(
-            hidden_size,
-            self.padding_idx,
-            init_size=max_source_positions + padding_idx + 1
-        )
+        self.pos_emb = ScaledSinusoidalEmbedding(hidden_size, theta=max_source_positions)
         self.layers = nn.ModuleList([
             EncSepConvLayer(hidden_size, kernel_size, dropout, activation)
             for kernel_size in kernel_sizes
@@ -134,13 +120,13 @@ class TransformerDecoder(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.layer_norm = nn.LayerNorm(hidden_size)
 
-    def forward(self, x, require_w=False):
+    def forward(self, x, padding_mask, *, require_w=False):
         """
         :param x: [B, T, C]
+        :param padding_mask: [B, T]
         :param require_w: True if this module needs to return weight matrix
         :return: [B, T, C]
         """
-        padding_mask = x.abs().sum(-1).eq(self.padding_idx).data
         positions = self.pos_emb_alpha * self.pos_emb(x[..., 0])
         x = x + positions
         x = self.dropout(x)
@@ -175,42 +161,42 @@ class DurationPredictor(torch.nn.Module):
         the outputs are calculated in log domain but in `inference`, those are calculated in linear domain.
     """
 
-    def __init__(self, idim, n_layers=2, n_chans=384, kernel_size=3, dropout_rate=0.1, offset=1.0, padding='SAME'):
+    def __init__(self,
+        dim=256,
+        n_layers=2,
+        intermediate_dim=384,
+        kernel_size=3,
+        dropout=0.1,
+        clip_val=1e-7,
+        padding='SAME',
+        activation='relu'
+    ):
         """
         Args:
-            idim (int): Input dimension.
+            dim (int): Input dimension.
             n_layers (int, optional): Number of convolutional layers.
-            n_chans (int, optional): Number of channels of convolutional layers.
+            intermediate_dim (int, optional): Number of channels of convolutional layers.
             kernel_size (int, optional): Kernel size of convolutional layers.
-            dropout_rate (float, optional): Dropout rate.
-            offset (float, optional): Offset value to avoid nan in log domain.
+            dropout (float, optional): Dropout rate.
+            clip_val (float, optional): Offset value to avoid nan in log domain.
         """
         super(DurationPredictor, self).__init__()
-        self.offset = offset
-        self.conv = torch.nn.ModuleList()
+        self.clip_val = clip_val
         self.kernel_size = kernel_size
         self.padding = padding
-        for idx in range(n_layers):
-            in_chans = idim if idx == 0 else n_chans
-            if hparams['predictor_layer_type'] == 'conv':
-                self.conv += [torch.nn.Sequential(
-                    torch.nn.Conv1d(in_chans, n_chans, kernel_size, stride=1, padding=0),
-                    build_activation(hparams['activation']),
-                    LayerNorm(n_chans, dim=1),
-                    torch.nn.Dropout(dropout_rate)
-                )]
-            else:
-                assert hparams['predictor_layer_type'] == 'sepconv'
-                self.conv += [torch.nn.Sequential(
-                    ConvSeparable(in_chans, n_chans, kernel_size),
-                    build_activation(hparams['activation']),
-                    LayerNorm(n_chans, dim=1),
-                    torch.nn.Dropout(dropout_rate)
-                )]
-        self.linear = torch.nn.Linear(n_chans, 1)
+        self.conv = torch.nn.ModuleList([
+            torch.nn.Sequential(
+                ConvSeparable(dim if idx == 0 else intermediate_dim, intermediate_dim, kernel_size),
+                build_activation(activation),
+                LayerNorm(intermediate_dim, dim=1),
+                torch.nn.Dropout(dropout)
+            )
+            for idx in range(n_layers)
+        ])
+        self.linear = torch.nn.Linear(intermediate_dim, 1)
 
-    def _forward(self, xs, x_masks=None, is_inference=False):
-        xs = xs.transpose(1, -1)  # (B, idim, Tmax)
+    def _forward(self, xs, x_masks, *, is_inference=False):
+        xs = xs.transpose(1, -1)  # (B, dim, Tmax)
         for f in self.conv:
             if self.padding == 'SAME':
                 xs = F.pad(xs, [self.kernel_size // 2, self.kernel_size // 2])
@@ -225,7 +211,7 @@ class DurationPredictor(torch.nn.Module):
 
         if is_inference:
             # NOTE: calculate in linear domain
-            xs = torch.clamp(torch.round(xs.exp() - self.offset), min=0).long()  # avoid negative value
+            xs = torch.clamp(torch.round(xs.exp() - self.clip_val), min=0).long()  # avoid negative value
 
         if x_masks is not None:
             xs = xs.masked_fill(x_masks, 0.0)
@@ -234,80 +220,85 @@ class DurationPredictor(torch.nn.Module):
     def forward(self, xs, x_masks=None):
         """Calculate forward propagation.
         Args:
-            xs (Tensor): Batch of input sequences (B, Tmax, idim).
+            xs (Tensor): Batch of input sequences (B, Tmax, dim).
             x_masks (ByteTensor, optional): Batch of masks indicating padded part (B, Tmax).
         Returns:
             Tensor: Batch of predicted durations in log domain (B, Tmax).
         """
-        return self._forward(xs, x_masks, False)
+        return self._forward(xs, x_masks, is_inference=False)
 
-    def inference(self, xs, x_masks=None):
+    @torch.inference_mode()
+    def infer(self, xs, x_masks=None):
         """
         Inference duration.
         Args:
-            xs (Tensor): Batch of input sequences (B, Tmax, idim).
+            xs (Tensor): Batch of input sequences (B, Tmax, dim).
             x_masks (ByteTensor, optional): Batch of masks indicating padded part (B, Tmax).
         Returns:
             LongTensor: Batch of predicted durations in linear domain (B, Tmax).
         """
-        return self._forward(xs, x_masks, True)
+        return self._forward(xs, x_masks, is_inference=True)
+
 
 
 class PitchPredictor(torch.nn.Module):
-    def __init__(self, idim, n_layers=5, n_chans=384, odim=2, kernel_size=5,
-                 dropout_rate=0.1, padding='SAME'):
-        """Initilize pitch predictor module.
+    def __init__(
+        self,
+        dim=256,
+        out_dim=2,
+        n_layers=5,
+        intermediate_dim=384,
+        kernel_size=5,
+        dropout=0.1,
+        activation='relu',
+        padding='SAME',
+        max_source_positions=DEFAULT_MAX_SOURCE_POSITIONS,
+    ):
+        """
         Args:
-            idim (int): Input dimension.
+            dim (int): Input dimension.
             n_layers (int, optional): Number of convolutional layers.
-            n_chans (int, optional): Number of channels of convolutional layers.
+            intermediate_dim (int, optional): Number of channels of convolutional layers.
             kernel_size (int, optional): Kernel size of convolutional layers.
             dropout_rate (float, optional): Dropout rate.
-            offset (float, optional): Offset value to avoid nan in log domain.
+            clip_val (float, optional): Offset value to avoid nan in log domain.
         """
         super(PitchPredictor, self).__init__()
-        self.conv = torch.nn.ModuleList()
         self.kernel_size = kernel_size
         self.padding = padding
-        for idx in range(n_layers):
-            in_chans = idim if idx == 0 else n_chans
-            if hparams['predictor_layer_type'] == 'conv':
-                self.conv += [torch.nn.Sequential(
-                    torch.nn.Conv1d(in_chans, n_chans, kernel_size, stride=1, padding=0),
-                    build_activation(hparams['activation']),
-                    LayerNorm(n_chans, dim=1),
-                    torch.nn.Dropout(dropout_rate)
-                )]
-            else:
-                assert hparams['predictor_layer_type'] == 'sepconv'
-                self.conv += [torch.nn.Sequential(
-                    ConvSeparable(in_chans, n_chans, kernel_size),
-                    build_activation(hparams['activation']),
-                    LayerNorm(n_chans, dim=1),
-                    torch.nn.Dropout(dropout_rate)
-                )]
-        self.linear = torch.nn.Linear(n_chans, odim)
-        self.embed_positions = SinusoidalPositionalEmbedding(idim, 0, init_size=4096)
-        self.pos_embed_alpha = nn.Parameter(torch.Tensor([1]))
+        self.pos_emb = ScaledSinusoidalEmbedding(dim, theta=max_source_positions)
+        self.conv = torch.nn.ModuleList([
+            torch.nn.Sequential(
+                ConvSeparable(dim if idx == 0 else intermediate_dim, intermediate_dim, kernel_size),
+                build_activation(activation),
+                LayerNorm(intermediate_dim, dim=1),
+                torch.nn.Dropout(dropout)
+            )
+            for idx in range(n_layers - 1)
+        ])
+        self.conv.append(
+            torch.nn.Sequential(
+                ConvSeparable(intermediate_dim, dim, kernel_size),
+                build_activation(activation),
+                LayerNorm(dim, dim=1),
+                torch.nn.Dropout(dropout)
+            )
+        )
 
     def forward(self, xs):
         """
-
         :param xs: [B, T, H]
         :return: [B, T, H]
         """
-        positions = self.pos_embed_alpha * self.embed_positions(xs[..., 0])
+        positions = self.pos_emb(xs)
         xs = xs + positions
-        xs = xs.transpose(1, -1)  # (B, idim, Tmax)
+        xs = xs.transpose(1, -1)  # (B, dim, Tmax)
         for f in self.conv:
             if self.padding == 'SAME':
                 xs = F.pad(xs, [self.kernel_size // 2, self.kernel_size // 2])
             elif self.padding == 'LEFT':
                 xs = F.pad(xs, [self.kernel_size - 1, 0])
             xs = f(xs)  # (B, C, Tmax)
-
-        # NOTE: calculate in log domain
-        xs = self.linear(xs.transpose(1, -1))  # (B, Tmax, H)
         return xs
 
 

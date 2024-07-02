@@ -1,16 +1,12 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
-
 import math
+
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torch.nn import Parameter
-import torch.onnx.operators
-import torch.nn.functional as F
-import utils
+from torch import einsum
 
-from .hparams import hparams
-from .world_utils import build_activation
+from le2e.utils.model import build_activation, get_incremental_state, set_incremental_state, softmax, make_positions, pad_list
 
 
 def LayerNorm(normalized_shape, eps=1e-5, elementwise_affine=True, export=False):
@@ -31,66 +27,31 @@ def Linear(in_features, out_features, bias=True):
     return m
 
 
-class SinusoidalPositionalEmbedding(nn.Module):
-    """This module produces sinusoidal positional embeddings of any length.
-
-    Padding symbols are ignored.
-    """
-
-    def __init__(self, embedding_dim, padding_idx, init_size=1024):
+class ScaledSinusoidalEmbedding(nn.Module):
+    def __init__(self, dim, theta=10000):
         super().__init__()
-        self.embedding_dim = embedding_dim
-        self.padding_idx = padding_idx
-        self.weights = SinusoidalPositionalEmbedding.get_embedding(
-            init_size,
-            embedding_dim,
-            padding_idx,
-        )
-        self.register_buffer('_float_tensor', torch.FloatTensor(1))
+        assert (dim % 2) == 0
+        self.scale = nn.Parameter(torch.ones(1) * dim**-0.5).float()
 
-    @staticmethod
-    def get_embedding(num_embeddings, embedding_dim, padding_idx=None):
-        """Build sinusoidal embeddings.
+        half_dim = dim // 2
+        freq_seq = torch.arange(half_dim).float() / half_dim
+        inv_freq = theta ** -freq_seq.float()
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
 
-        This matches the implementation in tensor2tensor, but differs slightly
-        from the description in Section 3.5 of "Attention Is All You Need".
-        """
-        half_dim = embedding_dim // 2
-        emb = math.log(10000) / (half_dim - 1)
-        emb = torch.exp(torch.arange(half_dim, dtype=torch.float) * -emb)
-        emb = torch.arange(num_embeddings, dtype=torch.float).unsqueeze(1) * emb.unsqueeze(0)
-        emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1).view(num_embeddings, -1)
-        if embedding_dim % 2 == 1:
-            # zero pad
-            emb = torch.cat([emb, torch.zeros(num_embeddings, 1)], dim=1)
-        if padding_idx is not None:
-            emb[padding_idx, :] = 0
-        return emb
+    def forward(self, x, pos=None, seq_start_pos=None):
+        seq_len = x.size(1)
+        device = x.device
 
-    def forward(self, input, incremental_state=None, timestep=None, **kwargs):
-        """Input is expected to be of size [bsz x seqlen]."""
-        bsz, seq_len = input.shape[:2]
-        max_pos = self.padding_idx + 1 + seq_len
-        if self.weights is None or max_pos > self.weights.size(0):
-            # recompute/expand embeddings if needed
-            self.weights = SinusoidalPositionalEmbedding.get_embedding(
-                max_pos,
-                self.embedding_dim,
-                self.padding_idx,
-            )
-        self.weights = self.weights.to(self._float_tensor)
+        if pos is None:
+            pos = torch.arange(seq_len, device=device)
 
-        if incremental_state is not None:
-            # positions is the same for every token when decoding a single step
-            pos = timestep.view(-1)[0] + 1 if timestep is not None else seq_len
-            return self.weights[self.padding_idx + pos, :].expand(bsz, 1, -1)
+        if seq_start_pos is not None:
+            pos = pos - seq_start_pos[..., None]
 
-        positions = utils.make_positions(input, self.padding_idx)
-        return self.weights.index_select(0, positions.view(-1)).view(bsz, seq_len, -1).detach()
+        emb = einsum("i, j -> i j", pos.float(), self.inv_freq)
+        emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
+        return emb * self.scale
 
-    def max_positions(self):
-        """Maximum number of supported positions."""
-        return int(1e5)  # an arbitrary large number
 
 
 class MultiheadAttention(nn.Module):
@@ -346,7 +307,7 @@ class MultiheadAttention(nn.Module):
         if before_softmax:
             return attn_weights, v
 
-        attn_weights_float = utils.softmax(attn_weights, dim=-1)
+        attn_weights_float = softmax(attn_weights, dim=-1)
         attn_weights = attn_weights_float.type_as(attn_weights)
         attn_probs = F.dropout(attn_weights_float.type_as(attn_weights), p=self.dropout, training=self.training)
 
@@ -406,14 +367,14 @@ class MultiheadAttention(nn.Module):
         return F.linear(input, weight, bias)
 
     def _get_input_buffer(self, incremental_state):
-        return utils.get_incremental_state(
+        return get_incremental_state(
             self,
             incremental_state,
             'attn_state',
         ) or {}
 
     def _set_input_buffer(self, incremental_state, buffer):
-        utils.set_incremental_state(
+        set_incremental_state(
             self,
             incremental_state,
             'attn_state',
@@ -555,9 +516,10 @@ class IdentityLayer(nn.Module):
     
     def forward(self, x, *args, **kwargs):
         return x
-        
 
-OPERATIONS_ENCODER = {
+
+"""
+LAYERS = {
     1: lambda : EncSepConvLayer(hparams['hidden_size'], 1, hparams['dropout'], hparams['activation']),  # h, num_heads, dropout
     2: lambda : EncSepConvLayer(hparams['hidden_size'], 5, hparams['dropout'], hparams['activation']),
     3: lambda : EncSepConvLayer(hparams['hidden_size'], 9, hparams['dropout'], hparams['activation']),
@@ -571,3 +533,4 @@ OPERATIONS_ENCODER = {
     11: lambda : EncTransformerFFNLayer(hparams['hidden_size'], hparams['filter_size'], hparams['ffn_kernel_size'], hparams['dropout'], hparams['activation']),
     12: lambda : IdentityLayer(),
 }
+"""

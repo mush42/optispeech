@@ -25,6 +25,7 @@ print(f"Length of phoneme ids: {len(phids)}")
 with initialize(version_base=None, config_path="./configs"):
     dataset_cfg = compose(config_name="data/hfc_female-en_us.yaml")
     cfg = compose(config_name="model/le2e.yaml")
+    cfg.model.data_statistics = dataset_cfg.data.data_statistics
 
 # Dataset pipeline
 dataset_cfg.data.batch_size = 1
@@ -45,15 +46,12 @@ print(f"Batch['pitches'] shape: {batch['pitches'].shape}")
 # Model
 model = hydra.utils.instantiate(cfg.model)
 model = model.eval()
-print(summarize(model, 4))
+print(summarize(model, 3))
 
-# Training
-x = batch["x"][0].unsqueeze(0)
-x_lengths = torch.LongTensor([x.shape[-1]])
-y = torch.rand(1, 80, 125)
-y_lengths = torch.LongTensor([y.shape[-1]])
-durations = torch.randint(1, 2, (1, x.size(1)))
-outputs = model(x, x_lengths, y, y_lengths, durations)
+# Sanity check
+batch.pop("x_texts")
+batch.pop("filepaths")
+outputs = model(**batch)
 
 # Training loop
 step_out = model.training_step(batch, 0)
@@ -61,6 +59,9 @@ step_out = model.training_step(batch, 0)
 
 # Inference
 model.generator.melgan.remove_weight_norm()
+x = batch["x"]
+x_lengths = batch["x_lengths"]
+
 t0 = time.perf_counter()
 outputs = model.synthesize(x, x_lengths)
 t_infer = (time.perf_counter() - t0) * 1000

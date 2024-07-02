@@ -56,6 +56,8 @@ class BaseLightningModule(LightningModule, ABC):
             y=y,
             y_lengths=y_lengths,
             durations=batch["durations"],
+            pitches=batch["pitches"],
+            energies=batch["energies"],
         )
         return outputs
 

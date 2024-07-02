@@ -6,3 +6,4 @@ defaults:
 _target_: le2e.model.LE2E
 dim: 256
 n_feats: 80
+data_statistics: ${data.data_statistics}
