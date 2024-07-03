@@ -5,7 +5,7 @@
 defaults:
   - _self_
   - data: ljspeech
-  - model: fastspeech2 
+  - model: le2e 
   - callbacks: default
   - logger: tensorboard # set logger here or use command line (e.g. `python train.py logger=tensorboard`)
   - trainer: default

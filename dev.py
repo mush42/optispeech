@@ -28,7 +28,7 @@ with initialize(version_base=None, config_path="./configs"):
     cfg.model.data_statistics = dataset_cfg.data.data_statistics
 
 # Dataset pipeline
-dataset_cfg.data.batch_size = 1
+dataset_cfg.data.batch_size = 4
 dataset_cfg.data.num_workers = 0
 dataset_cfg.data.seed = 42
 dataset_cfg.data.pin_memory = False
@@ -44,30 +44,25 @@ print(f"Batch['durations'] shape: {batch['durations'].shape}")
 print(f"Batch['pitches'] shape: {batch['pitches'].shape}")
 
 # Model
+device = "cpu"
 model = hydra.utils.instantiate(cfg.model)
 model = model.eval()
-print(summarize(model, 3))
+model = model.to(device)
+opts = model.configure_optimizers()
+print(summarize(model, 2))
 
 # Sanity check
 batch.pop("x_texts")
 batch.pop("filepaths")
-outputs = model(**batch)
+f_out = model(**batch)
 
 # Training loop
 step_out = model.training_step(batch, 0)
 
-
 # Inference
-model.generator.melgan.remove_weight_norm()
 x = batch["x"]
 x_lengths = batch["x_lengths"]
 
-t0 = time.perf_counter()
-outputs = model.synthesize(x, x_lengths)
-t_infer = (time.perf_counter() - t0) * 1000
-wav = outputs["wav"]
-t_audio = wav.shape[-1]  / 22.05
-print(f"t_infer: {t_infer}")
-print(f"t_audio: {t_audio}")
-rtf = t_infer / t_audio
+synth_outs = model.synthesize(x, x_lengths)
+rtf = synth_outs["rtf"]
 print(f"RTF: {rtf}")

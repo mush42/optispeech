@@ -84,7 +84,7 @@ class TransformerEncoder(nn.Module):
         x = x.transpose(0, 1)
 
         # padding mask
-        encoder_padding_mask = padding_mask.to("cpu")
+        encoder_padding_mask = padding_mask
 
         # encoder layers
         for layer in self.layers:
@@ -245,7 +245,6 @@ class PitchPredictor(torch.nn.Module):
     def __init__(
         self,
         dim=256,
-        out_dim=2,
         n_layers=5,
         intermediate_dim=384,
         kernel_size=5,

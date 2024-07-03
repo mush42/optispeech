@@ -23,8 +23,8 @@ class LengthRegulator(nn.Module):
 
     @torch.inference_mode
     def infer(self, x, x_mask, logw, length_scale=1.0):
-        w = torch.exp(logw) * x_mask
-        w_ceil = torch.ceil(w) * length_scale
+        w = torch.exp(logw) * x_mask.squeeze(1)
+        w_ceil = (torch.ceil(w) * length_scale).unsqueeze(1)
         y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
         y_max_length = y_lengths.max()
         y_max_length_ = fix_len_compatibility(y_max_length)
@@ -35,4 +35,10 @@ class LengthRegulator(nn.Module):
         mu_y = torch.matmul(attn.float().squeeze(1).transpose(1, 2), x)
         y = mu_y[:, :y_max_length, :]
         y_mask = y_mask[:, :, :y_max_length]
-        return y, y_mask, w_ceil
+        return dict(
+            y=y,
+            y_lengths=y_lengths,
+            y_mask=y_mask,
+            w_ceil=w_ceil,
+            attn=attn,
+        )

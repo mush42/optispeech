@@ -28,24 +28,26 @@ class VarianceAdaptor(nn.Module):
         self,
         dim,
         pitch_predictor,
-        energy_predictor,
         pitch_min,
         pitch_max,
-        energy_min,
-        energy_max,
+        energy_predictor=None,
+        energy_min=0,
+        energy_max=100,
         n_bins=256
     ):
         super().__init__()
         self.pitch_predictor = VariancePredictor(dim, pitch_predictor)
-        self.energy_predictor = VariancePredictor(dim, energy_predictor)
+        self.energy_predictor = VariancePredictor(dim, energy_predictor) if energy_predictor is not None else None
 
         n_bins, steps = n_bins, n_bins - 1
         self.pitch_bins = nn.Parameter(torch.linspace(pitch_min, pitch_max, steps), requires_grad=False)
         self.embed_pitch = nn.Embedding(n_bins, dim)
         nn.init.normal_(self.embed_pitch.weight, mean=0, std=dim**-0.5)
-        self.energy_bins =  nn.Parameter(torch.linspace(energy_min, energy_max, steps), requires_grad=False)
-        self.embed_energy = nn.Embedding(n_bins, dim) 
-        nn.init.normal_(self.embed_energy.weight, mean=0, std=dim**-0.5)
+
+        if self.energy_predictor is not None:
+            self.energy_bins =  nn.Parameter(torch.linspace(energy_min, energy_max, steps), requires_grad=False)
+            self.embed_energy = nn.Embedding(n_bins, dim) 
+            nn.init.normal_(self.embed_energy.weight, mean=0, std=dim**-0.5)
 
     def get_pitch_emb(self, x, x_mask, tgt=None, factor=1.0):
         out = self.pitch_predictor(x, x_mask)
@@ -72,22 +74,22 @@ class VarianceAdaptor(nn.Module):
         x,
         x_mask,
         pitches,
-        energies,
+        energies=None,
     ):
-        # x: B x T x C
+        """x: B x T x C"""
+        losses = {}
+
         log_pitch_out, pitch_emb = self.get_pitch_emb(x, x_mask, pitches)
         x = x + pitch_emb
-        log_energy_out, energy_emb = self.get_energy_emb(x, x_mask, energies)
-        x = x + energy_emb
-        
         pitch_loss = F.mse_loss(log_pitch_out, pitches)
-        energy_loss = F.mse_loss(log_energy_out, energies)
-        
-        losses = {
-            'pitch_loss': pitch_loss,
-            'energy_loss': energy_loss,
-        }
-        
+        losses["pitch_loss"] = pitch_loss
+
+        if self.energy_predictor:
+            log_energy_out, energy_emb = self.get_energy_emb(x, x_mask, energies)
+            x = x + energy_emb
+            energy_loss = F.mse_loss(log_energy_out, energies)
+            losses["energy_loss"] = energy_loss
+
         return x, losses 
 
     
@@ -99,14 +101,16 @@ class VarianceAdaptor(nn.Module):
         p_factor=1.0,
         e_factor=1.0,
     ):
-        # x: B x T x C
+        """x: B x T x C"""
+        outputs = {}
+
         log_pitch_out, pitch_emb = self.get_pitch_emb(x, x_mask, factor=p_factor)
         x = x + pitch_emb
+        outputs["log_pitch_pred"] = log_pitch_out
 
-        log_energy_out, energy_emb = self.get_energy_emb(x, x_mask, factor=e_factor)
-        x = x + energy_emb
+        if self.energy_predictor is not None:
+            log_energy_out, energy_emb = self.get_energy_emb(x, x_mask, factor=e_factor)
+            x = x + energy_emb
+            outputs["log_energy_pred"] = log_energy_out
         
-        return x, {
-            'log_pitch_pred': log_pitch_out,
-            'log_energy_pred': log_energy_out,
-        }
+        return x, outputs

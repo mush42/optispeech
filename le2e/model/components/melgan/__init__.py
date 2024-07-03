@@ -1,1 +1,0 @@
-from .multiband_melgan_generator import MultibandMelganGenerator

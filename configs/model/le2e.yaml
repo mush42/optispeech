@@ -1,7 +1,10 @@
 defaults:
   - _self_
-  - generator: default.yaml
-  - optimizer: adam.yaml
+  - encoder: default.yaml
+  - duration_predictor: default.yaml
+  - decoder: default.yaml
+  - optimizer: adamw.yaml
+  - scheduler: exponential_decay.yaml
 
 _target_: le2e.model.LE2E
 dim: 256

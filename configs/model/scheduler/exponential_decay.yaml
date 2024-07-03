@@ -1,0 +1,3 @@
+_target_: torch.optim.lr_scheduler.ExponentialLR
+_partial_: true
+gamma: 0.99

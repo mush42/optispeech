@@ -22,26 +22,22 @@ class BaseLightningModule(LightningModule, ABC):
 
     def configure_optimizers(self) -> Any:
         optimizer = self.hparams.optimizer(params=self.parameters())
+        scheduler_cls = self.hparams.scheduler.func
         if self.hparams.scheduler not in (None, {}):
             scheduler_args = {}
             # Manage last epoch for exponential schedulers
             current_epoch = -1
-            if "last_epoch" in inspect.signature(self.hparams.scheduler.scheduler).parameters:
+            if "last_epoch" in inspect.signature(scheduler_cls).parameters:
                 if hasattr(self, "ckpt_loaded_epoch"):
                     current_epoch = self.ckpt_loaded_epoch - 1
+                    scheduler_args["last_epoch"] = current_epoch
     
             scheduler_args.update({"optimizer": optimizer})
-            scheduler = self.hparams.scheduler.scheduler(**scheduler_args)
+            scheduler = self.hparams.scheduler(**scheduler_args)
             scheduler.last_epoch = current_epoch
             return {
                 "optimizer": optimizer,
-                "lr_scheduler": {
-                    "scheduler": scheduler,
-                    "monitor": "loss/val_epoch",
-                    # "interval": self.hparams.scheduler.lightning_args.interval,
-                    # "frequency": self.hparams.scheduler.lightning_args.frequency,
-                    # "name": "learning_rate",
-                },
+                "lr_scheduler": scheduler,
             }
 
         return {"optimizer": optimizer}
@@ -56,8 +52,8 @@ class BaseLightningModule(LightningModule, ABC):
             y=y,
             y_lengths=y_lengths,
             durations=batch["durations"],
-            pitches=batch["pitches"],
             energies=batch["energies"],
+            pitches=batch["pitches"],
         )
         return outputs
 
@@ -94,6 +90,23 @@ class BaseLightningModule(LightningModule, ABC):
             sync_dist=True,
         )
         self.log(
+            "sub_loss/train_pitch_loss",
+            loss_dict["pitch_loss"],
+            on_step=True,
+            on_epoch=True,
+            logger=True,
+            sync_dist=True,
+        )
+        if  loss_dict.get("energy_loss") is not None:
+            self.log(
+                "sub_loss/train_energy_loss",
+                loss_dict["energy_loss"],
+                on_step=True,
+                on_epoch=True,
+                logger=True,
+                sync_dist=True,
+            )
+        self.log(
             "loss/train",
             total_loss,
             on_step=True,
@@ -124,6 +137,23 @@ class BaseLightningModule(LightningModule, ABC):
             logger=True,
             sync_dist=True,
         )
+        self.log(
+            "sub_loss/val_pitch_loss",
+            loss_dict["pitch_loss"],
+            on_step=True,
+            on_epoch=True,
+            logger=True,
+            sync_dist=True,
+        )
+        if  loss_dict.get("energy_loss") is not None:
+            self.log(
+                "sub_loss/val_energy_loss",
+                loss_dict["energy_loss"],
+                on_step=True,
+                on_epoch=True,
+                logger=True,
+                sync_dist=True,
+            )
         self.log(
             "loss/val",
             total_loss,
