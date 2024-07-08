@@ -2,8 +2,6 @@
 
 import torch
 from time import perf_counter
-# from le2e.model.components.melgan import MultibandMelganGenerator
-
 
 import sys
 import time
@@ -13,7 +11,7 @@ from lightning.pytorch.utilities.model_summary import summarize
 import hydra
 from hydra import compose, initialize
 from omegaconf import OmegaConf
-from le2e.text import process_and_phonemize_text
+from optispeech.text import process_and_phonemize_text
 
 
 # Text processing pipeline
@@ -24,11 +22,15 @@ print(f"Length of phoneme ids: {len(phids)}")
 # Config pipeline
 with initialize(version_base=None, config_path="./configs"):
     dataset_cfg = compose(config_name="data/hfc_female-en_us.yaml")
-    cfg = compose(config_name="model/le2e.yaml")
-    cfg.model.data_statistics = dataset_cfg.data.data_statistics
+    cfg = compose(config_name="model/optispeech.yaml")
+    cfg.model.n_feats = dataset_cfg.data.n_feats
+    cfg.model.n_fft = dataset_cfg.data.n_fft
+    cfg.model.hop_length = dataset_cfg.data.hop_length
+    cfg.model.sample_rate = dataset_cfg.data.sample_rate
     cfg.model.language = dataset_cfg.data.language
     cfg.model.tokenizer = dataset_cfg.data.tokenizer
     cfg.model.add_blank = dataset_cfg.data.add_blank
+    cfg.model.data_statistics = dataset_cfg.data.data_statistics
 
 # Dataset pipeline
 dataset_cfg.data.batch_size = 4
@@ -67,5 +69,7 @@ x = batch["x"]
 x_lengths = batch["x_lengths"]
 
 synth_outs = model.synthesize(x, x_lengths)
-rtf = synth_outs["rtf"]
-print(f"RTF: {rtf}")
+print(f"AM RTF: {synth_outs['am_rtf']}")
+print(f"Voc RTF: {synth_outs['voc_rtf']}")
+print(f"RTF: {synth_outs['rtf']}")
+print(f"Latency: {synth_outs['latency']}")

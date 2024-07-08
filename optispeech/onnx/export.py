@@ -6,8 +6,8 @@ import numpy as np
 import torch
 from lightning import seed_everything
 
-from le2e.model import LE2E
-from le2e.utils import get_script_logger
+from optispeech.model import LE2E
+from optispeech.utils import get_script_logger
 
 
 log = get_script_logger(__name__)

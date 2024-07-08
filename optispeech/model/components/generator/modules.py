@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from le2e.utils.model import build_activation, pad_list
+from optispeech.utils.model import build_activation, pad_list
 from .layers import ConvSeparable, EncSepConvLayer, ScaledSinusoidalEmbedding
 
 
@@ -35,24 +35,24 @@ class LayerNorm(torch.nn.LayerNorm):
         return super(LayerNorm, self).forward(x.transpose(1, -1)).transpose(1, -1)
 
 
-class TransformerEncoder(nn.Module):
+class TextEncoder(nn.Module):
     def __init__(self,
-        n_vocab=250,
-        hidden_size=256,
-        kernel_sizes=[5, 25, 13, 9],
+        n_vocab,
+        dim,
+        kernel_sizes,
         activation='relu',
-        dropout=0.2,
+        dropout=0.0,
         padding_idx=0,
         max_source_positions=DEFAULT_MAX_SOURCE_POSITIONS,
     ):
         super().__init__()
-        self.embed_scale = math.sqrt(hidden_size)
-        self.embed_tokens = nn.Embedding(n_vocab, hidden_size, padding_idx)
-        self.embed_positions = ScaledSinusoidalEmbedding(hidden_size, theta=max_source_positions)
+        self.embed_scale = math.sqrt(dim)
+        self.embed_tokens = nn.Embedding(n_vocab, dim, padding_idx)
+        self.embed_positions = ScaledSinusoidalEmbedding(dim, theta=max_source_positions)
         self.emb_dropout = nn.Dropout(dropout)
-        self.layer_norm = LayerNorm(hidden_size)
+        self.layer_norm = LayerNorm(dim)
         self.layers = nn.ModuleList([
-            EncSepConvLayer(hidden_size, kernel_size, dropout, activation)
+            EncSepConvLayer(dim, kernel_size, dropout, activation)
             for kernel_size in kernel_sizes
         ])
 
@@ -93,7 +93,7 @@ class TransformerEncoder(nn.Module):
         }
 
 
-class TransformerDecoder(nn.Module):
+class AcousticDecoder(nn.Module):
     def __init__(
         self,
         hidden_size=256,
@@ -156,14 +156,14 @@ class DurationPredictor(torch.nn.Module):
 
     def __init__(
         self,
-        dim=256,
-        n_layers=2,
-        intermediate_dim=384,
-        kernel_size=3,
-        dropout=0.1,
+        dim,
+        n_layers,
+        intermediate_dim,
+        kernel_size,
+        activation='relu',
+        dropout=0.0,
         clip_val=1e-8,
         padding='SAME',
-        activation='relu'
     ):
         """
         Args:
@@ -226,11 +226,11 @@ class DurationPredictor(torch.nn.Module):
 class PitchPredictor(nn.Module):
     def __init__(
         self,
-        dim=256,
-        n_layers=5,
-        intermediate_dim=384,
-        kernel_size=5,
-        dropout=0.1,
+        dim,
+        n_layers,
+        intermediate_dim,
+        kernel_size,
+        dropout=0.0,
         activation='relu',
         padding='SAME',
         max_source_positions=DEFAULT_MAX_SOURCE_POSITIONS,

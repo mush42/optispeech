@@ -1,0 +1,16 @@
+duration_predictor:
+  n_layers: 2
+  intermediate_dim: 384
+  kernel_size: 3
+  activation: relu
+  dropout: 0.1
+
+pitch_predictor:
+  n_layers: 5
+  intermediate_dim: 384
+  kernel_size: 5
+  activation: relu
+  dropout: 0.1
+  max_source_positions: 2000
+
+energy_predictor: null

@@ -10,8 +10,8 @@ import rootutils
 from hydra import compose, initialize
 from tqdm import tqdm
 
-from le2e.dataset import TextMelDataset
-from le2e.utils import get_script_logger
+from optispeech.dataset import TextMelDataset
+from optispeech.utils import get_script_logger
 
 
 log = get_script_logger(__name__)

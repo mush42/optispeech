@@ -1,0 +1,7 @@
+defaults:
+  - _self_
+  - encoder: default.yaml
+  - variance_adaptor: default.yaml
+  - decoder: default.yaml
+  - wavenext: default.yaml
+

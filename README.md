@@ -11,7 +11,7 @@
 
 <div align="center">
 
-# LE2E: Lightweight End-to-End text-to-speech model
+# OptiSpeech: Lightweight End-to-End text-to-speech model
 
 </div>
 
@@ -35,8 +35,8 @@ source .venv/bin/activate
 2. Install from source
 
 ```bash
-git clone https://github.com/mush42/le2e-tts.git
-cd le2e-tts
+git clone https://github.com/mush42/optispeech.git
+cd optispeech
 pip install -e .
 ```
 
@@ -44,7 +44,7 @@ pip install -e .
 
 ```bash
 # This will download the required models
-le2e --text "<INPUT TEXT>"
+optispeech --text "<INPUT TEXT>"
 ```
 
 or open `synthesis.ipynb` on jupyter notebook
@@ -70,11 +70,11 @@ data/
     └── wavs/
 ```
 
-3. Clone and enter the `le2e-tts` repository
+3. Clone and enter the `optispeech` repository
 
 ```bash
-git clone https://github.com/mush42/le2e-tts.git
-cd le2e-tts 
+git clone https://github.com/mush42/optispeech.git
+cd optispeech 
 ```
 
 4. Install the package from source
@@ -93,7 +93,7 @@ valid_filelist_path: data/LJSpeech-1.1/val.txt
 5. Generate normalisation statistics with the yaml file of dataset configuration
 
 ```bash
-python le2e/utils/preprocess.py -i ljspeech
+python optispeech/utils/preprocess.py -i ljspeech
 # Output:
 #{'pitch_min': 67.836174, 'pitch_max': 578.637146, 'pitch_mean': 207.001846, 'pitch_std': 52.747742, 'energy_min': 0.084354, 'energy_max': 190.849121, 'energy_mean': 21.330254, 'energy_std': 17.663319, 'mel_mean': -5.554245, 'mel_std': 2.059021}
 ```
@@ -119,19 +119,19 @@ to the paths of your train and validation filelists.
 6. Run the training script
 
 ```bash
-python le2e/train.py experiment=ljspeech
+python optispeech/train.py experiment=ljspeech
 ```
 
 - for multi-gpu training, run
 
 ```bash
-python le2e/train.py experiment=ljspeech trainer.devices=[0,1]
+python optispeech/train.py experiment=ljspeech trainer.devices=[0,1]
 ```
 
 7. Synthesise from the custom trained model
 
 ```bash
-le2e --text "<INPUT TEXT>" --checkpoint_path <PATH TO CHECKPOINT>
+optispeech --text "<INPUT TEXT>" --checkpoint_path <PATH TO CHECKPOINT>
 ```
 
 

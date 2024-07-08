@@ -8,11 +8,11 @@ with open("README.md", encoding="utf-8") as readme_file:
     README = readme_file.read()
 
 cwd = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(cwd, "le2e", "VERSION")) as fin:
+with open(os.path.join(cwd, "optispeech", "VERSION")) as fin:
     version = fin.read().strip()
 
 setup(
-    name="le2e",
+    name="optispeech",
     version=version,
     description="Lightweight end-to-end text-to-speech model.",
     long_description=README,
@@ -27,7 +27,7 @@ setup(
     # use this to customize global commands available in the terminal after installing the package
     entry_points={
         "console_scripts": [
-            "le2e=le2e.cli:cli",
+            "optispeech=optispeech.infer:main",
         ]
     },
     python_requires=">=3.9.0",

@@ -1,6 +1,0 @@
-n_vocab: 250
-kernel_sizes:
-  - 5
-  - 25
-  - 13
-  - 9

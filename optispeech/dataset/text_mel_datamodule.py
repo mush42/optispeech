@@ -15,9 +15,9 @@ from lightning import LightningDataModule
 from scipy.interpolate import interp1d
 from torch.utils.data.dataloader import DataLoader
 
-from le2e.text import process_and_phonemize_text
-from le2e.utils import fix_len_compatibility, normalize, trim_or_pad_to_target_length
-from le2e.utils.audio import mel_spectrogram
+from optispeech.text import process_and_phonemize_text
+from optispeech.utils import fix_len_compatibility, normalize, trim_or_pad_to_target_length
+from optispeech.utils.audio import mel_spectrogram
 
 
 def parse_filelist(filelist_path):

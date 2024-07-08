@@ -7,8 +7,8 @@ import numpy as np
 import onnxruntime
 import soundfile as sf
 
-from le2e.text import process_and_phonemize_text
-from le2e.utils import get_script_logger, plot_spectrogram_to_numpy, numpy_pad_sequences, numpy_unpad_sequences
+from optispeech.text import process_and_phonemize_text
+from optispeech.utils import get_script_logger, plot_spectrogram_to_numpy, numpy_pad_sequences, numpy_unpad_sequences
 
 
 log = get_script_logger(__name__)

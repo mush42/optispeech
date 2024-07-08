@@ -33,10 +33,10 @@ test-full: ## Run all tests
 	pytest
 
 train-ljspeech: ## Train the model
-	python le2e/train.py experiment=ljspeech
+	python optispeech/train.py experiment=ljspeech
 
 train-ljspeech-min: ## Train the model with minimum memory
-	python le2e/train.py experiment=ljspeech_min_memory
+	python optispeech/train.py experiment=ljspeech_min_memory
 
 start_app: ## Start the app
-	python le2e/app.py
+	python optispeech/app.py

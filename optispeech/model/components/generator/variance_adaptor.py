@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from le2e.utils.model import expand_lengths
+from optispeech.utils.model import expand_lengths
 
 
 class VarianceAdaptor(nn.Module):

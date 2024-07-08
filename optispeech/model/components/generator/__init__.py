@@ -1,60 +1,96 @@
-import functools
 from time import perf_counter
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .base_lightning_module import BaseLightningModule
-from le2e.text import process_and_phonemize_text
-from le2e.utils import denormalize, sequence_mask
+from optispeech.utils import denormalize, sequence_mask
 
-from .components.loss import FastSpeech2Loss
-from .components.modules import TransformerEncoder, TransformerDecoder, DurationPredictor, PitchPredictor, EnergyPredictor
-from .components.variance_adaptor import VarianceAdaptor
+from .loss import FastSpeech2Loss
+from .modules import TextEncoder, AcousticDecoder, DurationPredictor, PitchPredictor, EnergyPredictor
+from .variance_adaptor import VarianceAdaptor
+from .wavenext import WaveNeXt
 
 
-class LE2E(BaseLightningModule):
+class OptiSpeechGenerator(nn.Module):
     def __init__(
         self,
-        dim,
-        n_feats,
+        dim: int,
+        n_feats: int,
+        n_fft: int,
+        hop_length: int,
+        sample_rate: int,
         encoder,
-        duration_predictor,
+        variance_adaptor,
         decoder,
-        language,
-        tokenizer,
-        add_blank,
+        wavenext,
         data_statistics,
-        optimizer=None,
-        scheduler=None,
     ):
         super().__init__()
-        self.save_hyperparameters(logger=False)
 
+        self.sample_rate = sample_rate
         self.data_statistics = data_statistics
-        self.encoder = TransformerEncoder()
+
+        self.encoder = TextEncoder(
+            n_vocab=encoder["n_vocab"],
+            dim=dim,
+            kernel_sizes=encoder["kernel_sizes"],
+            activation=encoder["activation"],
+            dropout=encoder["dropout"],
+            padding_idx=encoder["padding_idx"],
+            max_source_positions=encoder["max_source_positions"]
+        )
+        dp = DurationPredictor(
+            dim=dim,
+            n_layers=variance_adaptor["duration_predictor"]["n_layers"],
+            intermediate_dim=variance_adaptor["duration_predictor"]["intermediate_dim"],
+            kernel_size=variance_adaptor["duration_predictor"]["kernel_size"],
+            activation=variance_adaptor["duration_predictor"]["activation"],
+            dropout=variance_adaptor["duration_predictor"]["dropout"],
+        )
+        pp = PitchPredictor(
+            dim=dim,
+            n_layers=variance_adaptor["pitch_predictor"]["n_layers"],
+            intermediate_dim=variance_adaptor["pitch_predictor"]["intermediate_dim"],
+            kernel_size=variance_adaptor["pitch_predictor"]["kernel_size"],
+            activation=variance_adaptor["pitch_predictor"]["activation"],
+            dropout=variance_adaptor["pitch_predictor"]["dropout"],
+            max_source_positions=variance_adaptor["pitch_predictor"]["max_source_positions"],
+        )
+        if variance_adaptor["energy_predictor"] is not None:
+            ep = EnergyPredictor(
+                dim=dim,
+                n_layers=variance_adaptor["energy_predictor"]["n_layers"],
+                intermediate_dim=variance_adaptor["energy_predictor"]["intermediate_dim"],
+                kernel_size=variance_adaptor["energy_predictor"]["kernel_size"],
+                activation=variance_adaptor["energy_predictor"]["activation"],
+                dropout=variance_adaptor["energy_predictor"]["dropout"],
+                max_source_positions=variance_adaptor["energy_predictor"]["max_source_positions"],
+            )
+        else:
+            ep = None
         self.variance_adaptor = VarianceAdaptor(
             dim=dim,
-            duration_predictor=DurationPredictor(),
-            pitch_predictor=PitchPredictor(),
+            duration_predictor=dp,
+            pitch_predictor=pp,
             pitch_min=data_statistics["pitch_min"],
             pitch_max=data_statistics["pitch_max"],
-            # energy_predictor=EnergyPredictor(),
-            # energy_min=data_statistics["energy_min"],
-            # energy_max=data_statistics["energy_max"],
+            energy_predictor=ep,
+            energy_min=data_statistics["energy_min"],
+            energy_max=data_statistics["energy_max"],
         )
-        self.decoder = TransformerDecoder()
-        self.mel_linear = nn.Linear(dim, n_feats)
+        self.decoder = AcousticDecoder()
+        self.vocoder = WaveNeXt(
+            input_channels=dim,
+            dim=wavenext["dim"],
+            intermediate_dim=wavenext["intermediate_dim"],
+            num_layers=wavenext["num_layers"],
+            n_fft=n_fft,
+            hop_length=hop_length,
+            drop_path=wavenext["drop_path_p"]
+        )
         self.loss_criteria = FastSpeech2Loss()
-        # Convenient helper
-        self.text_processor = functools.partial(
-            process_and_phonemize_text,
-            lang=language,
-            tokenizer=tokenizer,
-            add_blank=add_blank,
-            split_sentences=False
-        )
+
 
     def forward(self, x, x_lengths, y, y_lengths, durations, pitches, energies):
         """
@@ -83,24 +119,16 @@ class LE2E(BaseLightningModule):
             pitch_loss: (torch.Tensor): scaler representing pitch loss
             energy_loss: (torch.Tensor): scaler representing energy loss
         """
-        x = x.to(self.device)
-        x_lengths = x_lengths.long().to("cpu")
         x_max_length = x_lengths.max()
         x_mask = torch.unsqueeze(sequence_mask(x_lengths, x_max_length), 1).to(x.dtype)
-        x_mask = x_mask.to(self.device)
+        x_mask = x_mask.to(x.device)
 
-        y = y.to(self.device)
-        y_lengths = y_lengths.long().to("cpu")
         y_max_length = y_lengths.max()
         y_mask = sequence_mask(y_lengths, y_max_length).unsqueeze(1).to(x_mask.dtype)
-        y_mask = y_mask.to(self.device)
-
-        durations = durations.to(self.device)
-        pitches = pitches.to(self.device)
-        energies = energies.to(self.device) if energies is not None else energies
+        y_mask = y_mask.to(x.device)
 
         padding_mask = ~x_mask.squeeze(1).bool()
-        padding_mask = padding_mask.to(self.device)
+        padding_mask = padding_mask.to(x.device)
 
         # Encoder
         enc_out = self.encoder(x, padding_mask)
@@ -115,13 +143,9 @@ class LE2E(BaseLightningModule):
         # Decoder
         z = self.decoder(z, target_padding_mask)
         z = z * y_mask.transpose(1, 2)
-
-        z = self.mel_linear(z)
-        mel = z.transpose(1, 2)
-
         mel_loss, duration_loss, pitch_loss, energy_loss = self.loss_criteria(
             after_outs=None,
-            before_outs=mel,
+            before_outs=y,
             d_outs=va_outputs["log_duration_hat"].unsqueeze(-1),
             p_outs=va_outputs["pitch_hat"].unsqueeze(-1),
             e_outs=None,
@@ -132,10 +156,13 @@ class LE2E(BaseLightningModule):
             ilens=x_lengths,
             olens=y_lengths,
         )
+
+        wav_hat = self.vocoder(z.transpose(1, 2))
+
         loss = (10. * mel_loss) + (2. * pitch_loss) + (2. * energy_loss) + duration_loss
 
         return {
-            "mel": mel,
+            "wav_hat": wav_hat,
             "loss": loss,
             "mel_loss": mel_loss,
             "duration_loss": duration_loss,
@@ -156,24 +183,20 @@ class LE2E(BaseLightningModule):
             energy_scale (torch.Tensor): scaler to control energy.
 
         Returns:
-            mel (torch.Tensor): predicted mel spectogram
-                shape: (batch_size, mel_feats, n_timesteps)
-            mel_lengths (torch.Tensor): lengths of generated mel spectograms
-                shape: (batch_size,)
+            wav (torch.Tensor): generated waveform
+                shape: (batch_size, T)
             durations: (torch.Tensor): predicted phoneme durations
                 shape: (batch_size, max_text_length)
             rtf: (float): Realtime Factor (inference_t/audio_t)
         """
         am_t0 = perf_counter()
 
-        x = x.to(self.device)
-        x_lengths = x_lengths.long().to("cpu")
         x_max_length = x_lengths.max()
         x_mask = torch.unsqueeze(sequence_mask(x_lengths, x_max_length), 1).to(x.dtype)
-        x_mask = x_mask.to(self.device)
+        x_mask = x_mask.to(x.device)
 
         padding_mask = ~x_mask.squeeze(1).bool()
-        padding_mask = padding_mask.to(self.device)
+        padding_mask = padding_mask.to(x.device)
 
         # Encoder
         enc_out = self.encoder(x, padding_mask)
@@ -190,22 +213,24 @@ class LE2E(BaseLightningModule):
         # Decoder
         y = self.decoder(y, target_padding_mask)
         y = y * y_mask.transpose(1, 2)
-
-        y = self.mel_linear(y)
-        y = y.transpose(1, 2)
-        y = y * y_mask
-
-        mel = denormalize(y, self.data_statistics["mel_mean"], self.data_statistics["mel_std"])
-
         am_infer = (perf_counter() - am_t0) * 1000
-        wav_t = mel.shape[-1] * 256
+
+        voc_t = perf_counter()
+        wav = self.vocoder(y.transpose(1, 2))
+        voc_infer = (perf_counter() - voc_t) * 1000
+
+        wav_t = wav.shape[-1] / (self.sample_rate * 1e-3)
         am_rtf = am_infer / wav_t
+        voc_rtf = voc_infer / wav_t
+        rtf = am_rtf + voc_rtf
+        latency = am_infer + voc_infer
 
         return {
-            "mel": mel,
-            "mel_lengths": y_lengths,
+            "wav": wav,
             "durations": durations,
-            "rtf": am_rtf,
-            "latency": am_infer
+            "rtf": rtf,
+            "am_rtf": am_rtf,
+            "voc_rtf": voc_rtf,
+            "latency": latency
         }
 

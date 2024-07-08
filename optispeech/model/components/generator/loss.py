@@ -8,7 +8,7 @@ from typing import Tuple
 import torch
 
 
-from le2e.utils import sequence_mask
+from optispeech.utils import sequence_mask
 
 
 def make_non_pad_mask(lengths):

@@ -6,7 +6,7 @@ from torch import nn
 from torch.nn import Parameter
 from torch import einsum
 
-from le2e.utils.model import build_activation, get_incremental_state, set_incremental_state, softmax, make_positions, pad_list
+from optispeech.utils.model import build_activation, get_incremental_state, set_incremental_state, softmax, make_positions, pad_list
 
 
 def Linear(in_features, out_features, bias=True):

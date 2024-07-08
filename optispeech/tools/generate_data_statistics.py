@@ -13,9 +13,9 @@ from omegaconf import DictConfig, open_dict
 from torch import nn
 from tqdm.auto import tqdm
 
-from le2e.dataset.text_mel_datamodule import TextMelDataModule
-from le2e.utils import pylogger
-from le2e.utils.generic import to_numpy
+from optispeech.dataset.text_mel_datamodule import TextMelDataModule
+from optispeech.utils import pylogger
+from optispeech.utils.generic import to_numpy
 
 
 log = pylogger.get_pylogger(__name__)
