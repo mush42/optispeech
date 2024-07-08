@@ -1,167 +1,115 @@
 import argparse
-import os
-import warnings
+import functools
 from pathlib import Path
 from time import perf_counter
 
 import numpy as np
-import onnxruntime as ort
+import onnxruntime
 import soundfile as sf
-import torch
 
-from fs2.cli import plot_spectrogram_to_numpy, process_text
-
-
-def validate_args(args):
-    assert (
-        args.text or args.file
-    ), "Either text or file must be provided Matcha-T(ea)TTS need sometext to whisk the waveforms."
-    assert args.temperature >= 0, "Sampling temperature cannot be negative"
-    assert args.speaking_rate >= 0, "Speaking rate must be greater than 0"
-    return args
+from le2e.text import process_and_phonemize_text
+from le2e.utils import get_script_logger, plot_spectrogram_to_numpy, numpy_pad_sequences, numpy_unpad_sequences
 
 
-def write_wavs(model, inputs, output_dir, external_vocoder=None):
-    if external_vocoder is None:
-        print("The provided model has the vocoder embedded in the graph.\nGenerating waveform directly")
-        t0 = perf_counter()
-        wavs, wav_lengths = model.run(None, inputs)
-        infer_secs = perf_counter() - t0
-        mel_infer_secs = vocoder_infer_secs = None
-    else:
-        print("[🍵] Generating mel using Matcha")
-        mel_t0 = perf_counter()
-        mels, mel_lengths = model.run(None, inputs)
-        mel_infer_secs = perf_counter() - mel_t0
-        print("Generating waveform from mel using external vocoder")
-        vocoder_inputs = {external_vocoder.get_inputs()[0].name: mels}
-        vocoder_t0 = perf_counter()
-        wavs = external_vocoder.run(None, vocoder_inputs)[0]
-        vocoder_infer_secs = perf_counter() - vocoder_t0
-        wavs = wavs.squeeze(1)
-        wav_lengths = mel_lengths * 256
-        infer_secs = mel_infer_secs + vocoder_infer_secs
-
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for i, (wav, wav_length) in enumerate(zip(wavs, wav_lengths)):
-        output_filename = output_dir.joinpath(f"output_{i + 1}.wav")
-        audio = wav[:wav_length]
-        print(f"Writing audio to {output_filename}")
-        sf.write(output_filename, audio, 22050, "PCM_24")
-
-    wav_secs = wav_lengths.sum() / 22050
-    print(f"Inference seconds: {infer_secs}")
-    print(f"Generated wav seconds: {wav_secs}")
-    rtf = infer_secs / wav_secs
-    if mel_infer_secs is not None:
-        mel_rtf = mel_infer_secs / wav_secs
-        print(f"Matcha RTF: {mel_rtf}")
-    if vocoder_infer_secs is not None:
-        vocoder_rtf = vocoder_infer_secs / wav_secs
-        print(f"Vocoder RTF: {vocoder_rtf}")
-    print(f"Overall RTF: {rtf}")
+log = get_script_logger(__name__)
+ONNX_CUDA_PROVIDERS = [
+    ("CUDAExecutionProvider", {"cudnn_conv_algo_search": "DEFAULT"}),
+    "CPUExecutionProvider"
+]
+ONNX_CPU_PROVIDERS = ["CPUExecutionProvider",]
 
 
-def write_mels(model, inputs, output_dir):
+def vocode_and_write_wav(mel, vocoder_model, sample_rate, out_wav):
+    if vocoder_model is None:
+        return
+    v_input_feed = vocoder_model.get_inputs()[0].name
     t0 = perf_counter()
-    mels, mel_lengths = model.run(None, inputs)
-    infer_secs = perf_counter() - t0
-
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for i, mel in enumerate(mels):
-        output_stem = output_dir.joinpath(f"output_{i + 1}")
-        plot_spectrogram_to_numpy(mel.squeeze(), output_stem.with_suffix(".png"))
-        np.save(output_stem.with_suffix(".numpy"), mel)
-
-    wav_secs = (mel_lengths * 256).sum() / 22050
-    print(f"Inference seconds: {infer_secs}")
-    print(f"Generated wav seconds: {wav_secs}")
-    rtf = infer_secs / wav_secs
-    print(f"RTF: {rtf}")
+    aud = vocoder_model.run(None, {v_input_feed: mel})[0]
+    t_infer = perf_counter() - t0
+    t_aud = aud.shape[-1] / sample_rate
+    voc_rtf = t_infer / t_aud
+    log.info(f"Vocoder RTF: {voc_rtf}")
+    aud = aud.squeeze()
+    sf.write(out_wav, aud, sample_rate)
+    log.info(f"Wrote wav to: `{out_wav}`")
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description=" 🍵 Matcha-TTS: A fast TTS architecture with conditional flow matching"
-    )
+    parser = argparse.ArgumentParser(description=" ONNX inference of LE2E")
+
     parser.add_argument(
-        "model",
+        "onnx_path",
         type=str,
-        help="ONNX model to use",
+        help="Path to the exported LE2E ONNX model",
     )
-    parser.add_argument("--vocoder", type=str, default=None, help="Vocoder to use (defaults to None)")
-    parser.add_argument("--text", type=str, default=None, help="Text to synthesize")
-    parser.add_argument("--file", type=str, default=None, help="Text file to synthesize")
-    parser.add_argument("--spk", type=int, default=None, help="Speaker ID")
+    parser.add_argument("text", type=str, help="Text to synthesize")
     parser.add_argument(
-        "--temperature",
-        type=float,
-        default=0.667,
-        help="Variance of the x0 noise (default: 0.667)",
-    )
-    parser.add_argument(
-        "--speaking-rate",
-        type=float,
-        default=1.0,
-        help="change the speaking rate, a higher value means slower speaking rate (default: 1.0)",
-    )
-    parser.add_argument("--gpu", action="store_true", help="Use CPU for inference (default: use GPU if available)")
-    parser.add_argument(
-        "--output-dir",
+        "output_dir",
         type=str,
-        default=os.getcwd(),
-        help="Output folder to save results (default: current dir)",
+        help="Directory to write generated mel and/or audio to.",
     )
+    parser.add_argument("-l", "--lang", type=str, default='en-us', help="Language to use for tokenization.")
+    parser.add_argument("--d-factor", type=float, default=1.0, help="Length scale to control speech rate.")
+    parser.add_argument("--p-factor", type=float, default=1.0, help="Pitch scale to control speech pitch.")
+    # parser.add_argument("--e-factor", type=float, default=1.0, help="Energy scale to control energy.")
+    parser.add_argument("-t", "--tokenizer", type=str, choices=["default", "piper"], default="default", help="Text tokenizer")
+    parser.add_argument("--sr", type=int, default=22050, help="Mel spectogram sampleing rate")
+    parser.add_argument("--hop", type=int, default=256, help="Mel spectogram hop-length")
+    parser.add_argument("-voc", "--vocoder", type=str, default=None, help="Path to vocoder ONNX model")
+    parser.add_argument("--cuda", action="store_true", help="Use GPU for inference")
 
     args = parser.parse_args()
-    args = validate_args(args)
 
-    if args.gpu:
-        providers = ["GPUExecutionProvider"]
+    onnx_providers = ONNX_CUDA_PROVIDERS if args.cuda else ONNX_CPU_PROVIDERS
+    acoustic_model = onnxruntime.InferenceSession(args.onnx_path, providers=onnx_providers)
+
+    if args.vocoder is not None:
+        vocoder_model = onnxruntime.InferenceSession(args.vocoder, providers=onnx_providers)
     else:
-        providers = ["CPUExecutionProvider"]
-    model = ort.InferenceSession(args.model, providers=providers)
+        vocoder_model = None
 
-    model_inputs = model.get_inputs()
-    model_outputs = list(model.get_outputs())
+    if args.tokenizer not in ["default", "piper"]:
+        log.error(f"Unknown tokenizer: `{args.tokenizer}`")
+        exit(-1)
+    tokenizer = functools.partial(process_and_phonemize_text, tokenizer=args.tokenizer)
 
-    if args.text:
-        text_lines = args.text.splitlines()
-    else:
-        with open(args.file, encoding="utf-8") as file:
-            text_lines = file.read().splitlines()
+    prosody_factors = [
+        args.d_factor,
+        args.p_factor,
+        # args.e_factor,
+    ]
+    phids, norm_text = tokenizer(args.text, args.lang, split_sentences=True)
+    log.info(f"Normalized text: {norm_text}")
+    x = []
+    x_lengths = []
+    for phid in phids:
+        x.append(phid)
+        x_lengths.append(len(phid))
 
-    processed_lines = [process_text(0, line, "cpu") for line in text_lines]
-    x = [line["x"].squeeze() for line in processed_lines]
-    # Pad
-    x = torch.nn.utils.rnn.pad_sequence(x, batch_first=True)
-    x = x.detach().cpu().numpy()
-    x_lengths = np.array([line["x_lengths"].item() for line in processed_lines], dtype=np.int64)
-    inputs = {
-        "x": x,
-        "x_lengths": x_lengths,
-        "scales": np.array([args.temperature, args.speaking_rate], dtype=np.float32),
-    }
-    is_multi_speaker = len(model_inputs) == 4
-    if is_multi_speaker:
-        if args.spk is None:
-            args.spk = 0
-            warn = "[!] Speaker ID not provided! Using speaker ID 0"
-            warnings.warn(warn, UserWarning)
-        inputs["spks"] = np.repeat(args.spk, x.shape[0]).astype(np.int64)
+    x = numpy_pad_sequences(x).astype(np.int64)
+    x_lengths = np.array(x_lengths, dtype=np.int64)
+    scales = np.array(prosody_factors, dtype=np.float32)
 
-    has_vocoder_embedded = model_outputs[0].name == "wav"
-    if has_vocoder_embedded:
-        write_wavs(model, inputs, args.output_dir)
-    elif args.vocoder:
-        external_vocoder = ort.InferenceSession(args.vocoder, providers=providers)
-        write_wavs(model, inputs, args.output_dir, external_vocoder=external_vocoder)
-    else:
-        warn = "[!] A vocoder is not embedded in the graph nor an external vocoder is provided. The mel output will be written as numpy arrays to `*.npy` files in the output directory"
-        warnings.warn(warn, UserWarning)
-        write_mels(model, inputs, args.output_dir)
+    t0 = perf_counter()
+    mels, mel_lengths, w_ceil = acoustic_model.run(
+        None, {"x": x, "x_lengths": x_lengths, "scales": scales}
+    )
+    t_infer = perf_counter() - t0
+    t_audio = (mel_lengths.sum().item() * args.hop) / args.sr
+    ls_rtf = t_infer / t_audio
+    log.info(f"LE2E RTF: {ls_rtf}")
+
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for (i, mel) in enumerate(numpy_unpad_sequences(mels, mel_lengths)):
+        outfile = output_dir.joinpath(f"gen-{i + 1}")
+        out_mel = outfile.with_suffix(".mel.npy")
+        out_mel_plot = outfile.with_suffix(".png")
+        out_wav = outfile.with_suffix(".wav")
+        np.save(out_mel, mel, allow_pickle=False)
+        plot_spectrogram_to_numpy(mel, out_mel_plot)
+        log.info(f"Wrote mel to {out_mel}")
+        vocode_and_write_wav(np.expand_dims(mel, 0), vocoder_model, args.sr, out_wav)
 
 
 if __name__ == "__main__":

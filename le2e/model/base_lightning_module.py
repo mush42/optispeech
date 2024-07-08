@@ -31,7 +31,8 @@ class BaseLightningModule(LightningModule, ABC):
                 if hasattr(self, "ckpt_loaded_epoch"):
                     current_epoch = self.ckpt_loaded_epoch - 1
                     scheduler_args["last_epoch"] = current_epoch
-    
+            for group in optimizer.param_groups:
+                group.setdefault('initial_lr', group['lr'])
             scheduler_args.update({"optimizer": optimizer})
             scheduler = self.hparams.scheduler(**scheduler_args)
             scheduler.last_epoch = current_epoch
@@ -75,7 +76,7 @@ class BaseLightningModule(LightningModule, ABC):
 
         self.log(
             "sub_loss/train_dur_loss",
-            loss_dict["dur_loss"],
+            loss_dict["duration_loss"],
             on_step=True,
             on_epoch=True,
             logger=True,
@@ -123,7 +124,7 @@ class BaseLightningModule(LightningModule, ABC):
         total_loss =  loss_dict["loss"]
         self.log(
             "sub_loss/val_dur_loss",
-            loss_dict["dur_loss"],
+            loss_dict["duration_loss"],
             on_step=True,
             on_epoch=True,
             logger=True,
@@ -189,13 +190,6 @@ class BaseLightningModule(LightningModule, ABC):
                 self.logger.experiment.add_image(
                     f"generated_mel/{i}",
                     plot_tensor(mel.squeeze().cpu()),
-                    self.current_epoch,
-                    dataformats="HWC",
-                )
-                attn = output["attn"]
-                self.logger.experiment.add_image(
-                    f"alignment/{i}",
-                    plot_tensor(attn.squeeze().cpu()),
                     self.current_epoch,
                     dataformats="HWC",
                 )

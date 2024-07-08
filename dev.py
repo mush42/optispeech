@@ -26,6 +26,9 @@ with initialize(version_base=None, config_path="./configs"):
     dataset_cfg = compose(config_name="data/hfc_female-en_us.yaml")
     cfg = compose(config_name="model/le2e.yaml")
     cfg.model.data_statistics = dataset_cfg.data.data_statistics
+    cfg.model.language = dataset_cfg.data.language
+    cfg.model.tokenizer = dataset_cfg.data.tokenizer
+    cfg.model.add_blank = dataset_cfg.data.add_blank
 
 # Dataset pipeline
 dataset_cfg.data.batch_size = 4

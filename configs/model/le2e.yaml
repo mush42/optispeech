@@ -9,4 +9,7 @@ defaults:
 _target_: le2e.model.LE2E
 dim: 256
 n_feats: 80
+language: ${data.language}
+tokenizer: ${data.tokenizer}
+add_blank: ${data.add_blank}
 data_statistics: ${data.data_statistics}

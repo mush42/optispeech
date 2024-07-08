@@ -9,16 +9,6 @@ from torch import einsum
 from le2e.utils.model import build_activation, get_incremental_state, set_incremental_state, softmax, make_positions, pad_list
 
 
-def LayerNorm(normalized_shape, eps=1e-5, elementwise_affine=True, export=False):
-    if not export and torch.cuda.is_available():
-        try:
-            from apex.normalization import FusedLayerNorm
-            return FusedLayerNorm(normalized_shape, eps, elementwise_affine)
-        except ImportError:
-            pass
-    return torch.nn.LayerNorm(normalized_shape, eps, elementwise_affine)
-
-
 def Linear(in_features, out_features, bias=True):
     m = nn.Linear(in_features, out_features, bias)
     nn.init.xavier_uniform_(m.weight)
@@ -51,7 +41,6 @@ class ScaledSinusoidalEmbedding(nn.Module):
         emb = einsum("i, j -> i j", pos.float(), self.inv_freq)
         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
         return emb * self.scale
-
 
 
 class MultiheadAttention(nn.Module):
@@ -419,16 +408,13 @@ class EncSepConvLayer(nn.Module):
 
     def __init__(self, c, kernel_size, dropout, activation):
         super().__init__()
-        self.layer_norm = LayerNorm(c)
+        self.layer_norm = nn.LayerNorm(c, eps=1e-6, elementwise_affine=True)
         self.dropout = dropout
         self.activation_fn = build_activation(activation)
         self.conv1 = ConvSeparable(c, c, kernel_size, padding=kernel_size // 2, dropout=dropout)
         self.conv2 = ConvSeparable(c, c, kernel_size, padding=kernel_size // 2, dropout=dropout)
     
-    def forward(self, x, encoder_padding_mask=None, **kwargs):
-        layer_norm_training = kwargs.get('layer_norm_training', None)
-        if layer_norm_training is not None:
-            self.layer_norm.training = layer_norm_training
+    def forward(self, x, encoder_padding_mask=None):
         residual = x
         x = self.layer_norm(x)
         if encoder_padding_mask is not None:
@@ -450,9 +436,9 @@ class EncTransformerAttnLayer(nn.Module):
         super().__init__()
         self.dropout = dropout
         self.self_attn = MultiheadAttention(c, num_heads, self_attention=True, dropout=attention_dropout, bias=False)
-        self.self_attn_layer_norm = LayerNorm(c)
+        self.self_attn_layer_norm = nn.LayerNorm(c, eps=1e-6, elementwise_affine=True)
 
-    def forward(self, x, encoder_padding_mask=None, **kwargs):
+    def forward(self, x, encoder_padding_mask=None):
         """
         LayerNorm is applied either before or after the self-attention/ffn
         modules similar to the original Transformer imlementation.
@@ -481,7 +467,7 @@ class EncTransformerFFNLayer(nn.Module):
         self.kernel_size = kernel_size
         self.dropout = dropout
         self.activation_fn = build_activation(activation)
-        self.layer_norm = LayerNorm(hidden_size)
+        self.layer_norm = nn.LayerNorm(hidden_size, eps=1e-6, elementwise_affine=True)
         if padding == 'SAME':
             self.ffn_1 = nn.Conv1d(hidden_size, filter_size, kernel_size, padding=kernel_size // 2)
         elif padding == 'LEFT':
@@ -491,11 +477,7 @@ class EncTransformerFFNLayer(nn.Module):
             )
         self.ffn_2 = Linear(filter_size, hidden_size)
 
-    def forward(self, x, encoder_padding_mask=None, **kwargs):
-        layer_norm_training = kwargs.get('layer_norm_training', None)
-        if layer_norm_training is not None:
-            self.layer_norm.training = layer_norm_training
-
+    def forward(self, x, encoder_padding_mask=None):
         residual = x
         x = self.layer_norm(x)
         if encoder_padding_mask is not None:

@@ -3,28 +3,27 @@ from typing import List, Tuple, Union
 from piper_phonemize import phonemize_espeak
 
 from ..utils import intersperse
-from . import matcha_processor
+from . import default_processor
 from .textnorm import collapse_whitespace, preprocess_text
 
 
 def process_and_phonemize_text(
     text: str,
     lang: str,
-    tokenizer='matcha',
+    tokenizer='default',
     *,
     add_blank: bool=True,
     split_sentences: bool=False
 ) -> Tuple[Union[List[int], List[List[int]]], str]:
     tok = tokenizer.lower()
-    if tok in {'matcha', 'default'}:
-        return process_and_phonemize_text_matcha(text, lang, add_blank=add_blank, split_sentences=split_sentences)
+    if tok == 'default':
+        return process_and_phonemize_text_default(text, lang, add_blank=add_blank, split_sentences=split_sentences)
     elif tokenizer == 'piper':
         return process_and_phonemize_text_piper(text, lang, add_blank=add_blank, split_sentences=split_sentences)
     raise ValueError(f"Unknown tokenizer `{tokenizer}`")
 
 
-def process_and_phonemize_text_matcha(text: str, lang: str, *, add_blank: bool, split_sentences: bool) -> Tuple[Union[List[int], List[List[int]]], str]:
-    text = matcha_processor.english_cleaners2(text)
+def process_and_phonemize_text_default(text: str, lang: str, *, add_blank: bool, split_sentences: bool) -> Tuple[Union[List[int], List[List[int]]], str]:
     phonemes = phonemize_text(text, lang)
     if not split_sentences:
         phonemes = [
@@ -33,14 +32,14 @@ def process_and_phonemize_text_matcha(text: str, lang: str, *, add_blank: bool, 
             for phoneme in sentence_phonemes
         ]
         phonemes = list(collapse_whitespace("".join(phonemes)))
-        phoneme_ids = matcha_processor.text_to_sequence(phonemes)
+        phoneme_ids = default_processor.text_to_sequence(phonemes)
         if add_blank:
             phoneme_ids = intersperse(phoneme_ids, 0)
     else:
         phoneme_ids = []
         for sent_ph in phonemes:
             sent_phonemes = list(collapse_whitespace("".join(sent_ph)))
-            phids = matcha_processor.text_to_sequence(sent_phonemes)
+            phids = default_processor.text_to_sequence(sent_phonemes)
             if add_blank:
                 phids = intersperse(phids, 0)
             phoneme_ids.append(phids)

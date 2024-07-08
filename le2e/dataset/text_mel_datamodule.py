@@ -98,7 +98,7 @@ class TextMelDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=True,
-            collate_fn=TextMelBatchCollate(self.hparams.data_statistics, do_normalize=do_normalize),
+            collate_fn=TextMelBatchCollate(self.hparams.n_feats, self.hparams.data_statistics, do_normalize=do_normalize),
         )
 
     def val_dataloader(self):
@@ -108,7 +108,7 @@ class TextMelDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
-            collate_fn=TextMelBatchCollate(self.hparams.data_statistics),
+            collate_fn=TextMelBatchCollate(self.hparams.n_feats, self.hparams.data_statistics),
         )
 
     def teardown(self, stage: Optional[str] = None):
@@ -131,13 +131,13 @@ class TextMelDataset(torch.utils.data.Dataset):
         tokenizer,
         add_blank,
         filelist_path,
-        n_fft=1024,
-        n_mels=80,
-        sample_rate=22050,
-        hop_length=256,
-        win_length=1024,
-        f_min=0.0,
-        f_max=8000,
+        n_fft,
+        n_mels,
+        sample_rate,
+        hop_length,
+        win_length,
+        f_min,
+        f_max,
         seed=None,
     ):
         self.language = language
@@ -312,19 +312,19 @@ class TextMelDataset(torch.utils.data.Dataset):
 
 class TextMelBatchCollate:
 
-    def __init__(self, data_statistics: Dict[str, float], do_normalize: bool=True):
+    def __init__(self, n_feats:float, data_statistics: Dict[str, float], do_normalize: bool=True):
+        self.n_feats = n_feats
         self.data_statistics = data_statistics
         self.do_normalize = do_normalize
 
     def __call__(self, batch):
         B = len(batch)
 
-        n_feats = batch[0]["y"].shape[-2]
         x_max_length = max([item["x"].shape[-1] for item in batch])
         y_max_length = max([item["y"].shape[-1] for item in batch])
 
         x = torch.zeros((B, x_max_length), dtype=torch.long)
-        y = torch.zeros((B, n_feats, y_max_length), dtype=torch.float32)
+        y = torch.zeros((B, self.n_feats, y_max_length), dtype=torch.float32)
 
         durations = torch.zeros((B, x_max_length), dtype=torch.long)
         pitches = torch.zeros((B, x_max_length), dtype=torch.float)
@@ -336,8 +336,8 @@ class TextMelBatchCollate:
             x_, y_ = item["x"], item["y"]
             x_lengths.append(x_.shape[-1])
             y_lengths.append(y_.shape[-1])
-            x[i, : x_.shape[-1]] = x_
-            y[i, :, : y_.shape[-1]] = y_
+            x[i, :x_.shape[-1]] = x_
+            y[i, :, :y_.shape[-1]] = y_
             durations[i, :item["durations"].shape[-1]] = item["durations"]
             energies[i, : item["energy"].shape[-1]] = item["energy"].float()
             pitches[i, : item["pitch"].shape[-1]] = item["pitch"].float()

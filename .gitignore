@@ -164,3 +164,4 @@ synth_output/
 
 # local only files/dirs
 data/
+synthesize.py
