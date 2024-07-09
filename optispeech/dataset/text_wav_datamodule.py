@@ -223,7 +223,7 @@ class TextWavDataset(torch.utils.data.Dataset):
         filepath = Path(filepath)
         data_dir, name = filepath.parent.parent, filepath.stem
         try:
-            dur_loc = data_dir.joinpath("durations", name).with_suffix(".dur.npy")
+            dur_loc = data_dir.joinpath("durations", name).with_suffix(".npy")
             durs = torch.from_numpy(np.load(dur_loc).astype(int))
         except FileNotFoundError as e:
             raise FileNotFoundError(
@@ -235,8 +235,9 @@ class TextWavDataset(torch.utils.data.Dataset):
         return durs
 
     def get_mel(self, filepath):
-        audio, sr = ta.load(filepath)
-        assert sr == self.sample_rate
+        audio, __sr = librosa.load(filepath, sr=self.sample_rate)
+        audio = torch.from_numpy(audio).unsqueeze(0)
+        assert __sr == self.sample_rate
         mel, energy = mel_spectrogram(
             audio,
             self.n_fft,
@@ -251,8 +252,8 @@ class TextWavDataset(torch.utils.data.Dataset):
         return mel, energy 
 
     def get_pitch(self, filepath, phoneme_durations):
-        _waveform, _sr = ta.load(filepath)
-        _waveform = _waveform.squeeze(0).double().numpy() 
+        _waveform, _sr = librosa.load(filepath, sr=self.sample_rate)
+        _waveform = _waveform.astype(np.double)
         assert _sr == self.sample_rate, f"Sample rate mismatch => Found: {_sr} != {self.sample_rate} = Expected"
         
         pitch, t = pw.dio(

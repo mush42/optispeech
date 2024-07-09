@@ -53,7 +53,7 @@ def main():
     parser.add_argument("--p-factor", type=float, default=1.0, help="Pitch scale to control speech pitch.")
     # parser.add_argument("--e-factor", type=float, default=1.0, help="Energy scale to control energy.")
     parser.add_argument("-t", "--tokenizer", type=str, choices=["default", "piper"], default="default", help="Text tokenizer")
-    parser.add_argument("--sr", type=int, default=22050, help="Mel spectogram sampleing rate")
+    parser.add_argument("--sr", type=int, default=24000, help="Mel spectogram sampleing rate")
     parser.add_argument("--hop", type=int, default=256, help="Mel spectogram hop-length")
     parser.add_argument("-voc", "--vocoder", type=str, default=None, help="Path to vocoder ONNX model")
     parser.add_argument("--cuda", action="store_true", help="Use GPU for inference")
