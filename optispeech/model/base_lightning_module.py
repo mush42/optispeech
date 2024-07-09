@@ -26,7 +26,8 @@ class BaseLightningModule(LightningModule, ABC):
         return self(
             x=batch["x"],
             x_lengths=batch["x_lengths"],
-            durations=batch["durations"],
+            mel=batch["mel"],
+            mel_lengths=batch["mel_lengths"],
             pitches=batch["pitches"],
             energies=batch["energies"],
         )
@@ -161,6 +162,14 @@ class BaseLightningModule(LightningModule, ABC):
             sync_dist=True,
         )
         self.log(
+            "generator/train_align_loss",
+            g_outputs["align_loss"],
+            on_step=True,
+            on_epoch=True,
+            logger=True,
+            sync_dist=True,
+        )
+        self.log(
             "generator/train_duration_loss",
             g_outputs["duration_loss"],
             on_step=True,
@@ -211,7 +220,6 @@ class BaseLightningModule(LightningModule, ABC):
                 self.global_step,
                 dataformats="HWC",
             )
-            return g_loss
 
     def on_train_batch_start(self, *args):
         if self.global_step >= self.hparams.pretrain_mel_steps:
@@ -242,9 +250,8 @@ class BaseLightningModule(LightningModule, ABC):
                 self.utmos_model = UTMOSScore(device=self.device)
 
     def validation_step(self, batch, batch_idx, **kwargs):
-        audio_input = batch["wav"]
         gen_outputs = self._process_batch(batch)
-        audio_hat = gen_outputs["wav_hat"]
+        audio_input, audio_hat = self._get_audio_segments(gen_outputs, batch["wav"])
         audio_16_khz = torchaudio.functional.resample(audio_input, orig_freq=self.hparams.sample_rate, new_freq=16000)
         audio_hat_16khz = torchaudio.functional.resample(audio_hat, orig_freq=self.hparams.sample_rate, new_freq=16000)
 
@@ -271,6 +278,7 @@ class BaseLightningModule(LightningModule, ABC):
             "mel_loss": mel_loss,
             "utmos_score": utmos_score,
             "pesq_score": pesq_score,
+            "align_loss": gen_outputs["align_loss"],
             "duration_loss": gen_outputs["duration_loss"],
             "pitch_loss": gen_outputs["pitch_loss"],
             "energy_loss": gen_outputs.get("energy_loss", torch.Tensor([0.0])),
@@ -313,6 +321,7 @@ class BaseLightningModule(LightningModule, ABC):
         mel_loss = torch.stack([x["mel_loss"] for x in outputs]).mean()
         utmos_score = torch.stack([x["utmos_score"] for x in outputs]).mean()
         pesq_score = torch.stack([x["pesq_score"] for x in outputs]).mean()
+        align_loss = torch.stack([x["align_loss"] for x in outputs]).mean()
         duration_loss = torch.stack([x["duration_loss"] for x in outputs]).mean()
         pitch_loss = torch.stack([x["pitch_loss"] for x in outputs]).mean()
         energy_loss = torch.stack([x["energy_loss"] for x in outputs]).mean()
@@ -340,6 +349,13 @@ class BaseLightningModule(LightningModule, ABC):
         self.log(
             "val/pesq_score",
             pesq_score,
+            prog_bar=True,
+            logger=True,
+            sync_dist=True,
+        )
+        self.log(
+            "val/align_loss",
+            align_loss,
             prog_bar=True,
             logger=True,
             sync_dist=True,

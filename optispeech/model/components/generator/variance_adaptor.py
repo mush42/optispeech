@@ -5,8 +5,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from optispeech.utils.model import expand_lengths
-
 
 class VarianceAdaptor(nn.Module):
     def __init__(
@@ -68,8 +66,8 @@ class VarianceAdaptor(nn.Module):
         """x: B x T x C"""
         outputs = {}
 
-        log_duration_hat = self.duration_predictor(x, padding_mask)
-        outputs["log_duration_hat"] = log_duration_hat
+        duration_hat = self.duration_predictor(x, padding_mask)
+        outputs["duration_hat"] = duration_hat
 
         pitch_hat, pitch_emb = self.get_pitch_emb(x, x_mask, padding_mask, pitches)
         x = x + pitch_emb
@@ -80,9 +78,7 @@ class VarianceAdaptor(nn.Module):
             x = x + energy_emb
             outputs["energy_hat"] = energy_hat
 
-        z, z_lengths = expand_lengths(x, durations)
-
-        return z, z_lengths, outputs 
+        return x, outputs 
 
     @torch.inference_mode()
     def infer(
@@ -102,13 +98,11 @@ class VarianceAdaptor(nn.Module):
 
         pitch_hat, pitch_emb = self.get_pitch_emb(x, x_mask, padding_mask, factor=p_factor)
         x = x + pitch_emb
-        outputs["pitch_hat"] = pitch_hat
+        outputs["pitch"] = pitch_hat
 
         if self.energy_predictor is not None:
             energy_hat, energy_emb = self.get_energy_emb(x, x_mask, padding_mask, factor=e_factor)
             x = x + energy_emb
-            outputs["energy_hat"] = energy_hat
+            outputs["energy"] = energy_hat
 
-        y, y_lengths = expand_lengths(x, durations)
-
-        return y, y_lengths, outputs
+        return x, outputs

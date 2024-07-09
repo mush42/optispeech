@@ -161,50 +161,35 @@ class TextWavDataset(torch.utils.data.Dataset):
     def get_datapoint(self, filepath):
         input_file = Path(filepath)
         json_filepath = input_file.with_suffix(".json")
-        wav_filepath = input_file.with_suffix(".wav.npy")
-        dur_filepath = input_file.with_suffix(".dur.npy")
-        energy_filepath = input_file.with_suffix(".energy.npy")
-        pitch_filepath = input_file.with_suffix(".pitch.npy")
+        arrays_filepath = input_file.with_suffix(".npz")
         with open(json_filepath, "r", encoding="utf-8") as file:
             data = json.load(file)
             phoneme_ids = data["phoneme_ids"]
             text = data["text"]
             phoneme_ids = torch.LongTensor(phoneme_ids)
-        wav = torch.from_numpy(
-            np.load(wav_filepath, allow_pickle=False)
-        )
-        durations = torch.from_numpy(
-            np.load(dur_filepath, allow_pickle=False)
-        )
-        pitch = torch.from_numpy(
-            np.load(pitch_filepath, allow_pickle=False)
-        )
-        energy = torch.from_numpy(
-            np.load(energy_filepath, allow_pickle=False)
-        )
+        data = np.load(arrays_filepath, allow_pickle=False)
         return dict(
             x=phoneme_ids,
-            wav=wav,
-            durations=durations,
-            energy=energy,
-            pitch=pitch,
+            wav=torch.from_numpy(data["wav"]),
+            mel=torch.from_numpy(data["mel"]),
+            energy=torch.from_numpy(data["energy"]),
+            pitch=torch.from_numpy(data["pitch"]),
             text=text,
             filepath=filepath,
         )
 
     def preprocess_utterance(self, audio_filepath: str, text: str):
         phoneme_ids, text = self.get_text(text)
-        __mel, energy = self.get_mel(audio_filepath)
         wav, __sr = librosa.load(audio_filepath, sr=self.sample_rate)
-        durations = self.get_durations(audio_filepath, phoneme_ids)
-        durations = durations.cpu().numpy()
-        energy = self.mean_phoneme_energy(energy.squeeze().cpu().numpy(), durations)
-        pitch = self.get_pitch(audio_filepath, durations)
+        mel, energy = self.get_mel(audio_filepath)
+        mel = mel.squeeze().cpu().numpy()
+        energy = energy.squeeze().cpu().numpy()
+        pitch = self.get_pitch(audio_filepath)
         return dict(
             phoneme_ids=phoneme_ids,
             text=text,
             wav=wav,
-            durations=durations,
+            mel=mel,
             energy=energy,
             pitch=pitch,
         )
@@ -218,21 +203,6 @@ class TextWavDataset(torch.utils.data.Dataset):
             split_sentences=False
         )
         return phoneme_ids, clean_text
-
-    def get_durations(self, filepath, x):
-        filepath = Path(filepath)
-        data_dir, name = filepath.parent.parent, filepath.stem
-        try:
-            dur_loc = data_dir.joinpath("durations", name).with_suffix(".npy")
-            durs = torch.from_numpy(np.load(dur_loc).astype(int))
-        except FileNotFoundError as e:
-            raise FileNotFoundError(
-                f"Tried loading the durations but durations didn't exist at {dur_loc}, make sure you've generate the durations first "
-            ) from e
-
-        assert len(durs) == len(x), f"Length of durations {len(durs)} and phonemes {len(x)} do not match"
-
-        return durs
 
     def get_mel(self, filepath):
         audio, __sr = librosa.load(filepath, sr=self.sample_rate)
@@ -251,7 +221,7 @@ class TextWavDataset(torch.utils.data.Dataset):
         )
         return mel, energy 
 
-    def get_pitch(self, filepath, phoneme_durations):
+    def get_pitch(self, filepath):
         _waveform, _sr = librosa.load(filepath, sr=self.sample_rate)
         _waveform = _waveform.astype(np.double)
         assert _sr == self.sample_rate, f"Sample rate mismatch => Found: {_sr} != {self.sample_rate} = Expected"
@@ -260,6 +230,7 @@ class TextWavDataset(torch.utils.data.Dataset):
             _waveform, self.sample_rate, frame_period=self.hop_length / self.sample_rate * 1000
         )
         pitch = pw.stonemask(_waveform, pitch, t, self.sample_rate)
+        return pitch
         # A cool function taken from fairseq 
         # https://github.com/facebookresearch/fairseq/blob/3f0f20f2d12403629224347664b3e75c13b2c8e0/examples/speech_synthesis/data_utils.py#L99
         pitch = trim_or_pad_to_target_length(pitch, sum(phoneme_durations))
@@ -324,23 +295,27 @@ class TextWavBatchCollate:
 
         x_max_length = max([item["x"].shape[-1] for item in batch])
         wav_max_length = max([item["wav"].shape[-1] for item in batch])
+        mel_max_length = max([item["mel"].shape[-1] for item in batch])
+        pitch_max_length = max([item["pitch"].shape[-1] for item in batch])
+        energy_max_length = max([item["energy"].shape[-1] for item in batch])
 
         x = torch.zeros((B, x_max_length), dtype=torch.long)
         wav = torch.zeros((B, wav_max_length), dtype=torch.float32)
+        mel = torch.zeros((B, self.n_feats, mel_max_length), dtype=torch.float32)
 
-        durations = torch.zeros((B, x_max_length), dtype=torch.long)
-        pitches = torch.zeros((B, x_max_length), dtype=torch.float)
-        energies = torch.zeros((B, x_max_length), dtype=torch.float)
+        pitches = torch.zeros((B, pitch_max_length), dtype=torch.float)
+        energies = torch.zeros((B, energy_max_length), dtype=torch.float)
 
-        x_lengths, wav_lengths = [], []
+        x_lengths, wav_lengths, mel_lengths = [], [], []
         x_texts, filepaths = [], []
         for i, item in enumerate(batch):
-            x_, wav_ = item["x"], item["wav"]
+            x_, wav_, mel_ = item["x"], item["wav"], item["mel"]
             x_lengths.append(x_.shape[-1])
             wav_lengths.append(wav_.shape[-1])
+            mel_lengths.append(mel_.shape[-1])
             x[i, :x_.shape[-1]] = x_
             wav[i, :wav_.shape[-1]] = wav_
-            durations[i, :item["durations"].shape[-1]] = item["durations"]
+            mel[i, :, :item["mel"].shape[-1]] = mel_
             energies[i, : item["energy"].shape[-1]] = item["energy"].float()
             pitches[i, : item["pitch"].shape[-1]] = item["pitch"].float()
             x_texts.append(item["text"])
@@ -348,18 +323,21 @@ class TextWavBatchCollate:
 
         x_lengths = torch.tensor(x_lengths, dtype=torch.long)
         wav_lengths = torch.tensor(wav_lengths, dtype=torch.long)
+        mel_lengths = torch.tensor(mel_lengths, dtype=torch.long)
 
         if self.do_normalize:
             wav = wav.clamp(-1, 1)
+            mel = normalize(mel, self.data_statistics['mel_mean'], self.data_statistics['mel_std'])
             energies = normalize(energies, self.data_statistics['energy_mean'], self.data_statistics['energy_std'])
             pitches = normalize(pitches, self.data_statistics['pitch_mean'], self.data_statistics['pitch_std'])
 
         return dict(
             x=x,
             wav=wav,
+            mel=mel,
             x_lengths=x_lengths,
             wav_lengths=wav_lengths,
-            durations=durations,
+            mel_lengths=mel_lengths,
             energies=energies,
             pitches=pitches,
             x_texts=x_texts,

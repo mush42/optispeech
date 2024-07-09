@@ -4,6 +4,7 @@ import torch
 from torch import nn
 
 from optispeech.utils import pad_list
+from optispeech.utils.segments import get_segments
 from optispeech.text import process_and_phonemize_text
 
 from .base_lightning_module import BaseLightningModule
@@ -42,6 +43,7 @@ class OptiSpeech(BaseLightningModule):
         pretrain_mel_steps: int = 0,
         evaluate_utmos: bool = False,
         evaluate_pesq: bool = False,
+        segment_size: int=64,
         optimizer=None,
         scheduler=None,
     ):
@@ -63,6 +65,7 @@ class OptiSpeech(BaseLightningModule):
             decoder=generator["decoder"],
             wavenext=generator["wavenext"],
             data_statistics=data_statistics,
+            segment_size=segment_size
         )
         self.multiperioddisc = MultiPeriodDiscriminator()
         self.multiresddisc = MultiResolutionDiscriminator()
@@ -110,7 +113,8 @@ class OptiSpeech(BaseLightningModule):
         self,
         x: torch.Tensor,
         x_lengths: torch.LongTensor,
-        durations: torch.Tensor,
+        mel: torch.Tensor,
+        mel_lengths: torch.Tensor,
         pitches: torch.Tensor,
         energies: torch.Tensor
     ):
@@ -120,8 +124,10 @@ class OptiSpeech(BaseLightningModule):
                 shape: (batch_size, max_text_length)
             x_lengths (torch.Tensor): lengths of texts in batch.
                 shape: (batch_size,)
-            durations (torch.Tensor): phoneme durations.
-                shape: (batch_size, max_text_length)
+            mel (torch.Tensor): mel spectogram.
+                shape: (batch_size, n_feats, max_mel_lengths)
+            mel_lengths (torch.Tensor): lengths of mel spectograms.
+                shape: (batch_size,)
             pitches (torch.Tensor): phoneme-level pitch values.
                 shape: (batch_size, max_text_length)
             energies (torch.Tensor): phoneme-level energy values.
@@ -130,22 +136,24 @@ class OptiSpeech(BaseLightningModule):
             wav_hat: (torch.Tensor): generated audio
             loss: (torch.Tensor): scaler representing total loss
             duration_loss: (torch.Tensor): scaler representing duration loss
+            align_loss: (torch.Tensor): scaler representing alignment loss
             pitch_loss: (torch.Tensor): scaler representing pitch loss
             energy_loss: (torch.Tensor): scaler representing energy loss
         """
         x = x.to(self.device)
         x_lengths = x_lengths.long().to("cpu")
-        durations = durations.to(self.device)
+        mel = mel.to(self.device)
+        mel_lengths = mel_lengths.long().to("cpu")
         pitches = pitches.to(self.device)
         energies = energies.to(self.device) if energies is not None else energies
 
-        return self.generator(x, x_lengths, durations, pitches, energies)
+        return self.generator(x, x_lengths, mel, mel_lengths, pitches, energies)
 
-    def _forward_d(self, batch, audio_input, **kwargs):
+    def _forward_d(self, batch, full_audio_input, **kwargs):
         """Discriminator forward/backward pass."""
         with torch.no_grad():
             gen_outputs = self._process_batch(batch)
-            audio_hat = gen_outputs["wav_hat"]
+        audio_input, audio_hat = self._get_audio_segments(gen_outputs, full_audio_input)
         real_score_mp, gen_score_mp, _, _ = self.multiperioddisc(y=audio_input, y_hat=audio_hat, **kwargs,)
         real_score_mrd, gen_score_mrd, _, _ = self.multiresddisc(y=audio_input, y_hat=audio_hat, **kwargs,)
         loss_mp, loss_mp_real, _ = self.disc_loss(
@@ -163,10 +171,10 @@ class OptiSpeech(BaseLightningModule):
             loss_mrd=loss_mrd,
         )
 
-    def _forward_g(self, batch, audio_input, **kwargs):
+    def _forward_g(self, batch, full_audio_input, **kwargs):
         """Generator forward/backward pass."""
         gen_outputs = self._process_batch(batch)
-        audio_hat = gen_outputs["wav_hat"]
+        audio_input, audio_hat = self._get_audio_segments(gen_outputs, full_audio_input)
         if self.train_discriminator:
             _, gen_score_mp, fmap_rs_mp, fmap_gs_mp = self.multiperioddisc(
                 y=audio_input, y_hat=audio_hat, **kwargs,
@@ -209,8 +217,19 @@ class OptiSpeech(BaseLightningModule):
             loss_fm_mp=loss_fm_mp,
             loss_fm_mrd=loss_fm_mrd,
             mel_loss=mel_loss,
+            align_loss=gen_outputs["align_loss"],
             duration_loss=gen_outputs["duration_loss"],
             pitch_loss=gen_outputs["pitch_loss"],
             energy_loss=gen_outputs.get("energy_loss", torch.Tensor([0.0])),
             preview=preview
         )
+
+    def _get_audio_segments(self, gen_outputs, full_audio_input):
+        audio_hat = gen_outputs["wav_hat"]
+        audio_input = get_segments(
+            x=full_audio_input.unsqueeze(1),
+            start_idxs=gen_outputs["start_idx"] * self.hparams.hop_length,
+            segment_size=self.hparams.segment_size * self.hparams.hop_length,
+        )
+        audio_input = audio_input.squeeze(1).type_as(audio_hat)
+        return audio_input, audio_hat

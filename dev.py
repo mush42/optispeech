@@ -43,7 +43,6 @@ vd = dataset.val_dataloader()
 batch = next(iter(vd))
 print(f"Batch['x'] shape: {batch['x'].shape}")
 print(f"Batch['wav'] shape: {batch['wav'].shape}")
-print(f"Batch['durations'] shape: {batch['durations'].shape}")
 print(f"Batch['pitches'] shape: {batch['pitches'].shape}")
 
 # Model
@@ -59,15 +58,16 @@ print(summarize(model, 2))
 f_out = model(
     x=batch["x"],
     x_lengths=batch["x_lengths"],
-    durations=batch["durations"],
+    mel=batch["mel"],
+    mel_lengths=batch["mel_lengths"],
     pitches=batch["pitches"],
     energies=batch["energies"],
 )
 
 # Training loop
 model.train_discriminator = True
-disc_step_out = model._forward_d(batch, batch["wav"])
 gen_step_out = model._forward_g(batch, batch["wav"])
+disc_step_out = model._forward_d(batch, batch["wav"])
 
 # Inference
 x = batch["x"]

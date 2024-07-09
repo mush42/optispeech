@@ -1,0 +1,25 @@
+defaults:
+  - ljspeech
+  - _self_
+
+# Dataset URL: https://ast-astrec.nict.go.jp/en/release/hi-fi-captain/
+_target_: optispeech.dataset.TextWavDataModule
+name: hi-fi_en-US_female
+language: en-us
+tokenizer: default
+add_blank: True
+train_filelist_path: data/hfc_female-en_us/train.txt
+valid_filelist_path: data/hfc_female-en_us/val.txt
+batch_size: 8
+num_workers: 0
+data_statistics:  # Computed for this dataset
+  energy_min: 0.049677
+  energy_max: 87.339828
+  energy_mean: 17.20978
+  energy_std: 12.365898
+  pitch_min: 59.542061
+  pitch_max: 621.467834
+  pitch_mean: 219.073822
+  pitch_std: 56.488937
+  mel_mean: -6.38385
+  mel_std: 2.541796

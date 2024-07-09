@@ -6,6 +6,7 @@ defaults:
 
 _target_: optispeech.model.OptiSpeech
 dim: 256
+segment_size: 64
 n_feats: ${data.n_feats}
 n_fft: ${data.n_fft}
 hop_length: ${data.hop_length}

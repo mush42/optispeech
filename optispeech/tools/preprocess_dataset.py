@@ -19,23 +19,22 @@ log = get_script_logger(__name__)
 
 def write_data(data_dir, file_stem, data):
     output_file = data_dir.joinpath(file_stem)
+    out_arrays = output_file.with_suffix(".npz")
     out_json = output_file.with_suffix(".json")
-    out_wav = output_file.with_suffix(".wav.npy")
-    out_dur = output_file.with_suffix(".dur.npy")
-    out_energy = output_file.with_suffix(".energy.npy")
-    out_pitch = output_file.with_suffix(".pitch.npy")
-
     with open(out_json, "w", encoding="utf-8") as file:
         ph_text_data = {
             "phoneme_ids": data["phoneme_ids"],
             "text": data["text"],
         }
         json.dump(ph_text_data, file, ensure_ascii=False)
-
-    np.save(out_wav, data["wav"], allow_pickle=False)
-    np.save(out_dur, data["durations"], allow_pickle=False)
-    np.save(out_energy, data["energy"], allow_pickle=False)
-    np.save(out_pitch, data["pitch"], allow_pickle=False)
+    np.savez(
+        out_arrays,
+        allow_pickle=False,
+        wav=data["wav"],
+        mel=data["mel"],
+        energy=data["energy"],
+        pitch=data["pitch"]
+    )
 
 
 def main():
