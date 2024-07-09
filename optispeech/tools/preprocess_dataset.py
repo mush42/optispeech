@@ -10,7 +10,7 @@ import rootutils
 from hydra import compose, initialize
 from tqdm import tqdm
 
-from optispeech.dataset import TextMelDataset
+from optispeech.dataset import TextWavDataset
 from optispeech.utils import get_script_logger
 
 
@@ -20,7 +20,7 @@ log = get_script_logger(__name__)
 def write_data(data_dir, file_stem, data):
     output_file = data_dir.joinpath(file_stem)
     out_json = output_file.with_suffix(".json")
-    out_mel = output_file.with_suffix(".mel.npy")
+    out_wav = output_file.with_suffix(".wav.npy")
     out_dur = output_file.with_suffix(".dur.npy")
     out_energy = output_file.with_suffix(".energy.npy")
     out_pitch = output_file.with_suffix(".pitch.npy")
@@ -32,7 +32,7 @@ def write_data(data_dir, file_stem, data):
         }
         json.dump(ph_text_data, file, ensure_ascii=False)
 
-    np.save(out_mel, data["mel"], allow_pickle=False)
+    np.save(out_wav, data["wav"], allow_pickle=False)
     np.save(out_dur, data["durations"], allow_pickle=False)
     np.save(out_energy, data["energy"], allow_pickle=False)
     np.save(out_pitch, data["pitch"], allow_pickle=False)
@@ -68,7 +68,7 @@ def main():
     with initialize(version_base=None, config_path="../../configs/data"):
         cfg = compose(config_name=args.dataset)
         cfg["seed"] = 1234
-    dataset = TextMelDataset(
+    dataset = TextWavDataset(
         language=cfg.language,
         tokenizer=cfg.tokenizer,
         add_blank=cfg.add_blank,

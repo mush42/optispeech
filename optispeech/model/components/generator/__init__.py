@@ -4,9 +4,9 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from optispeech.model.components.loss import FastSpeech2Loss
 from optispeech.utils import denormalize, sequence_mask
 
-from .loss import FastSpeech2Loss
 from .modules import TextEncoder, AcousticDecoder, DurationPredictor, PitchPredictor, EnergyPredictor
 from .variance_adaptor import VarianceAdaptor
 from .wavenext import WaveNeXt
@@ -89,19 +89,14 @@ class OptiSpeechGenerator(nn.Module):
             hop_length=hop_length,
             drop_path=wavenext["drop_path_p"]
         )
-        self.loss_criteria = FastSpeech2Loss()
+        self.loss_criterion = FastSpeech2Loss()
 
-
-    def forward(self, x, x_lengths, y, y_lengths, durations, pitches, energies):
+    def forward(self, x, x_lengths, durations, pitches, energies):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
                 shape: (batch_size, max_text_length)
             x_lengths (torch.Tensor): lengths of texts in batch.
-                shape: (batch_size,)
-            y (torch.Tensor): batch of corresponding mel-spectrograms.
-                shape: (batch_size, n_feats, max_mel_length)
-            y_lengths (torch.Tensor): lengths of mel-spectrograms in batch.
                 shape: (batch_size,)
             durations (torch.Tensor): phoneme durations.
                 shape: (batch_size, max_text_length)
@@ -111,21 +106,14 @@ class OptiSpeechGenerator(nn.Module):
                 shape: (batch_size, max_text_length)
 
         Returns:
-            mel (torch.Tensor): predicted mel spectogram
-                shape: (batch_size, mel_feats, n_timesteps)
             loss: (torch.Tensor): scaler representing total loss
             duration_loss: (torch.Tensor): scaler representing durations loss
-            mel_loss: (torch.Tensor): scaler representing mel spectogram loss
             pitch_loss: (torch.Tensor): scaler representing pitch loss
             energy_loss: (torch.Tensor): scaler representing energy loss
         """
         x_max_length = x_lengths.max()
         x_mask = torch.unsqueeze(sequence_mask(x_lengths, x_max_length), 1).to(x.dtype)
         x_mask = x_mask.to(x.device)
-
-        y_max_length = y_lengths.max()
-        y_mask = sequence_mask(y_lengths, y_max_length).unsqueeze(1).to(x_mask.dtype)
-        y_mask = y_mask.to(x.device)
 
         padding_mask = ~x_mask.squeeze(1).bool()
         padding_mask = padding_mask.to(x.device)
@@ -137,34 +125,31 @@ class OptiSpeechGenerator(nn.Module):
 
         # variance adapter
         z, z_lengths, va_outputs = self.variance_adaptor(x, x_mask, padding_mask, durations, pitches, energies)
-
-        target_padding_mask = ~y_mask.squeeze(1).bool()
+        z_max_length = z_lengths.max()
+        z_mask = sequence_mask(z_lengths, z_max_length).unsqueeze(1)
+        z_mask = z_mask.to(x.device)
+        target_padding_mask = ~z_mask.squeeze(1).bool()
 
         # Decoder
         z = self.decoder(z, target_padding_mask)
-        z = z * y_mask.transpose(1, 2)
-        mel_loss, duration_loss, pitch_loss, energy_loss = self.loss_criteria(
-            after_outs=None,
-            before_outs=y,
+        z = z * z_mask.transpose(1, 2)
+        duration_loss, pitch_loss, energy_loss = self.loss_criterion(
             d_outs=va_outputs["log_duration_hat"].unsqueeze(-1),
             p_outs=va_outputs["pitch_hat"].unsqueeze(-1),
             e_outs=None,
-            ys=y,
             ds=durations.unsqueeze(-1),
             ps=pitches.unsqueeze(-1),
             es=None,
             ilens=x_lengths,
-            olens=y_lengths,
         )
 
         wav_hat = self.vocoder(z.transpose(1, 2))
 
-        loss = (10. * mel_loss) + (2. * pitch_loss) + (2. * energy_loss) + duration_loss
+        loss = duration_loss + pitch_loss + energy_loss
 
         return {
             "wav_hat": wav_hat,
             "loss": loss,
-            "mel_loss": mel_loss,
             "duration_loss": duration_loss,
             "pitch_loss": pitch_loss,
             "energy_loss": energy_loss,

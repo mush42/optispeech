@@ -1,1 +1,1 @@
-from .text_mel_datamodule import TextMelDataset, TextMelDataModule
+from .text_wav_datamodule import TextWavDataset, TextWavDataModule

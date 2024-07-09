@@ -13,7 +13,7 @@ from omegaconf import DictConfig, open_dict
 from torch import nn
 from tqdm.auto import tqdm
 
-from optispeech.dataset.text_mel_datamodule import TextMelDataModule
+from optispeech.dataset.text_wav_datamodule import TextWavDataModule
 from optispeech.utils import pylogger
 from optispeech.utils.generic import to_numpy
 
@@ -36,17 +36,10 @@ def calculate_data_statistics(dataset: torch.utils.data.Dataset, output_dir: Pat
     energy_sum = 0
     energy_sq_sum = 0
     
-    # Mel stats
-    mel_sum = 0
-    mel_sq_sum = 0
-    total_mel_len = 0
-
     # Benefit of doing it over batch is the added speed due to multiprocessing
     for batch in tqdm(dataset, desc="Calculating"):
         for i in range(batch['x'].shape[0]):
             inp_len = batch['x_lengths'][i]
-            mel_len = batch['y_lengths'][i]
-            mel_spec = batch['y'][i][:, :mel_len]
             pitch = batch['pitches'][i][:inp_len]
             pitch_min = min(pitch_min, torch.min(pitch).item())
             pitch_max = max(pitch_max, torch.max(pitch).item())
@@ -59,9 +52,6 @@ def calculate_data_statistics(dataset: torch.utils.data.Dataset, output_dir: Pat
             energy_sum += torch.sum(energy)
             energy_sq_sum += torch.sum(torch.pow(energy, 2))
             x_lengths += inp_len
-            mel_sum += torch.sum(mel_spec)
-            mel_sq_sum += torch.sum(mel_spec ** 2)
-            total_mel_len += mel_len
     
     # Save normalisation statistics
     pitch_mean = pitch_sum / x_lengths
@@ -69,9 +59,6 @@ def calculate_data_statistics(dataset: torch.utils.data.Dataset, output_dir: Pat
     
     energy_mean = energy_sum / x_lengths
     energy_std = torch.sqrt((energy_sq_sum / x_lengths) - torch.pow(energy_mean,2))
-    
-    mel_mean = mel_sum / (total_mel_len * cfg['n_feats'])
-    mel_std = torch.sqrt((mel_sq_sum / (total_mel_len * cfg['n_feats'])) - torch.pow(mel_mean, 2))
 
     stats = {
                 "pitch_min": round(pitch_min, 6),
@@ -82,8 +69,6 @@ def calculate_data_statistics(dataset: torch.utils.data.Dataset, output_dir: Pat
                 "energy_max": round(energy_max, 6),
                 "energy_mean": round(energy_mean.item(), 6),
                 "energy_std": round(energy_std.item(), 6),
-                "mel_mean": round(mel_mean.item(), 6),
-                "mel_std": round(mel_std.item(), 6),
     }
 
     print(stats)
@@ -154,10 +139,10 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Preprocessing: {cfg['name']} from training filelist: {cfg['train_filelist_path']}")
-    text_mel_datamodule = TextMelDataModule(**cfg)
-    text_mel_datamodule.setup()
+    text_wav_datamodule = TextWavDataModule(**cfg)
+    text_wav_datamodule.setup()
     print("Computing stats for training set if exists...")
-    train_dataloader = text_mel_datamodule.train_dataloader(do_normalize=False)
+    train_dataloader = text_wav_datamodule.train_dataloader(do_normalize=False)
     calculate_data_statistics(train_dataloader, output_dir, cfg, save_stats=True)
 
     print(f"[+] Done! features saved to: {output_dir}")

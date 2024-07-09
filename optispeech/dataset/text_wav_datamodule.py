@@ -6,6 +6,7 @@ from hashlib import md5
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import librosa
 import numpy as np
 import torch
 import torchaudio as ta
@@ -26,7 +27,7 @@ def parse_filelist(filelist_path):
     return filepaths
 
 
-class TextMelDataModule(LightningDataModule):
+class TextWavDataModule(LightningDataModule):
     def __init__(  # pylint: disable=unused-argument
         self,
         name,
@@ -62,7 +63,7 @@ class TextMelDataModule(LightningDataModule):
         """
         # load and split datasets only if not loaded already
 
-        self.trainset = TextMelDataset(  # pylint: disable=attribute-defined-outside-init
+        self.trainset = TextWavDataset(  # pylint: disable=attribute-defined-outside-init
             language=self.hparams.language,
             tokenizer=self.hparams.tokenizer,
             add_blank=self.hparams.add_blank,
@@ -76,7 +77,7 @@ class TextMelDataModule(LightningDataModule):
             f_max=self.hparams.f_max,
             seed=self.hparams.seed,
         )
-        self.validset = TextMelDataset(  # pylint: disable=attribute-defined-outside-init
+        self.validset = TextWavDataset(  # pylint: disable=attribute-defined-outside-init
             language=self.hparams.language,
             tokenizer=self.hparams.tokenizer,
             add_blank=self.hparams.add_blank,
@@ -98,7 +99,7 @@ class TextMelDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=True,
-            collate_fn=TextMelBatchCollate(self.hparams.n_feats, self.hparams.data_statistics, do_normalize=do_normalize),
+            collate_fn=TextWavBatchCollate(self.hparams.n_feats, self.hparams.data_statistics, do_normalize=do_normalize),
         )
 
     def val_dataloader(self):
@@ -108,7 +109,7 @@ class TextMelDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
-            collate_fn=TextMelBatchCollate(self.hparams.n_feats, self.hparams.data_statistics),
+            collate_fn=TextWavBatchCollate(self.hparams.n_feats, self.hparams.data_statistics),
         )
 
     def teardown(self, stage: Optional[str] = None):
@@ -124,7 +125,7 @@ class TextMelDataModule(LightningDataModule):
         pass  # pylint: disable=unnecessary-pass
 
 
-class TextMelDataset(torch.utils.data.Dataset):
+class TextWavDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         language,
@@ -160,7 +161,7 @@ class TextMelDataset(torch.utils.data.Dataset):
     def get_datapoint(self, filepath):
         input_file = Path(filepath)
         json_filepath = input_file.with_suffix(".json")
-        mel_filepath = input_file.with_suffix(".mel.npy")
+        wav_filepath = input_file.with_suffix(".wav.npy")
         dur_filepath = input_file.with_suffix(".dur.npy")
         energy_filepath = input_file.with_suffix(".energy.npy")
         pitch_filepath = input_file.with_suffix(".pitch.npy")
@@ -169,21 +170,21 @@ class TextMelDataset(torch.utils.data.Dataset):
             phoneme_ids = data["phoneme_ids"]
             text = data["text"]
             phoneme_ids = torch.LongTensor(phoneme_ids)
-        mel = torch.from_numpy(
-            np.load(mel_filepath, allow_pickle=False)
+        wav = torch.from_numpy(
+            np.load(wav_filepath, allow_pickle=False)
         )
         durations = torch.from_numpy(
             np.load(dur_filepath, allow_pickle=False)
         )
-        energy = torch.from_numpy(
-            np.load(energy_filepath, allow_pickle=False)
-        )
         pitch = torch.from_numpy(
             np.load(pitch_filepath, allow_pickle=False)
         )
+        energy = torch.from_numpy(
+            np.load(energy_filepath, allow_pickle=False)
+        )
         return dict(
             x=phoneme_ids,
-            y=mel,
+            wav=wav,
             durations=durations,
             energy=energy,
             pitch=pitch,
@@ -193,8 +194,8 @@ class TextMelDataset(torch.utils.data.Dataset):
 
     def preprocess_utterance(self, audio_filepath: str, text: str):
         phoneme_ids, text = self.get_text(text)
-        mel, energy = self.get_mel(audio_filepath)
-        mel = mel.squeeze(0).cpu().numpy()
+        __mel, energy = self.get_mel(audio_filepath)
+        wav, __sr = librosa.load(audio_filepath, sr=self.sample_rate)
         durations = self.get_durations(audio_filepath, phoneme_ids)
         durations = durations.cpu().numpy()
         energy = self.mean_phoneme_energy(energy.squeeze().cpu().numpy(), durations)
@@ -202,7 +203,7 @@ class TextMelDataset(torch.utils.data.Dataset):
         return dict(
             phoneme_ids=phoneme_ids,
             text=text,
-            mel=mel,
+            wav=wav,
             durations=durations,
             energy=energy,
             pitch=pitch,
@@ -310,7 +311,7 @@ class TextMelDataset(torch.utils.data.Dataset):
         return len(self.file_paths)
 
 
-class TextMelBatchCollate:
+class TextWavBatchCollate:
 
     def __init__(self, n_feats:float, data_statistics: Dict[str, float], do_normalize: bool=True):
         self.n_feats = n_feats
@@ -321,42 +322,42 @@ class TextMelBatchCollate:
         B = len(batch)
 
         x_max_length = max([item["x"].shape[-1] for item in batch])
-        y_max_length = max([item["y"].shape[-1] for item in batch])
+        wav_max_length = max([item["wav"].shape[-1] for item in batch])
 
         x = torch.zeros((B, x_max_length), dtype=torch.long)
-        y = torch.zeros((B, self.n_feats, y_max_length), dtype=torch.float32)
+        wav = torch.zeros((B, wav_max_length), dtype=torch.float32)
 
         durations = torch.zeros((B, x_max_length), dtype=torch.long)
         pitches = torch.zeros((B, x_max_length), dtype=torch.float)
         energies = torch.zeros((B, x_max_length), dtype=torch.float)
 
-        y_lengths, x_lengths = [], []
+        x_lengths, wav_lengths = [], []
         x_texts, filepaths = [], []
         for i, item in enumerate(batch):
-            x_, y_ = item["x"], item["y"]
+            x_, wav_ = item["x"], item["wav"]
             x_lengths.append(x_.shape[-1])
-            y_lengths.append(y_.shape[-1])
+            wav_lengths.append(wav_.shape[-1])
             x[i, :x_.shape[-1]] = x_
-            y[i, :, :y_.shape[-1]] = y_
+            wav[i, :wav_.shape[-1]] = wav_
             durations[i, :item["durations"].shape[-1]] = item["durations"]
             energies[i, : item["energy"].shape[-1]] = item["energy"].float()
             pitches[i, : item["pitch"].shape[-1]] = item["pitch"].float()
             x_texts.append(item["text"])
             filepaths.append(item["filepath"])
 
-        y_lengths = torch.tensor(y_lengths, dtype=torch.long)
         x_lengths = torch.tensor(x_lengths, dtype=torch.long)
+        wav_lengths = torch.tensor(wav_lengths, dtype=torch.long)
 
         if self.do_normalize:
-            y = normalize(y, self.data_statistics['mel_mean'], self.data_statistics['mel_std'])
+            wav = wav.clamp(-1, 1)
             energies = normalize(energies, self.data_statistics['energy_mean'], self.data_statistics['energy_std'])
             pitches = normalize(pitches, self.data_statistics['pitch_mean'], self.data_statistics['pitch_std'])
 
         return dict(
             x=x,
-            y=y,
+            wav=wav,
             x_lengths=x_lengths,
-            y_lengths=y_lengths,
+            wav_lengths=wav_lengths,
             durations=durations,
             energies=energies,
             pitches=pitches,
