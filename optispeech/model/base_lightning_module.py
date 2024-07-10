@@ -22,7 +22,7 @@ log = get_pylogger(__name__)
 
 class BaseLightningModule(LightningModule, ABC):
 
-    def _process_batch(self, batch):
+    def _process_batch(self, batch, segment_size=None):
         return self(
             x=batch["x"],
             x_lengths=batch["x_lengths"],
@@ -30,6 +30,7 @@ class BaseLightningModule(LightningModule, ABC):
             mel_lengths=batch["mel_lengths"],
             pitches=batch["pitches"],
             energies=batch["energies"],
+            segment_size=segment_size
         )
 
     def configure_optimizers(self):
@@ -250,7 +251,7 @@ class BaseLightningModule(LightningModule, ABC):
                 self.utmos_model = UTMOSScore(device=self.device)
 
     def validation_step(self, batch, batch_idx, **kwargs):
-        gen_outputs = self._process_batch(batch)
+        gen_outputs = self._process_batch(batch, segment_size=self.hparams.val_segment_size)
         audio_input, audio_hat = self._get_audio_segments(gen_outputs, batch["wav"])
         audio_16_khz = torchaudio.functional.resample(audio_input, orig_freq=self.hparams.sample_rate, new_freq=16000)
         audio_hat_16khz = torchaudio.functional.resample(audio_hat, orig_freq=self.hparams.sample_rate, new_freq=16000)
@@ -263,7 +264,7 @@ class BaseLightningModule(LightningModule, ABC):
         if self.hparams.evaluate_pesq:
             from pesq import pesq
             pesq_score = 0
-            for ref, deg in zip(audio_16_khz.cpu().numpy(), audio_hat_16khz.cpu().numpy()):
+            for ref, deg in zip(audio_16_khz.float().cpu().numpy(), audio_hat_16khz.float().cpu().numpy()):
                 pesq_score += pesq(16000, ref, deg, "wb", on_error=1)
             pesq_score /= len(audio_16_khz)
             pesq_score = torch.tensor(pesq_score)
@@ -293,7 +294,7 @@ class BaseLightningModule(LightningModule, ABC):
             audio_pred = outputs[0]["audio_pred"]
             self.logger.experiment.add_audio(
                 "val/audio_gt",
-                audio_in.data.cpu().numpy(),
+                audio_in.float().data.cpu().numpy(),
                 self.global_step,
                 self.hparams.sample_rate
             )

@@ -234,7 +234,7 @@ def viterbi_decode(log_p_attn, text_lengths, feats_lengths):
     ds = torch.zeros((B, T_text), device=device)
     for b in range(B):
         cur_log_p_attn = log_p_attn[b, : feats_lengths[b], : text_lengths[b]]
-        viterbi = _monotonic_alignment_search(cur_log_p_attn.detach().cpu().numpy())
+        viterbi = _monotonic_alignment_search(cur_log_p_attn.detach().float().cpu().numpy())
         _ds = np.bincount(viterbi)
         ds[b, : len(_ds)] = torch.from_numpy(_ds).to(device)
 
@@ -279,7 +279,7 @@ def average_by_duration(ds, xs, text_lengths, feats_lengths):
     """
     device = ds.device
     args = [ds, xs, text_lengths, feats_lengths]
-    args = [arg.detach().cpu().numpy() for arg in args]
+    args = [arg.detach().float().cpu().numpy() for arg in args]
     xs_avg = _average_by_duration(*args)
     xs_avg = torch.from_numpy(xs_avg).to(device)
     return xs_avg

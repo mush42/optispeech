@@ -101,7 +101,7 @@ class OptiSpeechGenerator(nn.Module):
         self.loss_criterion = FastSpeech2Loss()
         self.forwardsum_loss = ForwardSumLoss()
 
-    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies):
+    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies, segment_size=None):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
@@ -114,6 +114,7 @@ class OptiSpeechGenerator(nn.Module):
                 shape: (batch_size, max_text_length)
             energies (torch.Tensor): phoneme-level energy values.
                 shape: (batch_size, max_text_length)
+            segment_size (float): number of frames passed to wave generator
 
         Returns:
             loss: (torch.Tensor): scaler representing total loss
@@ -177,7 +178,7 @@ class OptiSpeechGenerator(nn.Module):
         z_segment, z_start_idx = get_random_segments(
             z.transpose(1, 2),
             mel_lengths.type_as(z),
-            self.segment_size,
+            segment_size or self.segment_size,
         )
 
         # Generator
@@ -207,23 +208,29 @@ class OptiSpeechGenerator(nn.Module):
         }
 
     @torch.inference_mode()
-    def synthesize(self, x, x_lengths, length_scale=1.0, pitch_scale=1.0, energy_scale=1.0):
+    def synthesize(self, x, x_lengths, d_factor=1.0, p_factor=1.0, e_factor=1.0):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
                 shape: (batch_size, max_text_length)
             x_lengths (torch.Tensor): lengths of texts in batch.
                 shape: (batch_size,)
-            length_scale (torch.Tensor): scaler to control phoneme durations.
-            pitch_scale (torch.Tensor): scaler to control pitch.
-            energy_scale (torch.Tensor): scaler to control energy.
+            d_factor (float): scaler to control phoneme durations.
+            p_factor (float.Tensor): scaler to control pitch.
+            e_factor (float.Tensor): scaler to control energy.
 
         Returns:
             wav (torch.Tensor): generated waveform
                 shape: (batch_size, T)
             durations: (torch.Tensor): predicted phoneme durations
                 shape: (batch_size, max_text_length)
-            rtf: (float): Realtime Factor (inference_t/audio_t)
+            pitch: (torch.Tensor): predicted pitch
+                shape: (batch_size, max_text_length)
+            energy: (torch.Tensor): predicted energy
+                shape: (batch_size, max_text_length)
+            rtf: (float): total Realtime Factor (inference_t/audio_t)
+            am_rtf: (float): acoustic generator Realtime Factor
+            voc_rtf: (float): wave generator Realtime Factor
         """
         am_t0 = perf_counter()
 
@@ -244,9 +251,9 @@ class OptiSpeechGenerator(nn.Module):
             x,
             x_mask,
             padding_mask,
-            d_factor=length_scale,
-            p_factor=pitch_scale,
-            e_factor=energy_scale
+            d_factor=d_factor,
+            p_factor=p_factor,
+            e_factor=e_factor
         )
         durations = va_outputs["durations"].masked_fill(padding_mask, 0)
         pitch = va_outputs["pitch"]

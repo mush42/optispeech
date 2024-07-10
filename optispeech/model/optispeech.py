@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import torch
 from torch import nn
@@ -44,6 +44,7 @@ class OptiSpeech(BaseLightningModule):
         evaluate_utmos: bool = False,
         evaluate_pesq: bool = False,
         segment_size: int=64,
+        val_segment_size: int=384,
         optimizer=None,
         scheduler=None,
     ):
@@ -52,6 +53,8 @@ class OptiSpeech(BaseLightningModule):
         # GAN requires this
         self.automatic_optimization = False
 
+        self.sample_rate = sample_rate
+        self.hop_length = hop_length
         self.data_statistics = data_statistics
 
         self.generator = OptiSpeechGenerator(
@@ -84,13 +87,49 @@ class OptiSpeech(BaseLightningModule):
         self.base_mel_coeff = self.mel_loss_coeff = mel_loss_coeff
 
     @torch.inference_mode()
-    def synthesize(self, x, x_lengths, length_scale=1.0, pitch_scale=1.0, energy_scale=1.0):
+    def synthesize(self, x, x_lengths, d_factor=1.0, p_factor=1.0, e_factor=1.0):
+        """
+        Args:
+            x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
+                shape: (batch_size, max_text_length)
+            x_lengths (torch.Tensor): lengths of texts in batch.
+                shape: (batch_size,)
+            d_factor (float): scaler to control phoneme durations.
+            p_factor (float.Tensor): scaler to control pitch.
+            e_factor (float.Tensor): scaler to control energy.
+
+        Returns:
+            wav (torch.Tensor): generated waveform
+                shape: (batch_size, T)
+            durations: (torch.Tensor): predicted phoneme durations
+                shape: (batch_size, max_text_length)
+            pitch: (torch.Tensor): predicted pitch
+                shape: (batch_size, max_text_length)
+            energy: (torch.Tensor): predicted energy
+                shape: (batch_size, max_text_length)
+            rtf: (float): total Realtime Factor (inference_t/audio_t)
+            am_rtf: (float): acoustic generator Realtime Factor
+            voc_rtf: (float): wave generator Realtime Factor
+        """
         x = x.to(self.device)
         x_lengths = x_lengths.long().to("cpu")
-        return self.generator.synthesize(x, x_lengths, length_scale, pitch_scale, energy_scale)
+        return self.generator.synthesize(x=x, x_lengths=x_lengths, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor)
 
     def prepare_input(self, text: str, split_sentences: bool=False) -> List[int]:
-        """Convenient helper."""
+        """
+        Convenient helper.
+        
+        Args:
+            text (str): input text
+            split_sentences (bool): split text into sentences (each sentence is an element in the batch)
+
+        Returns:
+            x (torch.LongTensor): input phoneme ids
+                shape: [B, max_text_length]
+            x_lengths (torch.LongTensor): input lengths
+                shape: [B]
+            clean_text (str): cleaned an normalized text
+        """
         phoneme_ids, clean_text = process_and_phonemize_text(
             text,
             lang=self.hparams.language,
@@ -116,7 +155,8 @@ class OptiSpeech(BaseLightningModule):
         mel: torch.Tensor,
         mel_lengths: torch.Tensor,
         pitches: torch.Tensor,
-        energies: torch.Tensor
+        energies: torch.Tensor,
+        segment_size: Optional[int]=None
     ):
         """
         Args:
@@ -132,6 +172,7 @@ class OptiSpeech(BaseLightningModule):
                 shape: (batch_size, max_text_length)
             energies (torch.Tensor): phoneme-level energy values.
                 shape: (batch_size, max_text_length)
+            segment_size (float): number of frames passed to wave generator
         Returns:
             wav_hat: (torch.Tensor): generated audio
             loss: (torch.Tensor): scaler representing total loss
@@ -147,7 +188,15 @@ class OptiSpeech(BaseLightningModule):
         pitches = pitches.to(self.device)
         energies = energies.to(self.device) if energies is not None else energies
 
-        return self.generator(x, x_lengths, mel, mel_lengths, pitches, energies)
+        return self.generator(
+            x=x,
+            x_lengths=x_lengths,
+            mel=mel,
+            mel_lengths=mel_lengths,
+            pitches=pitches,
+            energies=energies,
+            segment_size=segment_size,
+        )
 
     def _forward_d(self, batch, full_audio_input, **kwargs):
         """Discriminator forward/backward pass."""
@@ -205,8 +254,8 @@ class OptiSpeech(BaseLightningModule):
                 mel = safe_log(self.melspec_loss.mel_spec(audio_input[0]))
                 mel_hat = safe_log(self.melspec_loss.mel_spec(audio_hat[0]))
             preview = dict(
-                audio_gt=audio_input[0].data.cpu(),
-                audio_hat=audio_hat[0].data.cpu(),
+                audio_gt=audio_input[0].float().data.cpu(),
+                audio_hat=audio_hat[0].float().data.cpu(),
                 mel_gt=mel.float().data.cpu().numpy(),
                 mel_hat=mel_hat.float().data.cpu().numpy()
             )
