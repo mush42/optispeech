@@ -80,9 +80,9 @@ sf.write("optispeech-gen.wav", wav, model.sample_rate)
 
 Since this code uses [Lightning-Hydra-Template](https://github.com/ashleve/lightning-hydra-template), you have all the powers that come with it.
 
-### Approach
+Training is easy as 1, 2:
 
-### 1. Data preparation
+### 1. Prepare Dataset
 
 Given a dataset that is organized as follows:
 
@@ -99,7 +99,7 @@ Given a dataset that is organized as follows:
         └── ...
 ```
 
-You can use the `preprocess_dataset` script to prepare the dataset for training:
+Use the `preprocess_dataset` script to prepare the dataset for training:
 
 ```bash
 $ python3 -m optispeech.tools.preprocess_dataset --help
@@ -115,7 +115,7 @@ options:
   --format {ljspeech}  Dataset format.
 ```
 
-### Starting training
+### 2. Start training
 
 To start training run the following command. Note that this training run uses **config** from [hfc_female-en_US](./configs/experiment/hfc_female-en_US.yaml). You can copy and update it with your own config values, and pass the name of the custom config file (without extension) instead.
 
