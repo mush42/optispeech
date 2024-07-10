@@ -165,10 +165,11 @@ class OptiSpeechGenerator(nn.Module):
         z = z * mel_mask.transpose(1, 2)
 
         # get random segments
+        segment_size = segment_size or self.segment_size
         z_segment, z_start_idx = get_random_segments(
             z.transpose(1, 2),
             mel_lengths.type_as(z),
-            segment_size or self.segment_size,
+            segment_size,
         )
 
         # Generator
@@ -190,6 +191,7 @@ class OptiSpeechGenerator(nn.Module):
         return {
             "wav_hat": wav_hat,
             "start_idx": z_start_idx,
+            "segment_size": segment_size,
             "loss": loss,
             "align_loss": align_loss,
             "duration_loss": duration_loss,

@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from lightning import seed_everything
 
-from optispeech.model import LE2E
+from optispeech.model import OptiSpeech
 from optispeech.utils import get_script_logger
 
 
@@ -21,10 +21,10 @@ def export_as_onnx(model, out_filename, opset):
     x_lengths = torch.LongTensor([dummy_input_length])
 
     # Scales
-    length_scale = 1.0
-    pitch_scale = 1.0
-    # energy_scale = 1.0
-    scales = torch.Tensor([length_scale, pitch_scale])
+    d_factor = 1.0
+    p_factor = 1.0
+    # e_factor = 1.0
+    scales = torch.Tensor([d_factor, p_factor])
 
     input_names = ["x", "x_lengths", "scales",]
     output_names = ["mel", "mel_lengths", "durations"]
@@ -44,17 +44,17 @@ def export_as_onnx(model, out_filename, opset):
     dummy_input = (x, x_lengths, scales)
 
     def _infer_forward(x, x_lengths, scales):
-        length_scale = scales[0]
-        pitch_scale = scales[1]
-        # energy_scale = scales[2]
+        d_factor = scales[0]
+        p_factor = scales[1]
+        # e_factor = scales[2]
         outputs = model.synthesize(
             x,
             x_lengths,
-            length_scale=length_scale,
-            pitch_scale=pitch_scale,
-            # energy_scale=energy_scale
+            d_factor=d_factor,
+            p_factor=p_factor,
+            # e_factor=e_factor
         )
-        return outputs["mel"], outputs["mel_lengths"], outputs["durations"]
+        return outputs["wav"], outputs["durations"]
 
     model.forward = _infer_forward
     model.to_onnx(
@@ -71,7 +71,7 @@ def export_as_onnx(model, out_filename, opset):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Export LE2E checkpoints to ONNX")
+    parser = argparse.ArgumentParser(description="Export OptiSpeech checkpoints to ONNX")
 
     parser.add_argument(
         "checkpoint_path",
@@ -87,7 +87,7 @@ def main():
 
     log.info(f"Loading checkpoint from {args.checkpoint_path}")
     checkpoint_path = Path(args.checkpoint_path)
-    model = LE2E.load_from_checkpoint(checkpoint_path, map_location="cpu")
+    model = OptiSpeech.load_from_checkpoint(checkpoint_path, map_location="cpu")
     model.eval()
 
     export_as_onnx(model, args.output, args.opset)

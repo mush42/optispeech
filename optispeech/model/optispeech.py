@@ -275,11 +275,12 @@ class OptiSpeech(BaseLightningModule):
         )
 
     def _get_audio_segments(self, gen_outputs, full_audio_input):
+        segment_size = gen_outputs["segment_size"]
         audio_hat = gen_outputs["wav_hat"]
         audio_input = get_segments(
             x=full_audio_input.unsqueeze(1),
             start_idxs=gen_outputs["start_idx"] * self.hparams.hop_length,
-            segment_size=self.hparams.segment_size * self.hparams.hop_length,
+            segment_size=segment_size * self.hparams.hop_length,
         )
         audio_input = audio_input.squeeze(1).type_as(audio_hat)
         return audio_input, audio_hat
