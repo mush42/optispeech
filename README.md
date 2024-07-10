@@ -59,12 +59,15 @@ options:
 ### Python API
 
 ```python
+import soundfile as sf
 from optispeech.model import OptiSpeech
 
 # Load model
 device = torch.device("cpu")
 ckpt_path = "/path/to/checkpoint"
-model = OptiSpeech.load_from_checkpoint(ckpt_path, map_location=device)
+model = OptiSpeech.load_from_checkpoint(ckpt_path, map_location="cpu")
+model = model.to(device)
+model = model.eval()
 
 # Text preprocessing and phonemization
 sentence = "A rainbow is a meteorological phenomenon that is caused by reflection, refraction and dispersion of light in water droplets resulting in a spectrum of light appearing in the sky."
