@@ -49,6 +49,5 @@ onnx
 onnxruntime
 
 pyworld
-fairseq
 requests
 pesq
