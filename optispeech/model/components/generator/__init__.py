@@ -9,9 +9,8 @@ from optispeech.utils import sequence_mask
 from optispeech.utils.segments import get_random_segments
 
 from .alignments import AlignmentModule, GaussianUpsampling, viterbi_decode, average_by_duration
-from .modules import TextEncoder, AcousticDecoder, DurationPredictor, PitchPredictor, EnergyPredictor
+from .modules import TextEmbedding, TransformerEncoder, TransformerDecoder, DurationPredictor, PitchPredictor, EnergyPredictor
 from .variance_adaptor import VarianceAdaptor
-from .wavenext import WaveNeXt
 
 
 class OptiSpeechGenerator(nn.Module):
@@ -22,10 +21,11 @@ class OptiSpeechGenerator(nn.Module):
         n_fft: int,
         hop_length: int,
         sample_rate: int,
+        text_embedding,
         encoder,
         variance_adaptor,
         decoder,
-        wavenext,
+        wav_generator,
         data_statistics,
         segment_size,
         lambda_align=2.0,
@@ -38,15 +38,8 @@ class OptiSpeechGenerator(nn.Module):
         self.segment_size = segment_size
         self.lambda_align = lambda_align
 
-        self.encoder = TextEncoder(
-            n_vocab=encoder["n_vocab"],
-            dim=dim,
-            kernel_sizes=encoder["kernel_sizes"],
-            activation=encoder["activation"],
-            dropout=encoder["dropout"],
-            padding_idx=encoder["padding_idx"],
-            max_source_positions=encoder["max_source_positions"]
-        )
+        self.text_embedding = text_embedding(dim=dim)
+        self.encoder = encoder(dim=dim)
         self.alignment_module = AlignmentModule(adim=dim, odim=n_feats)
         self.feature_upsampler = GaussianUpsampling()
         dp = DurationPredictor(
@@ -88,15 +81,11 @@ class OptiSpeechGenerator(nn.Module):
             energy_min=data_statistics["energy_min"],
             energy_max=data_statistics["energy_max"],
         )
-        self.decoder = AcousticDecoder()
-        self.wav_generator = WaveNeXt(
+        self.decoder = decoder(dim=dim)
+        self.wav_generator = wav_generator(
             input_channels=dim,
-            dim=wavenext["dim"],
-            intermediate_dim=wavenext["intermediate_dim"],
-            num_layers=wavenext["num_layers"],
             n_fft=n_fft,
             hop_length=hop_length,
-            drop_path=wavenext["drop_path_p"]
         )
         self.loss_criterion = FastSpeech2Loss()
         self.forwardsum_loss = ForwardSumLoss()
@@ -136,10 +125,11 @@ class OptiSpeechGenerator(nn.Module):
         padding_mask = ~x_mask.squeeze(1).bool()
         padding_mask = padding_mask.to(x.device)
 
+        # text embedding
+        x, embed = self.text_embedding(x)
+
         # Encoder
-        enc_out = self.encoder(x, padding_mask)
-        x = enc_out["encoder_out"]
-        x = x.transpose(0, 1)
+        x = self.encoder(x, padding_mask)
 
         # alignment
         log_p_attn = self.alignment_module(
@@ -241,10 +231,11 @@ class OptiSpeechGenerator(nn.Module):
         padding_mask = ~x_mask.squeeze(1).bool()
         padding_mask = padding_mask.to(x.device)
 
+        # text embedding
+        x, __ = self.text_embedding(x)
+
         # Encoder
-        enc_out = self.encoder(x, padding_mask)
-        x = enc_out["encoder_out"]
-        x = x.transpose(0, 1)
+        x = self.encoder(x, padding_mask)
 
         # variance adaptor
         y, va_outputs = self.variance_adaptor.infer(

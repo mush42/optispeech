@@ -58,7 +58,6 @@ class ConvNeXtBackbone(nn.Module):
     Backbone module built with ConvNeXt blocks.
 
     Args:
-        input_channels (int): Number of input features channels.
         dim (int): Hidden dimension of the model.
         intermediate_dim (int): Intermediate dimension used in ConvNeXtBlock.
         num_layers (int): Number of ConvNeXtBlock layers.
@@ -67,7 +66,6 @@ class ConvNeXtBackbone(nn.Module):
 
     def __init__(
         self,
-        input_channels: int,
         dim: int,
         intermediate_dim: int,
         num_layers: int,
@@ -75,9 +73,6 @@ class ConvNeXtBackbone(nn.Module):
         layer_scale_init_value: Optional[float]=None,
     ):
         super().__init__()
-        self.input_channels = input_channels
-        self.embed = nn.Conv1d(input_channels, dim, kernel_size=7, padding=3)
-        self.norm = nn.LayerNorm(dim, eps=1e-6)
         layer_scale_init_value = layer_scale_init_value or 1 / num_layers
         # Apply stochastic depth as in ConvNeXt-TTS
         drop_ppath_rates=[x.item() for x in torch.linspace(0, drop_path, num_layers)] 
@@ -100,9 +95,7 @@ class ConvNeXtBackbone(nn.Module):
             nn.init.trunc_normal_(m.weight, std=0.02)
             nn.init.constant_(m.bias, 0)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.embed(x)
-        x = self.norm(x.transpose(1, 2))
+    def forward(self, x: torch.Tensor, padding_mask: Optional[torch.Tensor]=None) -> torch.Tensor:
         x = x.transpose(1, 2)
         for conv_block in self.convnext:
             x = conv_block(x)

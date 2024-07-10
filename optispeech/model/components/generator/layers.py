@@ -420,7 +420,8 @@ class EncSepConvLayer(nn.Module):
         if encoder_padding_mask is not None:
             x = x.masked_fill(encoder_padding_mask.t().unsqueeze(-1), 0)
         x = x.permute(1, 2, 0)
-        x = self.activation_fn(self.conv1(x))
+        x = self.conv1(x)
+        x = self.activation_fn(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         
         x = self.activation_fn(self.conv2(x))

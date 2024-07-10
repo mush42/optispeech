@@ -54,9 +54,9 @@ class WaveNeXtHead(nn.Module):
 class WaveNeXt(nn.Module):
     def __init__(
         self,
+        input_channels: int,
         dim: int,
         # backbone
-        input_channels: int,
         intermediate_dim: int,
         num_layers: int,
         #head
@@ -67,8 +67,9 @@ class WaveNeXt(nn.Module):
         padding: str="same"
     ):
         super().__init__()
+        self.embed = nn.Conv1d(input_channels, dim, kernel_size=7, padding=3)
+        self.norm = nn.LayerNorm(dim, eps=1e-6)
         self.backbone = ConvNeXtBackbone(
-            input_channels=input_channels,
             dim=dim,
             intermediate_dim=intermediate_dim,
             num_layers=num_layers,
@@ -83,5 +84,7 @@ class WaveNeXt(nn.Module):
         )
 
     def forward(self, x):
+        x = self.embed(x)
+        x = self.norm(x.transpose(1, 2))
         x = self.backbone(x)
         return self.head(x)

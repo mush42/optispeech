@@ -1,0 +1,6 @@
+_target_: optispeech.model.components.generator.TransformerDecoder
+_partial_: true
+kernel_sizes: [17, 21, 9, 13]
+activation: relu
+dropout: 0.2
+max_source_positions: 2000

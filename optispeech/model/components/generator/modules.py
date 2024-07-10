@@ -35,48 +35,52 @@ class LayerNorm(torch.nn.LayerNorm):
         return super(LayerNorm, self).forward(x.transpose(1, -1)).transpose(1, -1)
 
 
-class TextEncoder(nn.Module):
-    def __init__(self,
-        n_vocab,
-        dim,
-        kernel_sizes,
-        activation='relu',
-        dropout=0.0,
-        padding_idx=0,
-        max_source_positions=DEFAULT_MAX_SOURCE_POSITIONS,
+class TextEmbedding(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        n_vocab: int,
+        dropout: float=0.0,
+        padding_idx: int=0,
+        max_source_positions: int=DEFAULT_MAX_SOURCE_POSITIONS,
     ):
         super().__init__()
         self.embed_scale = math.sqrt(dim)
         self.embed_tokens = nn.Embedding(n_vocab, dim, padding_idx)
         self.embed_positions = ScaledSinusoidalEmbedding(dim, theta=max_source_positions)
         self.emb_dropout = nn.Dropout(dropout)
-        self.layer_norm = LayerNorm(dim)
-        self.layers = nn.ModuleList([
-            EncSepConvLayer(dim, kernel_size, dropout, activation)
-            for kernel_size in kernel_sizes
-        ])
 
-    def forward_embedding(self, src_tokens):
-        # embed tokens and positions
+    def forward(self, src_tokens):
+        """embed tokens and positions."""
         embed = self.embed_scale * self.embed_tokens(src_tokens)
         positions = self.embed_positions(src_tokens)
-        # x = self.prenet(x)
         x = embed + positions
         x = self.emb_dropout(x)
         return x, embed
 
-    def forward(self, src_tokens, padding_mask):
-        """
-        :param src_tokens: [B, T]
-        :param padding_mask: [B, T]
-        :return: {
-            'encoder_out': [T x B x C]
-            'encoder_embedding': [B x T x C]
-            'attn_w': []
-        }
-        """
-        x, encoder_embedding = self.forward_embedding(src_tokens)
 
+class TransformerEncoder(nn.Module):
+    def __init__(
+        self,
+        dim,
+        kernel_sizes,
+        activation='relu',
+        dropout=0.0,
+    ):
+        super().__init__()
+        self.layers = nn.ModuleList([
+            EncSepConvLayer(dim, kernel_size, dropout, activation)
+            for kernel_size in kernel_sizes
+        ])
+        self.layer_norm = LayerNorm(dim)
+
+    def forward(self, x, padding_mask):
+        """
+        :param x: [B, T, H]
+        :param padding_mask: [B, T]
+        :return: 
+            x: [T x B x C]
+        """
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
@@ -87,29 +91,29 @@ class TextEncoder(nn.Module):
         x = self.layer_norm(x)
         x = x * (1 - padding_mask.float()).transpose(0, 1)[..., None]
 
-        return {
-            'encoder_out': x,  # T x B x C
-            'encoder_embedding': encoder_embedding,  # B x T x C
-        }
+        # T x B x C - > B x T x C
+        x = x.transpose(0, 1)
+
+        return x
 
 
-class AcousticDecoder(nn.Module):
+class TransformerDecoder(nn.Module):
     def __init__(
         self,
-        hidden_size=256,
-        kernel_sizes=[17, 21, 9, 13],
+        dim,
+        kernel_sizes,
         activation='relu',
         dropout=0.2,
         max_source_positions = DEFAULT_MAX_TARGET_POSITIONS,
     ):
         super().__init__()
-        self.pos_emb = ScaledSinusoidalEmbedding(hidden_size, theta=max_source_positions)
+        self.pos_emb = ScaledSinusoidalEmbedding(dim, theta=max_source_positions)
         self.layers = nn.ModuleList([
-            EncSepConvLayer(hidden_size, kernel_size, dropout, activation)
+            EncSepConvLayer(dim, kernel_size, dropout, activation)
             for kernel_size in kernel_sizes
         ])
         self.dropout = nn.Dropout(dropout)
-        self.layer_norm = nn.LayerNorm(hidden_size)
+        self.layer_norm = nn.LayerNorm(dim)
 
     def forward(self, x, padding_mask, *, require_w=False):
         """

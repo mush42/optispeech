@@ -1,0 +1,5 @@
+_target_: optispeech.model.components.generator.convnext.ConvNeXtBackbone
+_partial_: true
+intermediate_dim: 1024
+num_layers: 4
+drop_path: 0.2

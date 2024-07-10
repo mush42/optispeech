@@ -1,4 +1,0 @@
-dim: 256
-intermediate_dim: 1024
-num_layers: 6
-drop_path_p: 0.2

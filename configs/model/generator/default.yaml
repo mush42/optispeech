@@ -1,7 +1,8 @@
 defaults:
   - _self_
-  - encoder: default.yaml
-  - variance_adaptor: default.yaml
-  - decoder: default.yaml
-  - wavenext: default.yaml
+  - text_embedding: default
+  - encoder: transformer
+  - variance_adaptor: default
+  - decoder: transformer
+  - wav_generator: wavenext
 

@@ -1,0 +1,6 @@
+_target_: optispeech.model.components.generator.TextEmbedding
+_partial_: true
+n_vocab: 250
+dropout: 0.1
+padding_idx: 0
+max_source_positions: 2000

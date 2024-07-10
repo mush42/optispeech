@@ -1,6 +1,0 @@
-n_vocab: 250
-kernel_sizes: [5, 25, 13, 9]
-activation: relu
-dropout: 0.2
-padding_idx: 0
-max_source_positions: 2000

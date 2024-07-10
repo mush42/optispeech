@@ -63,12 +63,13 @@ class OptiSpeech(BaseLightningModule):
             n_fft=n_fft,
             hop_length=hop_length,
             sample_rate=sample_rate,
+            text_embedding=generator["text_embedding"],
             encoder=generator["encoder"],
             variance_adaptor=generator["variance_adaptor"],
             decoder=generator["decoder"],
-            wavenext=generator["wavenext"],
+            wav_generator=generator["wav_generator"],
             data_statistics=data_statistics,
-            segment_size=segment_size
+            segment_size=segment_size,
         )
         self.multiperioddisc = MultiPeriodDiscriminator()
         self.multiresddisc = MultiResolutionDiscriminator()
