@@ -175,10 +175,10 @@ options:
 Repositories I would like to acknowledge:
 
 - [BetterFastspeech2](https://github.com/shivammehta25/betterfastspeech2): For repo backbone
-- [espnet](https://github.com/espnet/espnet): for the phoneme-mel alignment framework 
-- [Matcha-TTS](https://github.com/shivammehta25/Matcha-TTS): For the repo backbone.
-- [Piper-TTS](https://github.com/rhasspy/piper): For leading the charge in on-device TTS. Also for the great phonemizer.
-- [Vocos](https://github.com/gemelo-ai/vocos/): For pioneering the use of ConvNext in TTS.
+- [LightSpeech](https://github.com/microsoft/NeuralSpeech/tree/master/LightSpeech): for the transformer backbone
+- [JETS](https://github.com/espnet/espnet/tree/master/espnet2/gan_tts/jets): for the phoneme-mel alignment framework
+- [Vocos](https://github.com/gemelo-ai/vocos/): For pioneering the use of ConvNext in TTS
+- [Piper-TTS](https://github.com/rhasspy/piper): For leading the charge in on-device TTS. Also for the great phonemizer
 
 ## Reference
 
@@ -191,6 +191,7 @@ Repositories I would like to acknowledge:
     year={2021},
     organization={IEEE}
 }
+
 @article{siuzdak2023vocos,
   title={Vocos: Closing the gap between time-domain and Fourier-based neural vocoders for high-quality audio synthesis},
   author={Siuzdak, Hubert},
