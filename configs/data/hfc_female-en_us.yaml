@@ -11,7 +11,7 @@ add_blank: True
 train_filelist_path: data/hfc_female-en_us/train.txt
 valid_filelist_path: data/hfc_female-en_us/val.txt
 batch_size: 8
-num_workers: 0
+num_workers: 8
 data_statistics:  # Computed for this dataset
   energy_min: 0.049677
   energy_max: 87.339828

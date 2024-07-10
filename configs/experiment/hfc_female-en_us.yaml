@@ -9,6 +9,6 @@ defaults:
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-tags: ["hi-fi", "single_speaker", "piper_phonemizer", "en_US", "female"]
+tags: ["hfc", "single_speaker", "female", "en_US",]
 
-run_name: hi-fi_en-US_female_piper_phonemizer
+run_name: hfc_female-en_us
