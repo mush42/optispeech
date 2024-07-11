@@ -7,7 +7,6 @@ import inspect
 from abc import ABC
 from typing import Any, Dict
 
-import transformers
 import torch
 import torchaudio
 from lightning import LightningModule
@@ -35,12 +34,11 @@ class BaseLightningModule(LightningModule, ABC):
         gen_params = [
             {"params": self.generator.parameters()},
         ]
-        opt_gen = torch.optim.AdamW(gen_params, lr=self.hparams.initial_learning_rate , betas=(0.8, 0.9))
+        opt_gen = self.hparams.optimizer(gen_params)
         # Max steps per optimizer
         max_steps = self.trainer.max_steps
-        scheduler_gen = transformers.get_cosine_schedule_with_warmup(
+        scheduler_gen = self.hparams.scheduler(
             opt_gen,
-            num_warmup_steps=self.hparams.num_warmup_steps,
             num_training_steps=max_steps,
             last_epoch=getattr("self", "ckpt_loaded_epoch", -1)
         )

@@ -1,8 +1,8 @@
 defaults:
   - _self_
-  - generator: default.yaml
-  - optimizer: adamw.yaml
-  - scheduler: exponential_decay.yaml
+  - generator: default
+  - optimizer: adamw
+  - scheduler: cosine_with_warmup
 
 _target_: optispeech.model.OptiSpeech
 dim: 256
@@ -16,5 +16,3 @@ language: ${data.language}
 tokenizer: ${data.tokenizer}
 add_blank: ${data.add_blank}
 data_statistics: ${data.data_statistics}
-initial_learning_rate: 2e-4
-num_warmup_steps: 1000

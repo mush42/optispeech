@@ -27,8 +27,6 @@ class OptiSpeech(BaseLightningModule):
         data_statistics,
         optimizer=None,
         scheduler=None,
-        initial_learning_rate=2e-4,
-        num_warmup_steps=1000,
     ):
         super().__init__()
         self.save_hyperparameters(logger=False)
