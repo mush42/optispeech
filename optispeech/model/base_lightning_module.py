@@ -163,12 +163,19 @@ class BaseLightningModule(LightningModule, ABC):
             if self.current_epoch == 0:
                 log.debug("Plotting original samples")
                 for i in range(2):
-                    y = one_batch["mel"][i].unsqueeze(0).to(self.device)
+                    mel = one_batch["mel"][i].unsqueeze(0).to(self.device)
                     self.logger.experiment.add_image(
                         f"original/{i}",
-                        plot_tensor(y.squeeze().float().cpu()),
+                        plot_tensor(mel.squeeze().float().cpu()),
                         self.current_epoch,
                         dataformats="HWC",
+                    )
+                    gt_wav = one_batch["wav"][i].squeeze()
+                    self.logger.experiment.add_audio(
+                        f"val/gt_{i}",
+                        gt_wav.float().data.cpu().numpy(),
+                        self.global_step,
+                        self.hparams.sample_rate
                     )
             log.debug("Synthesising...")
             if self.hparams.hifigan_ckpt is not None:
@@ -187,14 +194,7 @@ class BaseLightningModule(LightningModule, ABC):
                     dataformats="HWC",
                 )
                 if HIFIGAN_MODEL is not None:
-                    gt_wav = one_batch["wav"][i].squeeze()
                     gen_wav = HIFIGAN_MODEL(mel_hat).squeeze()
-                    self.logger.experiment.add_audio(
-                        f"val/gt_{i}",
-                        gt_wav.float().data.cpu().numpy(),
-                        self.global_step,
-                        self.hparams.sample_rate
-                    )
                     self.logger.experiment.add_audio(
                         f"val/gen{i}",
                         gen_wav.float().data.cpu().numpy(),
