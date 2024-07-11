@@ -13,7 +13,7 @@
 
 # OptiSpeech: Lightweight End-to-End text-to-speech model
 
-**OptiSpeech** is ment to be an ultra **efficient**, **lightweight** and **fast** end-to-end model for **on-device** text-to-speech.
+**OptiSpeech** is ment to be an ultra **efficient**, **lightweight** and **fast** text-to-speech model for **on-device** text-to-speech.
 
 </div>
 
@@ -38,28 +38,30 @@ $ pip3 install -r requirements.txt
 
 ```bash
 $ python3 -m optispeech.infer  --help
-usage: infer.py [-h] [--d-factor D_FACTOR] [--p-factor P_FACTOR] [--e-factor E_FACTOR] [--cuda]
+usage: infer.py [-h] [--d-factor D_FACTOR] [--p-factor P_FACTOR] [--e-factor E_FACTOR]
+                [--hfg-checkpoint HFG_CHECKPOINT] [--cuda]
                 checkpoint text output_dir
 
 Synthesizing text using OptiSpeech
 
 positional arguments:
-  checkpoint           Path to OptiSpeech checkpoint
-  text                 Text to synthesize
-  output_dir           Directory to write generated wav to.
+  checkpoint            Path to OptiSpeech checkpoint
+  text                  Text to synthesise
+  output_dir            Directory to write generated mel to.
 
 options:
-  -h, --help           show this help message and exit
-  --d-factor D_FACTOR  Scale to control speech rate
-  --p-factor P_FACTOR  Scale to control pitch
-  --e-factor E_FACTOR  Scale to control energy
-  --cuda               Use GPU for inference
+  -h, --help            show this help message and exit
+  --d-factor D_FACTOR   Scale to control speech rate
+  --p-factor P_FACTOR   Scale to control pitch
+  --e-factor E_FACTOR   Scale to control energy
+  --hfg-checkpoint HFG_CHECKPOINT
+                        HiFiGAN vocoder V1 checkpoint.
+  --cuda                Use GPU for inference
 ```
 
 ### Python API
 
 ```python
-import soundfile as sf
 from optispeech.model import OptiSpeech
 
 # Load model
@@ -75,8 +77,8 @@ x, x_lengths, clean_text = model.prepare_input(sentence)
 
 # Inference
 synth_outputs = model.synthesize(x, x_lengths)
-wav = synth_outputs["wav"]
-sf.write("optispeech-gen.wav", wav, model.sample_rate)
+mel = synth_outputs["mel"]
+# ....
 ```
 
 ## Training
@@ -118,6 +120,24 @@ options:
   --format {ljspeech}  Dataset format.
 ```
 
+If you are training on a new dataset, you must calculate and add **data_statistics ** using the following script:
+
+```bash
+$ python3 -m optispeech.tools.generate_data_statistics --help
+usage: generate_data_statistics.py [-h] [-b BATCH_SIZE] [-f] [-o OUTPUT_DIR] input_config
+
+positional arguments:
+  input_config          The name of the yaml config file under configs/data
+
+options:
+  -h, --help            show this help message and exit
+  -b BATCH_SIZE, --batch-size BATCH_SIZE
+                        Can have increased batch size for faster computation
+  -f, --force           force overwrite the file
+  -o OUTPUT_DIR, --output-dir OUTPUT_DIR
+                        Output directory to save the data statistics
+```
+
 ### 2. Start training
 
 To start training run the following command. Note that this training run uses **config** from [hfc_female-en_US](./configs/experiment/hfc_female-en_US.yaml). You can copy and update it with your own config values, and pass the name of the custom config file (without extension) instead.
@@ -150,26 +170,23 @@ options:
 
 ```bash
 $ python3 -m optispeech.onnx.infer --help
-usage: infer.py [-h] [-l LANG] [--d-factor D_FACTOR] [--p-factor P_FACTOR] [-t {default,piper}] [--sr SR]
-                [--hop HOP] [--cuda]
+usage: infer.py [-h] [--d-factor D_FACTOR] [--p-factor P_FACTOR] [--e-factor E_FACTOR] [-voc VOCODER] [--cuda]
                 onnx_path text output_dir
 
 ONNX inference of OptiSpeech
 
 positional arguments:
-  onnx_path             Path to the exported OptiSpeech ONNX model
+  onnx_path             Path to the exported LeanSpeech ONNX model
   text                  Text to synthesize
-  output_dir            Directory to write generated audio to.
+  output_dir            Directory to write generated mel and/or audio to.
 
 options:
   -h, --help            show this help message and exit
-  -l LANG, --lang LANG  Language to use for tokenization.
-  --d-factor D_FACTOR   Length scale to control speech rate.
-  --p-factor P_FACTOR   Pitch scale to control speech pitch.
-  -t {default,piper}, --tokenizer {default,piper}
-                        Text tokenizer
-  --sr SR               Mel spectogram sampleing rate
-  --hop HOP             Mel spectogram hop lengths
+  --d-factor D_FACTOR   Scale to control speech rate.
+  --p-factor P_FACTOR   Scale to control pitch.
+  --e-factor E_FACTOR   Scale to control energy.
+  -voc VOCODER, --vocoder VOCODER
+                        Path to vocoder ONNX model
   --cuda                Use GPU for inference
 ```
 
