@@ -1,5 +1,3 @@
-""" from https://github.com/jaywalnut310/glow-tts """
-
 import math
 from collections import defaultdict
 
@@ -9,11 +7,19 @@ from torch import nn
 import torch.nn.functional as F
 
 
+INCREMENTAL_STATE_INSTANCE_ID = defaultdict(lambda: 0)
+
+
 def sequence_mask(length, max_length=None):
     if max_length is None:
         max_length = length.max()
     x = torch.arange(max_length, dtype=length.dtype, device=length.device)
     return x.unsqueeze(0) < length.unsqueeze(1)
+
+
+def make_non_pad_mask(lengths):
+    max_length = lengths.max()
+    return sequence_mask(lengths, max_length).unsqueeze(1).bool()
 
 
 def fix_len_compatibility(length, num_downsamplings_in_unet=2):
@@ -160,7 +166,26 @@ def trim_or_pad_to_target_length(
     return data_1d_or_2d
 
 
-INCREMENTAL_STATE_INSTANCE_ID = defaultdict(lambda: 0)
+def safe_log(x: torch.Tensor, clip_val: float = 1e-7) -> torch.Tensor:
+    """
+    Computes the element-wise logarithm of the input tensor with clipping to avoid near-zero values.
+
+    Args:
+        x (Tensor): Input tensor.
+        clip_val (float, optional): Minimum value to clip the input tensor. Defaults to 1e-7.
+
+    Returns:
+        Tensor: Element-wise logarithm of the input tensor with clipping applied.
+    """
+    return torch.log(torch.clip(x, min=float(clip_val)))
+
+
+def symlog(x: torch.Tensor) -> torch.Tensor:
+    return torch.sign(x) * torch.log1p(x.abs())
+
+
+def symexp(x: torch.Tensor) -> torch.Tensor:
+    return torch.sign(x) * (torch.exp(x.abs()) - 1)
 
 
 def pad_list(xs, pad_value, max_len=None):

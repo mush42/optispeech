@@ -7,34 +7,7 @@ from torch import nn
 from torch.nn import functional as F
 
 
-from optispeech.utils import sequence_mask
-
-
-def safe_log(x: torch.Tensor, clip_val: float = 1e-7) -> torch.Tensor:
-    """
-    Computes the element-wise logarithm of the input tensor with clipping to avoid near-zero values.
-
-    Args:
-        x (Tensor): Input tensor.
-        clip_val (float, optional): Minimum value to clip the input tensor. Defaults to 1e-7.
-
-    Returns:
-        Tensor: Element-wise logarithm of the input tensor with clipping applied.
-    """
-    return torch.log(torch.clip(x, min=float(clip_val)))
-
-
-def symlog(x: torch.Tensor) -> torch.Tensor:
-    return torch.sign(x) * torch.log1p(x.abs())
-
-
-def symexp(x: torch.Tensor) -> torch.Tensor:
-    return torch.sign(x) * (torch.exp(x.abs()) - 1)
-
-
-def make_non_pad_mask(lengths):
-    max_length = lengths.max()
-    return sequence_mask(lengths, max_length).unsqueeze(1).bool()
+from optispeech.utils.model import make_non_pad_mask
 
 
 class DurationPredictorLoss(torch.nn.Module):

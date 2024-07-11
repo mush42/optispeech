@@ -14,7 +14,6 @@ from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
 
 from optispeech.utils import get_pylogger, plot_tensor
-from .components.loss import safe_log
 
 
 log = get_pylogger(__name__)
