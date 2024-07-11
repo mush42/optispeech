@@ -6,8 +6,6 @@ defaults:
 
 _target_: optispeech.model.OptiSpeech
 dim: 256
-segment_size: 64
-val_segment_size: 512
 n_feats: ${data.n_feats}
 n_fft: ${data.n_fft}
 hop_length: ${data.hop_length}
@@ -18,3 +16,5 @@ language: ${data.language}
 tokenizer: ${data.tokenizer}
 add_blank: ${data.add_blank}
 data_statistics: ${data.data_statistics}
+initial_learning_rate: 2e-4
+num_warmup_steps: 1000

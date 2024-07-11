@@ -64,17 +64,10 @@ f_out = model(
     energies=batch["energies"],
 )
 
-# Training loop
-model.train_discriminator = True
-gen_step_out = model._forward_g(batch, batch["wav"])
-disc_step_out = model._forward_d(batch, batch["wav"])
-
 # Inference
 x = batch["x"]
 x_lengths = batch["x_lengths"]
 
-synth_outs = model.synthesize(x, x_lengths)
-print(f"AM RTF: {synth_outs['am_rtf']}")
-print(f"Voc RTF: {synth_outs['voc_rtf']}")
+synth_outs = model.synthesise(x, x_lengths)
 print(f"RTF: {synth_outs['rtf']}")
 print(f"Latency: {synth_outs['latency']}")

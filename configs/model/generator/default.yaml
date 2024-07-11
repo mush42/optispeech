@@ -3,6 +3,5 @@ defaults:
   - text_embedding: default
   - encoder: transformer
   - variance_adaptor: default
-  - decoder: transformer
-  - wav_generator: wavenext
+  - decoder: convnext
 

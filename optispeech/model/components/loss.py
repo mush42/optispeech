@@ -100,31 +100,39 @@ class FastSpeech2Loss(torch.nn.Module):
 
         # define criterions
         reduction = "none" if self.use_weighted_masking else "mean"
+        self.l1_criterion = torch.nn.L1Loss(reduction=reduction)
         self.mse_criterion = torch.nn.MSELoss(reduction=reduction)
         self.duration_criterion = DurationPredictorLoss(reduction=reduction)
 
     def forward(
         self,
+        mel_hat: torch.Tensor,
         d_outs: torch.Tensor,
         p_outs: torch.Tensor,
         e_outs: torch.Tensor,
+        mel: torch.Tensor,
         ds: torch.Tensor,
         ps: torch.Tensor,
         es: torch.Tensor,
         ilens: torch.Tensor,
+        olens: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Calculate forward propagation.
 
         Args:
+            mel_hat (LongTensor): Batch of generated mels (B, n_feats, T_mel).
             d_outs (LongTensor): Batch of outputs of duration predictor (B, T_text).
             p_outs (Tensor): Batch of outputs of pitch predictor (B, T_text, 1).
             e_outs (Tensor): Batch of outputs of energy predictor (B, T_text, 1).
+            mel (LongTensor): Batch of mels (B, n_feats, T_mel).
             ds (LongTensor): Batch of durations (B, T_text).
             ps (Tensor): Batch of target token-averaged pitch (B, T_text, 1).
             es (Tensor): Batch of target token-averaged energy (B, T_text, 1).
             ilens (LongTensor): Batch of the lengths of each input (B,).
+            olens (LongTensor): Batch of the lengths of each mel (B,).
 
         Returns:
+            Tensor: mel loss value.
             Tensor: Duration predictor loss value.
             Tensor: Pitch predictor loss value.
             Tensor: Energy predictor loss value.
@@ -132,7 +140,10 @@ class FastSpeech2Loss(torch.nn.Module):
         """
         # apply mask to remove padded part
         if self.use_masking:
+            out_masks = make_non_pad_mask(olens).unsqueeze(-2).to(ds.device)
             duration_masks = make_non_pad_mask(ilens).to(ds.device)
+            mel_hat = mel_hat.masked_select(out_masks)
+            mel = mel.masked_select(out_masks)
             d_outs = d_outs.masked_select(duration_masks)
             ds = ds.masked_select(duration_masks)
             pitch_masks = make_non_pad_mask(ilens).unsqueeze(-1).to(ds.device)
@@ -143,6 +154,7 @@ class FastSpeech2Loss(torch.nn.Module):
                 es = es.masked_select(pitch_masks)
 
         # calculate loss
+        mel_loss = self.l1_criterion(mel_hat, mel)
         duration_loss = self.duration_criterion(d_outs, ds)
         pitch_loss = self.mse_criterion(p_outs, ps)
         energy_loss = torch.tensor(0.0)
@@ -151,6 +163,9 @@ class FastSpeech2Loss(torch.nn.Module):
 
         # make weighted mask and apply it
         if self.use_weighted_masking:
+            out_masks = make_non_pad_mask(olens).unsqueeze(-1).to(ds.device)
+            out_weights = out_masks.float() / out_masks.sum(dim=1, keepdim=True).float()
+            out_weights /= ys.size(0) * ys.size(2)
             duration_masks = make_non_pad_mask(ilens).to(ds.device)
             duration_weights = (
                 duration_masks.float() / duration_masks.sum(dim=1, keepdim=True).float()
@@ -158,6 +173,7 @@ class FastSpeech2Loss(torch.nn.Module):
             duration_weights /= ds.size(0)
 
             # apply weight
+            mel_loss = mel_loss.mul(out_weights).masked_select(out_masks).sum()
             duration_loss = (
                 duration_loss.mul(duration_weights).masked_select(duration_masks).sum()
             )
@@ -168,134 +184,10 @@ class FastSpeech2Loss(torch.nn.Module):
                 energy_loss.mul(pitch_weights).masked_select(pitch_masks).sum()
             )
 
-        return duration_loss, pitch_loss, energy_loss
-
-
-class GeneratorLoss(nn.Module):
-    """
-    Generator Loss module. Calculates the loss for the generator based on discriminator outputs.
-    """
-
-    def forward(self, disc_outputs: List[torch.Tensor]) -> Tuple[torch.Tensor, List[torch.Tensor]]:
-        """
-        Args:
-            disc_outputs (List[Tensor]): List of discriminator outputs.
-
-        Returns:
-            Tuple[Tensor, List[Tensor]]: Tuple containing the total loss and a list of loss values from
-                                         the sub-discriminators
-        """
-        loss = torch.zeros(1, device=disc_outputs[0].device, dtype=disc_outputs[0].dtype)
-        gen_losses = []
-        for dg in disc_outputs:
-            l = torch.mean(torch.clamp(1 - dg, min=0))
-            gen_losses.append(l)
-            loss += l
-
-        return loss, gen_losses
-
-
-class DiscriminatorLoss(nn.Module):
-    """
-    Discriminator Loss module. Calculates the loss for the discriminator based on real and generated outputs.
-    """
-
-    def forward(
-        self, disc_real_outputs: List[torch.Tensor], disc_generated_outputs: List[torch.Tensor]
-    ) -> Tuple[torch.Tensor, List[torch.Tensor], List[torch.Tensor]]:
-        """
-        Args:
-            disc_real_outputs (List[Tensor]): List of discriminator outputs for real samples.
-            disc_generated_outputs (List[Tensor]): List of discriminator outputs for generated samples.
-
-        Returns:
-            Tuple[Tensor, List[Tensor], List[Tensor]]: A tuple containing the total loss, a list of loss values from
-                                                       the sub-discriminators for real outputs, and a list of
-                                                       loss values for generated outputs.
-        """
-        loss = torch.zeros(1, device=disc_real_outputs[0].device, dtype=disc_real_outputs[0].dtype)
-        r_losses = []
-        g_losses = []
-        for dr, dg in zip(disc_real_outputs, disc_generated_outputs):
-            r_loss = torch.mean(torch.clamp(1 - dr, min=0))
-            g_loss = torch.mean(torch.clamp(1 + dg, min=0))
-            loss += r_loss + g_loss
-            r_losses.append(r_loss)
-            g_losses.append(g_loss)
-
-        return loss, r_losses, g_losses
+        return mel_loss, duration_loss, pitch_loss, energy_loss
 
 
 
-class MelSpecReconstructionLoss(nn.Module):
-    """
-    L1 distance between the mel-scaled magnitude spectrograms of the ground truth sample and the generated sample
-    """
-
-    def __init__(
-        self,
-        sample_rate: int,
-        n_fft: int,
-        hop_length: int,
-        n_mels: int,
-        f_min: float=0,
-        f_max: float =8000,
-        norm: str="slaney",
-        mel_scale: str = "slaney",
-        clip_val: float = 1e-5
-    ):
-        super().__init__()
-        self.clip_val = clip_val
-        self.mel_spec = torchaudio.transforms.MelSpectrogram(
-            sample_rate=sample_rate,
-            n_fft=n_fft,
-            hop_length=hop_length,
-            n_mels=n_mels,
-            center=True,
-            power=1,
-            f_min=f_min, 
-            f_max=f_max,
-            norm=norm,
-            mel_scale=mel_scale
-        )
-
-    def forward(self, y_hat, y) -> torch.Tensor:
-        """
-        Args:
-            y_hat (Tensor): Predicted audio waveform.
-            y (Tensor): Ground truth audio waveform.
-
-        Returns:
-            Tensor: L1 loss between the mel-scaled magnitude spectrograms.
-        """
-        mel_hat = safe_log(self.mel_spec(y_hat), clip_val=self.clip_val)
-        mel = safe_log(self.mel_spec(y), clip_val=self.clip_val)
-
-        loss = torch.nn.functional.l1_loss(mel, mel_hat)
-
-        return loss
-
-
-class FeatureMatchingLoss(nn.Module):
-    """
-    Feature Matching Loss module. Calculates the feature matching loss between feature maps of the sub-discriminators.
-    """
-
-    def forward(self, fmap_r: List[List[torch.Tensor]], fmap_g: List[List[torch.Tensor]]) -> torch.Tensor:
-        """
-        Args:
-            fmap_r (List[List[Tensor]]): List of feature maps from real samples.
-            fmap_g (List[List[Tensor]]): List of feature maps from generated samples.
-
-        Returns:
-            Tensor: The calculated feature matching loss.
-        """
-        loss = torch.zeros(1, device=fmap_r[0][0].device, dtype=fmap_r[0][0].dtype)
-        for dr, dg in zip(fmap_r, fmap_g):
-            for rl, gl in zip(dr, dg):
-                loss += torch.mean(torch.abs(rl - gl))
-
-        return loss
 
 class ForwardSumLoss(torch.nn.Module):
     """Forwardsum loss described at https://openreview.net/forum?id=0NQwnnwAORi"""

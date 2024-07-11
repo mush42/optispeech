@@ -252,31 +252,7 @@ def save_figure_to_numpy(fig: plt.Figure) -> np.ndarray:
     return data
 
 
-def plot_spectrogram_to_numpy(spectrogram: np.ndarray) -> np.ndarray:
-    """
-    Plot a spectrogram and convert it to a numpy array.
-
-    Args:
-        spectrogram (ndarray): Spectrogram data.
-
-    Returns:
-        ndarray: Numpy array representing the plotted spectrogram.
-    """
-    spectrogram = spectrogram.astype(np.float32)
-    fig, ax = plt.subplots(figsize=(12, 3))
-    im = ax.imshow(spectrogram, aspect="auto", origin="lower", interpolation="none")
-    plt.colorbar(im, ax=ax)
-    plt.xlabel("Frames")
-    plt.ylabel("Channels")
-    plt.tight_layout()
-
-    fig.canvas.draw()
-    data = save_figure_to_numpy(fig)
-    plt.close()
-    return data
-
-
-def plot_spectrogram_to_file(spectrogram, filename):
+def plot_spectrogram_to_numpy(spectrogram, filename):
     fig, ax = plt.subplots(figsize=(12, 3))
     im = ax.imshow(spectrogram, aspect="auto", origin="lower", interpolation="none")
     plt.colorbar(im, ax=ax)
