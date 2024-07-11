@@ -8,23 +8,12 @@ import torch
 import soundfile as sf
 from torch.nn.utils.rnn import pad_sequence, unpad_sequence
 
-from optispeech.hifigan.config import v1
-from optispeech.hifigan.env import AttrDict
-from optispeech.hifigan.models import Generator as HiFiGAN
+from optispeech.hifigan import load_hifigan
 from optispeech.model import OptiSpeech
 from optispeech.utils import pylogger, plot_spectrogram_to_numpy
 
 
 log = pylogger.get_pylogger(__name__)
-
-
-def load_hifigan(checkpoint_path, device):
-    h = AttrDict(v1)
-    hifigan = HiFiGAN(h).to(device)
-    hifigan.load_state_dict(torch.load(checkpoint_path, map_location=device)["generator"])
-    _ = hifigan.eval()
-    hifigan.remove_weight_norm()
-    return hifigan
 
 
 def main():

@@ -25,12 +25,12 @@ class OptiSpeech(BaseLightningModule):
         add_blank,
         generator,
         data_statistics,
+        hifigan_ckpt=None,
         optimizer=None,
         scheduler=None,
     ):
         super().__init__()
         self.save_hyperparameters(logger=False)
-            
 
         self.sample_rate = sample_rate
         self.hop_length = hop_length

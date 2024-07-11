@@ -12,10 +12,12 @@ import torchaudio
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
 
+from optispeech.hifigan import load_hifigan
 from optispeech.utils import get_pylogger, plot_tensor
 
 
 log = get_pylogger(__name__)
+HIFIGAN_MODEL = None
 
 
 class BaseLightningModule(LightningModule, ABC):
@@ -154,6 +156,7 @@ class BaseLightningModule(LightningModule, ABC):
         return g_outputs["loss"]
 
     def on_validation_end(self) -> None:
+        global HIFIGAN_MODEL
         if self.trainer.is_global_zero:
             one_batch = next(iter(self.trainer.val_dataloaders))
             g_outputs = self._process_batch(one_batch)
@@ -168,6 +171,9 @@ class BaseLightningModule(LightningModule, ABC):
                         dataformats="HWC",
                     )
             log.debug("Synthesising...")
+            if self.hparams.hifigan_ckpt is not None:
+                if HIFIGAN_MODEL is None:
+                    HIFIGAN_MODEL = load_hifigan(self.hparams.hifigan_ckpt, self.device)
             for i in range(2):
                 x = one_batch["x"][i].unsqueeze(0).to(self.device)
                 x_lengths = one_batch["x_lengths"][i].unsqueeze(0).to(self.device)
@@ -179,6 +185,21 @@ class BaseLightningModule(LightningModule, ABC):
                     self.current_epoch,
                     dataformats="HWC",
                 )
+                if HIFIGAN_MODEL is not None:
+                    gt_wav = one_batch["wav"][i].squeeze()
+                    gen_wav = HIFIGAN_MODEL(mel_hat).squeeze()
+                    self.logger.experiment.add_audio(
+                        f"val/gt_{i}",
+                        gt_wav.float().data.cpu().numpy(),
+                        self.global_step,
+                        self.hparams.sample_rate
+                    )
+                    self.logger.experiment.add_audio(
+                        f"val/gen{i}",
+                        gen_wav.float().data.cpu().numpy(),
+                        self.global_step,
+                        self.hparams.sample_rate
+                    )
 
     def on_before_optimizer_step(self, optimizer):
         self.log_dict({f"grad_norm/{k}": v for k, v in grad_norm(self, norm_type=2).items()})
