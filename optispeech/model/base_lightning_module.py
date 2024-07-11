@@ -173,7 +173,8 @@ class BaseLightningModule(LightningModule, ABC):
             log.debug("Synthesising...")
             if self.hparams.hifigan_ckpt is not None:
                 if HIFIGAN_MODEL is None:
-                    HIFIGAN_MODEL = load_hifigan(self.hparams.hifigan_ckpt, self.device)
+                    HIFIGAN_MODEL = load_hifigan(self.hparams.hifigan_ckpt, "cpu")
+                HIFIGAN_MODEL.to(self.device)
             for i in range(2):
                 x = one_batch["x"][i].unsqueeze(0).to(self.device)
                 x_lengths = one_batch["x_lengths"][i].unsqueeze(0).to(self.device)
@@ -200,6 +201,8 @@ class BaseLightningModule(LightningModule, ABC):
                         self.global_step,
                         self.hparams.sample_rate
                     )
+            if HIFIGAN_MODEL is not None:
+                HIFIGAN_MODEL.to("cpu")
 
     def on_before_optimizer_step(self, optimizer):
         self.log_dict({f"grad_norm/{k}": v for k, v in grad_norm(self, norm_type=2).items()})
