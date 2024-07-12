@@ -9,8 +9,8 @@ batch_size: 64
 num_workers: 8
 pin_memory: True
 n_fft: 1024
-n_feats: 100
-sample_rate: 24000
+n_feats: 80
+sample_rate: 22050
 hop_length: 256
 win_length: 1024
 f_min: 0

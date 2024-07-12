@@ -5,3 +5,11 @@ defaults:
   - variance_adaptor: default
   - decoder: convnext
 
+_target_: optispeech.model.components.OptiSpeechGenerator
+_partial_: true
+loss_coeffs:
+  lambda_align: 2.0
+  lambda_mel: 10.0
+  lambda_duration: 1.0
+  lambda_pitch: 1.0
+  lambda_energy: 1.0

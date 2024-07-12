@@ -24,16 +24,16 @@ class OptiSpeechGenerator(nn.Module):
         encoder,
         variance_adaptor,
         decoder,
+        loss_coeffs,
         data_statistics,
-        lambda_align=2.0,
     ):
         super().__init__()
 
+        self.loss_coeffs = loss_coeffs
         self.n_feats = n_feats
         self.hop_length = hop_length
         self.sample_rate = sample_rate
         self.data_statistics = data_statistics
-        self.lambda_align = lambda_align
 
         self.text_embedding = text_embedding(dim=dim)
         self.encoder = encoder(dim=dim)
@@ -159,8 +159,6 @@ class OptiSpeechGenerator(nn.Module):
         mel_hat = self.mel_proj(z)
         mel_hat = mel_hat.transpose(1, 2)
 
-        forwardsum_loss = self.forwardsum_loss(log_p_attn, x_lengths, mel_lengths)
-        align_loss = (forwardsum_loss + bin_loss) * self.lambda_align
         mel_loss, duration_loss, pitch_loss, energy_loss = self.loss_criterion(
             mel_hat=mel_hat,
             d_outs=duration_hat,
@@ -173,7 +171,17 @@ class OptiSpeechGenerator(nn.Module):
             ilens=x_lengths,
             olens=mel_lengths,
         )
-        loss =  (2.0 * mel_loss) + align_loss + duration_loss + pitch_loss + energy_loss
+
+        loss_coeffs = self.loss_coeffs
+        forwardsum_loss = self.forwardsum_loss(log_p_attn, x_lengths, mel_lengths)
+        align_loss = forwardsum_loss + bin_loss
+        loss =  (
+            (align_loss * loss_coeffs.lambda_align)
+            + (mel_loss * loss_coeffs.lambda_mel)
+            + (duration_loss * loss_coeffs.lambda_duration)
+            + (pitch_loss * loss_coeffs.lambda_pitch)
+            + (energy_loss * loss_coeffs.lambda_energy)
+        )
 
         return {
             "mel": mel,

@@ -7,7 +7,6 @@ from optispeech.utils import pad_list
 from optispeech.text import process_and_phonemize_text
 
 from .base_lightning_module import BaseLightningModule
-from .components import OptiSpeechGenerator
 
 
 class OptiSpeech(BaseLightningModule):
@@ -36,16 +35,12 @@ class OptiSpeech(BaseLightningModule):
         self.hop_length = hop_length
         self.data_statistics = data_statistics
 
-        self.generator = OptiSpeechGenerator(
+        self.generator = generator(
             dim=dim,
             n_feats=n_feats,
             n_fft=n_fft,
             hop_length=hop_length,
             sample_rate=sample_rate,
-            text_embedding=generator["text_embedding"],
-            encoder=generator["encoder"],
-            variance_adaptor=generator["variance_adaptor"],
-            decoder=generator["decoder"],
             data_statistics=data_statistics,
         )
 

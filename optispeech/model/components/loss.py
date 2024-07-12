@@ -160,8 +160,6 @@ class FastSpeech2Loss(torch.nn.Module):
         return mel_loss, duration_loss, pitch_loss, energy_loss
 
 
-
-
 class ForwardSumLoss(torch.nn.Module):
     """Forwardsum loss described at https://openreview.net/forum?id=0NQwnnwAORi"""
 
