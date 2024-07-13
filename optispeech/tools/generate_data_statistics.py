@@ -70,8 +70,8 @@ def calculate_data_statistics(dataset: torch.utils.data.Dataset, output_dir: Pat
     energy_mean = energy_sum / x_lengths
     energy_std = torch.sqrt((energy_sq_sum / x_lengths) - torch.pow(energy_mean,2))
 
-    mel_mean = mel_sum / (total_mel_len * cfg['n_feats'])
-    mel_std = torch.sqrt((mel_sq_sum / (total_mel_len * cfg['n_feats'])) - torch.pow(mel_mean, 2))
+    mel_mean = mel_sum / (total_mel_len * cfg.feature_extractor.n_feats)
+    mel_std = torch.sqrt((mel_sq_sum / (total_mel_len * cfg.feature_extractor.n_feats)) - torch.pow(mel_mean, 2))
 
     stats = {
                 "pitch_min": round(pitch_min, 6),
