@@ -1,4 +1,4 @@
-_target_: optispeech.model.components.generator.TransformerEncoder
+_target_: optispeech.model.generator.TransformerEncoder
 _partial_: true
 kernel_sizes: [5, 25, 13, 9]
 activation: relu

@@ -38,30 +38,28 @@ $ pip3 install -r requirements.txt
 
 ```bash
 $ python3 -m optispeech.infer  --help
-usage: infer.py [-h] [--d-factor D_FACTOR] [--p-factor P_FACTOR] [--e-factor E_FACTOR]
-                [--hfg-checkpoint HFG_CHECKPOINT] [--cuda]
+usage: infer.py [-h] [--d-factor D_FACTOR] [--p-factor P_FACTOR] [--e-factor E_FACTOR] [--cuda]
                 checkpoint text output_dir
 
-Synthesizing text using OptiSpeech
+Speaking text using OptiSpeech
 
 positional arguments:
-  checkpoint            Path to OptiSpeech checkpoint
-  text                  Text to synthesise
-  output_dir            Directory to write generated mel to.
+  checkpoint           Path to OptiSpeech checkpoint
+  text                 Text to synthesise
+  output_dir           Directory to write generated audio to.
 
 options:
-  -h, --help            show this help message and exit
-  --d-factor D_FACTOR   Scale to control speech rate
-  --p-factor P_FACTOR   Scale to control pitch
-  --e-factor E_FACTOR   Scale to control energy
-  --hfg-checkpoint HFG_CHECKPOINT
-                        HiFiGAN vocoder V1 checkpoint.
-  --cuda                Use GPU for inference
+  -h, --help           show this help message and exit
+  --d-factor D_FACTOR  Scale to control speech rate
+  --p-factor P_FACTOR  Scale to control pitch
+  --e-factor E_FACTOR  Scale to control energy
+  --cuda               Use GPU for inference
 ```
 
 ### Python API
 
 ```python
+import soundfile as sf
 from optispeech.model import OptiSpeech
 
 # Load model
@@ -77,8 +75,8 @@ x, x_lengths, clean_text = model.prepare_input(sentence)
 
 # Inference
 synth_outputs = model.synthesize(x, x_lengths)
-mel = synth_outputs["mel"]
-# ....
+wav = synth_outputs["wav"]
+sf.write("output.wav", wav.squeeze().detach().cpu().numpy(), model.sample_rate)
 ```
 
 ## Training
@@ -170,24 +168,22 @@ options:
 
 ```bash
 $ python3 -m optispeech.onnx.infer --help
-usage: infer.py [-h] [--d-factor D_FACTOR] [--p-factor P_FACTOR] [--e-factor E_FACTOR] [-voc VOCODER] [--cuda]
+usage: infer.py [-h] [--d-factor D_FACTOR] [--p-factor P_FACTOR] [--e-factor E_FACTOR] [--cuda]
                 onnx_path text output_dir
 
 ONNX inference of OptiSpeech
 
 positional arguments:
-  onnx_path             Path to the exported LeanSpeech ONNX model
-  text                  Text to synthesize
-  output_dir            Directory to write generated mel and/or audio to.
+  onnx_path            Path to the exported LeanSpeech ONNX model
+  text                 Text to speak
+  output_dir           Directory to write generated audio to.
 
 options:
-  -h, --help            show this help message and exit
-  --d-factor D_FACTOR   Scale to control speech rate.
-  --p-factor P_FACTOR   Scale to control pitch.
-  --e-factor E_FACTOR   Scale to control energy.
-  -voc VOCODER, --vocoder VOCODER
-                        Path to vocoder ONNX model
-  --cuda                Use GPU for inference
+  -h, --help           show this help message and exit
+  --d-factor D_FACTOR  Scale to control speech rate.
+  --p-factor P_FACTOR  Scale to control pitch.
+  --e-factor E_FACTOR  Scale to control energy.
+  --cuda               Use GPU for inference
 ```
 
 ## Acknowledgements

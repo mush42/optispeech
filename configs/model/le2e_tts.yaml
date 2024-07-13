@@ -1,0 +1,5 @@
+defaults:
+  - _self_
+  - optispeech
+  - override generator/encoder: transformer
+  - override generator/decoder: transformer

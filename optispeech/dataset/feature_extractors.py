@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import librosa
 import numpy as np
@@ -53,7 +53,7 @@ class FeatureExtractor:
             pitch.squeeze()
         )
 
-    def get_mel(self, wav: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def get_mel(self, wav: np.ndarray) -> np.ndarray:
         raise NotImplementedError
 
     def get_energy(self, wav, mel_length):

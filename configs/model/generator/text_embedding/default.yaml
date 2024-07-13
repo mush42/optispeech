@@ -1,4 +1,4 @@
-_target_: optispeech.model.components.generator.TextEmbedding
+_target_: optispeech.model.generator.TextEmbedding
 _partial_: true
 n_vocab: 250
 dropout: 0.1

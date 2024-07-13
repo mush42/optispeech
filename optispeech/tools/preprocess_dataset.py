@@ -67,18 +67,13 @@ def main():
     with initialize(version_base=None, config_path="../../configs/data"):
         cfg = compose(config_name=args.dataset)
         cfg["seed"] = 1234
+    feature_extractor = hydra.utils.instantiate(cfg.feature_extractor)
     dataset = TextWavDataset(
         language=cfg.language,
         tokenizer=cfg.tokenizer,
         add_blank=cfg.add_blank,
         filelist_path=os.devnull,
-        n_fft=cfg.n_fft,
-        n_mels=cfg.n_feats,
-        sample_rate=cfg.sample_rate,
-        hop_length=cfg.hop_length,
-        win_length=cfg.win_length,
-        f_min=cfg.f_min,
-        f_max=cfg.f_max,
+            feature_extractor=    feature_extractor,
     )
 
     if args.format != 'ljspeech':

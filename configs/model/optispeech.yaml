@@ -1,14 +1,17 @@
 defaults:
   - _self_
   - generator: default
+  - discriminator: default
   - optimizer: adamw
   - scheduler: cosine_with_warmup
 
 _target_: optispeech.model.OptiSpeech
 dim: 256
+pretraining_steps: 1000
+decay_mel_coeff: false
+gradient_clip_val: 1.0
 feature_extractor: ${data.feature_extractor}
 language: ${data.language}
 tokenizer: ${data.tokenizer}
 add_blank: ${data.add_blank}
 data_statistics: ${data.data_statistics}
-hifigan_ckpt: g_02500000

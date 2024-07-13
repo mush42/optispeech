@@ -4,10 +4,11 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from optispeech.model.components.loss import FastSpeech2Loss, ForwardSumLoss
 from optispeech.utils import sequence_mask, denormalize
+from optispeech.utils.segments import get_random_segments
 
 from .alignments import AlignmentModule, GaussianUpsampling, viterbi_decode, average_by_duration
+from .loss import FastSpeech2Loss, ForwardSumLoss
 from .modules import TextEmbedding, TransformerEncoder, TransformerDecoder, DurationPredictor, PitchPredictor, EnergyPredictor
 from .variance_adaptor import VarianceAdaptor
 
@@ -16,19 +17,22 @@ class OptiSpeechGenerator(nn.Module):
     def __init__(
         self,
         dim: int,
+        segment_size,
         text_embedding,
         encoder,
         variance_adaptor,
         decoder,
+        wav_generator,
         loss_coeffs,
         feature_extractor,
         data_statistics,
     ):
         super().__init__()
 
+        self.segment_size = segment_size
         self.loss_coeffs = loss_coeffs
-
         self.n_feats = feature_extractor.n_feats
+        self.n_fft = feature_extractor.n_fft
         self.hop_length = feature_extractor.hop_length
         self.sample_rate = feature_extractor.sample_rate
         self.data_statistics = data_statistics
@@ -77,7 +81,11 @@ class OptiSpeechGenerator(nn.Module):
             energy_max=data_statistics["energy_max"],
         )
         self.decoder = decoder(dim=dim)
-        self.mel_proj = nn.Linear(dim, self.n_feats)
+        self.wav_generator = wav_generator(
+            input_channels=dim,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length
+        )
         self.loss_criterion = FastSpeech2Loss()
         self.forwardsum_loss = ForwardSumLoss()
 
@@ -97,7 +105,6 @@ class OptiSpeechGenerator(nn.Module):
 
         Returns:
             loss: (torch.Tensor): scaler representing total loss
-            mel_loss: (torch.Tensor): scaler representing mel loss
             duration_loss: (torch.Tensor): scaler representing durations loss
             pitch_loss: (torch.Tensor): scaler representing pitch loss
             energy_loss: (torch.Tensor): scaler representing energy loss
@@ -153,41 +160,45 @@ class OptiSpeechGenerator(nn.Module):
 
         # Decoder
         z = self.decoder(z, target_padding_mask)
-        z = z * mel_mask.transpose(1, 2)
-        mel_hat = self.mel_proj(z)
-        mel_hat = mel_hat.transpose(1, 2)
 
-        mel_loss, duration_loss, pitch_loss, energy_loss = self.loss_criterion(
-            mel_hat=mel_hat,
+        # get random segments
+        segment_size = min(self.segment_size, z.shape[-2])
+        z_segment, z_start_idx = get_random_segments(
+            z.transpose(1, 2),
+            mel_lengths.type_as(z),
+            segment_size,
+        )
+
+        # Generate wav
+        wav_hat = self.wav_generator(z_segment)
+
+        # Losses
+        loss_coeffs = self.loss_coeffs
+        duration_loss, pitch_loss, energy_loss = self.loss_criterion(
             d_outs=duration_hat,
             p_outs=pitch_hat,
             e_outs=energy_hat,
-            mel=mel,
             ds=durations.unsqueeze(-1),
             ps=pitches.unsqueeze(-1),
             es=energies.unsqueeze(-1) if energies is not None else None,
             ilens=x_lengths,
-            olens=mel_lengths,
         )
-
-        loss_coeffs = self.loss_coeffs
         forwardsum_loss = self.forwardsum_loss(log_p_attn, x_lengths, mel_lengths)
         align_loss = forwardsum_loss + bin_loss
         loss =  (
             (align_loss * loss_coeffs.lambda_align)
-            + (mel_loss * loss_coeffs.lambda_mel)
             + (duration_loss * loss_coeffs.lambda_duration)
             + (pitch_loss * loss_coeffs.lambda_pitch)
             + (energy_loss * loss_coeffs.lambda_energy)
         )
 
         return {
-            "mel": mel,
-            "mel_hat": mel_hat,
+            "wav_hat": wav_hat,
+            "start_idx": z_start_idx,
+            "segment_size": segment_size,
             "attn": log_p_attn,
             "loss": loss,
             "align_loss": align_loss,
-            "mel_loss": mel_loss,
             "duration_loss": duration_loss,
             "pitch_loss": pitch_loss,
             "energy_loss": energy_loss,
@@ -259,24 +270,28 @@ class OptiSpeechGenerator(nn.Module):
 
         # Decoder
         y = self.decoder(y, target_padding_mask)
-        y = y * y_mask.transpose(1, 2)
-
-        mel = self.mel_proj(y)
-        mel = mel.transpose(1, 2)
-        mel = denormalize(mel, self.data_statistics["mel_mean"], self.data_statistics["mel_std"])
         am_infer = (perf_counter() - am_t0) * 1000
 
-        wav_t = (mel.shape[-1] * self.hop_length) / (self.sample_rate * 1e-3)
+        v_t0 = perf_counter()
+        # Generate wav
+        wav = self.wav_generator(y.transpose(1, 2), target_padding_mask)
+        wav_lengths = y_lengths * self.hop_length
+        v_infer = (perf_counter() - v_t0) * 1000
+
+        wav_t = wav.shape[-1] / (self.sample_rate * 1e-3)
         am_rtf = am_infer / wav_t
-        rtf = am_rtf
-        latency = am_infer 
+        v_rtf = v_infer / wav_t
+        rtf = am_rtf + v_rtf
+        latency = am_infer  + v_infer
 
         return {
-            "mel": mel,
-            "mel_lengths": y_lengths,
+            "wav": wav,
+            "wav_lengths": wav_lengths,
             "durations": durations,
             "pitch": pitch,
             "energy": energy,
+            "am_rtf": am_rtf,
+            "v_rtf": v_rtf,
             "rtf": rtf,
             "latency": latency
         }
