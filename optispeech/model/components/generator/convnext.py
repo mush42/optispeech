@@ -97,8 +97,10 @@ class ConvNeXtBackbone(nn.Module):
 
     def forward(self, x: torch.Tensor, padding_mask: Optional[torch.Tensor]=None) -> torch.Tensor:
         x = x.transpose(1, 2)
+        mask = (1 - padding_mask.float().unsqueeze(1))
         for conv_block in self.convnext:
             x = conv_block(x)
+            x = x * mask
         x = self.final_layer_norm(x.transpose(1, 2))
         return x
 
