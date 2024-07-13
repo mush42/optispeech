@@ -12,12 +12,6 @@ train_filelist_path: data/herald-en_gb/train.txt
 valid_filelist_path: data/herald-en_gb/val.txt
 batch_size: 32
 num_workers: 4
-sample_rate: 22050
-n_feats: 80
-n_fft: 1024
-hop_length: 256
-f_min: 0
-f_max: 7600
 data_statistics:  # Computed for this dataset
   pitch_min: 0.0
   pitch_max: 260.499786

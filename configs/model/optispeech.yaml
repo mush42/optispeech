@@ -6,12 +6,7 @@ defaults:
 
 _target_: optispeech.model.OptiSpeech
 dim: 256
-n_feats: ${data.n_feats}
-n_fft: ${data.n_fft}
-hop_length: ${data.hop_length}
-sample_rate: ${data.sample_rate}
-f_min: ${data.f_min}
-f_max: ${data.f_max}
+feature_extractor: ${data.feature_extractor}
 language: ${data.language}
 tokenizer: ${data.tokenizer}
 add_blank: ${data.add_blank}

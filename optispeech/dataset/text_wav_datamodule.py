@@ -1,6 +1,4 @@
-import csv
 import json
-import os
 import random
 from hashlib import md5
 from pathlib import Path
@@ -17,8 +15,11 @@ from scipy.interpolate import interp1d
 from torch.utils.data.dataloader import DataLoader
 
 from optispeech.text import process_and_phonemize_text
-from optispeech.utils import fix_len_compatibility, normalize, trim_or_pad_to_target_length
-from optispeech.utils.audio import mel_spectrogram
+from optispeech.utils import pylogger, normalize
+from optispeech.dataset.feature_extractors import FeatureExtractor
+
+
+log = pylogger.get_pylogger(__name__)
 
 
 def parse_filelist(filelist_path):
@@ -39,13 +40,7 @@ class TextWavDataModule(LightningDataModule):
         batch_size,
         num_workers,
         pin_memory,
-        n_fft,
-        n_feats,
-        sample_rate,
-        hop_length,
-        win_length,
-        f_min,
-        f_max,
+        feature_extractor,
         data_statistics,
         seed,
     ):
@@ -54,6 +49,8 @@ class TextWavDataModule(LightningDataModule):
         # this line allows to access init params with 'self.hparams' attribute
         # also ensures init params will be stored in ckpt
         self.save_hyperparameters(logger=False)
+        self.feature_extractor = feature_extractor
+        self.n_feats = feature_extractor.n_feats
 
     def setup(self, stage: Optional[str] = None):  # pylint: disable=unused-argument
         """Load data. Set variables: `self.data_train`, `self.data_val`, `self.data_test`.
@@ -68,13 +65,7 @@ class TextWavDataModule(LightningDataModule):
             tokenizer=self.hparams.tokenizer,
             add_blank=self.hparams.add_blank,
             filelist_path=self.hparams.train_filelist_path,
-            n_fft=self.hparams.n_fft,
-            n_mels=self.hparams.n_feats,
-            sample_rate=self.hparams.sample_rate,
-            hop_length=self.hparams.hop_length,
-            win_length=self.hparams.win_length,
-            f_min=self.hparams.f_min,
-            f_max=self.hparams.f_max,
+            feature_extractor=self.feature_extractor,
             seed=self.hparams.seed,
         )
         self.validset = TextWavDataset(  # pylint: disable=attribute-defined-outside-init
@@ -82,13 +73,7 @@ class TextWavDataModule(LightningDataModule):
             tokenizer=self.hparams.tokenizer,
             add_blank=self.hparams.add_blank,
             filelist_path=self.hparams.valid_filelist_path,
-            n_fft=self.hparams.n_fft,
-            n_mels=self.hparams.n_feats,
-            sample_rate=self.hparams.sample_rate,
-            hop_length=self.hparams.hop_length,
-            win_length=self.hparams.win_length,
-            f_min=self.hparams.f_min,
-            f_max=self.hparams.f_max,
+            feature_extractor=self.feature_extractor,
             seed=self.hparams.seed,
         )
 
@@ -99,7 +84,7 @@ class TextWavDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=True,
-            collate_fn=TextWavBatchCollate(self.hparams.n_feats, self.hparams.data_statistics, do_normalize=do_normalize),
+            collate_fn=TextWavBatchCollate(self.n_feats, self.hparams.data_statistics, do_normalize=do_normalize),
         )
 
     def val_dataloader(self):
@@ -109,7 +94,7 @@ class TextWavDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             shuffle=False,
-            collate_fn=TextWavBatchCollate(self.hparams.n_feats, self.hparams.data_statistics),
+            collate_fn=TextWavBatchCollate(self.n_feats, self.hparams.data_statistics),
         )
 
     def teardown(self, stage: Optional[str] = None):
@@ -132,13 +117,7 @@ class TextWavDataset(torch.utils.data.Dataset):
         tokenizer,
         add_blank,
         filelist_path,
-        n_fft,
-        n_mels,
-        sample_rate,
-        hop_length,
-        win_length,
-        f_min,
-        f_max,
+        feature_extractor,
         seed=None,
     ):
         self.language = language
@@ -147,14 +126,7 @@ class TextWavDataset(torch.utils.data.Dataset):
 
         self.file_paths = parse_filelist(filelist_path)
         self.data_dir = Path(filelist_path).parent.joinpath("data")
-        self.n_fft = n_fft
-        self.n_mels = n_mels
-        self.sample_rate = sample_rate
-        self.hop_length = hop_length
-        self.win_length = win_length
-        self.f_min = f_min
-        self.f_max = f_max
-
+        self.feature_extractor = feature_extractor
         random.seed(seed)
         random.shuffle(self.file_paths)
 
@@ -180,11 +152,7 @@ class TextWavDataset(torch.utils.data.Dataset):
 
     def preprocess_utterance(self, audio_filepath: str, text: str):
         phoneme_ids, text = self.get_text(text)
-        wav, __sr = librosa.load(audio_filepath, sr=self.sample_rate)
-        mel, energy = self.get_mel(audio_filepath)
-        mel = mel.squeeze().cpu().numpy()
-        energy = energy.squeeze().cpu().numpy()
-        pitch = self.get_pitch(audio_filepath)
+        wav, mel, energy, pitch = self.feature_extractor(audio_filepath)
         return dict(
             phoneme_ids=phoneme_ids,
             text=text,
@@ -203,76 +171,6 @@ class TextWavDataset(torch.utils.data.Dataset):
             split_sentences=False
         )
         return phoneme_ids, clean_text
-
-    def get_mel(self, filepath):
-        audio, __sr = librosa.load(filepath, sr=self.sample_rate)
-        audio = torch.from_numpy(audio).unsqueeze(0)
-        assert __sr == self.sample_rate
-        mel, energy = mel_spectrogram(
-            audio,
-            self.n_fft,
-            self.n_mels,
-            self.sample_rate,
-            self.hop_length,
-            self.win_length,
-            self.f_min,
-            self.f_max,
-            center=False,
-        )
-        return mel, energy 
-
-    def get_pitch(self, filepath):
-        _waveform, _sr = librosa.load(filepath, sr=self.sample_rate)
-        _waveform = _waveform.astype(np.double)
-        assert _sr == self.sample_rate, f"Sample rate mismatch => Found: {_sr} != {self.sample_rate} = Expected"
-        
-        pitch, t = pw.dio(
-            _waveform, self.sample_rate, frame_period=self.hop_length / self.sample_rate * 1000
-        )
-        pitch = pw.stonemask(_waveform, pitch, t, self.sample_rate)
-        return pitch
-        # A cool function taken from fairseq 
-        # https://github.com/facebookresearch/fairseq/blob/3f0f20f2d12403629224347664b3e75c13b2c8e0/examples/speech_synthesis/data_utils.py#L99
-        pitch = trim_or_pad_to_target_length(pitch, sum(phoneme_durations))
-        
-        # Interpolate to cover the unvoiced segments as well 
-        nonzero_ids = np.where(pitch != 0)[0]
-
-        interp_fn = interp1d(
-                nonzero_ids,
-                pitch[nonzero_ids],
-                fill_value=(pitch[nonzero_ids[0]], pitch[nonzero_ids[-1]]),
-                bounds_error=False,
-            )
-        pitch = interp_fn(np.arange(0, len(pitch)))
-        
-        # Compute phoneme-wise average 
-        d_cumsum = np.cumsum(np.concatenate([np.array([0]), phoneme_durations]))
-        pitch = np.array(
-            [
-                np.mean(pitch[d_cumsum[i-1]: d_cumsum[i]])
-                for i in range(1, len(d_cumsum))
-            ]
-        )
-        assert len(pitch) == len(phoneme_durations)
-        return pitch
-    
-    def mean_phoneme_energy(self, energy, phoneme_durations):
-        energy = trim_or_pad_to_target_length(energy, sum(phoneme_durations))
-        d_cumsum = np.cumsum(np.concatenate([np.array([0]), phoneme_durations]))
-        energy = np.array(
-            [
-                np.mean(energy[d_cumsum[i - 1]: d_cumsum[i]])
-                for i in range(1, len(d_cumsum))
-            ]
-        )
-        assert len(energy) == len(phoneme_durations)
-        
-        # if log_scale:
-        #     # In fairseq they do it
-        #     energy = np.log(energy + 1)
-        
-        return energy
 
     def __getitem__(self, index):
         filepath = self.file_paths[index]

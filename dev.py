@@ -20,12 +20,7 @@ print(f"Length of phoneme ids: {len(phids)}")
 with initialize(version_base=None, config_path="./configs"):
     dataset_cfg = compose(config_name="data/hfc_female-en_us.yaml")
     cfg = compose(config_name="model/optispeech.yaml")
-    cfg.model.n_feats = dataset_cfg.data.n_feats
-    cfg.model.n_fft = dataset_cfg.data.n_fft
-    cfg.model.hop_length = dataset_cfg.data.hop_length
-    cfg.model.sample_rate = dataset_cfg.data.sample_rate
-    cfg.model.f_min = dataset_cfg.data.f_min
-    cfg.model.f_max = dataset_cfg.data.f_max
+    cfg.model.feature_extractor = dataset_cfg.data.feature_extractor
     cfg.model.language = dataset_cfg.data.language
     cfg.model.tokenizer = dataset_cfg.data.tokenizer
     cfg.model.add_blank = dataset_cfg.data.add_blank
@@ -38,6 +33,9 @@ dataset_cfg.data.seed = 42
 dataset_cfg.data.pin_memory = False
 dataset = hydra.utils.instantiate(dataset_cfg.data)
 dataset.setup()
+# Feature extraction
+audio_path = "data/audio.wav"
+feats = dataset.trainset.preprocess_utterance(audio_path, "Audio file.")
 td = dataset.train_dataloader()
 vd = dataset.val_dataloader()
 batch = next(iter(vd))

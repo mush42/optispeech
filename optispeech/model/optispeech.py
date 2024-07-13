@@ -13,15 +13,10 @@ class OptiSpeech(BaseLightningModule):
     def __init__(
         self,
         dim,
-        n_feats,
-        n_fft,
-        hop_length,
-        sample_rate,
-        f_min,
-        f_max,
         language,
         tokenizer,
         add_blank,
+        feature_extractor,
         generator,
         data_statistics,
         hifigan_ckpt=None,
@@ -31,16 +26,9 @@ class OptiSpeech(BaseLightningModule):
         super().__init__()
         self.save_hyperparameters(logger=False)
 
-        self.sample_rate = sample_rate
-        self.hop_length = hop_length
-        self.data_statistics = data_statistics
-
         self.generator = generator(
             dim=dim,
-            n_feats=n_feats,
-            n_fft=n_fft,
-            hop_length=hop_length,
-            sample_rate=sample_rate,
+            feature_extractor=feature_extractor,
             data_statistics=data_statistics,
         )
 

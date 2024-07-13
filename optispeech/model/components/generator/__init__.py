@@ -16,28 +16,26 @@ class OptiSpeechGenerator(nn.Module):
     def __init__(
         self,
         dim: int,
-        n_feats: int,
-        n_fft: int,
-        hop_length: int,
-        sample_rate: int,
         text_embedding,
         encoder,
         variance_adaptor,
         decoder,
         loss_coeffs,
+        feature_extractor,
         data_statistics,
     ):
         super().__init__()
 
         self.loss_coeffs = loss_coeffs
-        self.n_feats = n_feats
-        self.hop_length = hop_length
-        self.sample_rate = sample_rate
+
+        self.n_feats = feature_extractor.n_feats
+        self.hop_length = feature_extractor.hop_length
+        self.sample_rate = feature_extractor.sample_rate
         self.data_statistics = data_statistics
 
         self.text_embedding = text_embedding(dim=dim)
         self.encoder = encoder(dim=dim)
-        self.alignment_module = AlignmentModule(adim=dim, odim=n_feats)
+        self.alignment_module = AlignmentModule(adim=dim, odim=self.n_feats)
         self.feature_upsampler = GaussianUpsampling()
         dp = DurationPredictor(
             dim=dim,
@@ -79,7 +77,7 @@ class OptiSpeechGenerator(nn.Module):
             energy_max=data_statistics["energy_max"],
         )
         self.decoder = decoder(dim=dim)
-        self.mel_proj = nn.Linear(dim, n_feats)
+        self.mel_proj = nn.Linear(dim, self.n_feats)
         self.loss_criterion = FastSpeech2Loss()
         self.forwardsum_loss = ForwardSumLoss()
 
