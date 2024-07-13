@@ -1,9 +1,11 @@
 import argparse
+import json
 import random
 from pathlib import Path
 
 import numpy as np
 import torch
+import onnx
 from lightning import seed_everything
 
 from optispeech.model import OptiSpeech
@@ -27,14 +29,14 @@ def export_as_onnx(model, out_filename, opset):
     scales = torch.Tensor([d_factor, p_factor])
 
     input_names = ["x", "x_lengths", "scales",]
-    output_names = ["mel", "mel_lengths", "durations"]
+    output_names = ["wav", "wav_lengths", "durations"]
 
     # Set dynamic shape for inputs/outputs
     dynamic_axes = {
         "x": {0: "batch_size", 1: "time"},
         "x_lengths": {0: "batch_size"},
-        "mel": {0: "batch_size", 2: "frames"},
-        "mel_lengths": {0: "batch_size", 2: "frames"},
+        "wav": {0: "batch_size", 2: "frames"},
+        "wav_lengths": {0: "batch_size", 2: "frames"},
         "durations": {0: "batch_size", 1: "time"},
     }
 
@@ -47,14 +49,14 @@ def export_as_onnx(model, out_filename, opset):
         d_factor = scales[0]
         p_factor = scales[1]
         # e_factor = scales[2]
-        outputs = model.synthesize(
+        outputs = model.synthesise(
             x,
             x_lengths,
             d_factor=d_factor,
             p_factor=p_factor,
             # e_factor=e_factor
         )
-        return outputs["wav"], outputs["durations"]
+        return outputs["wav"], outputs["wav_lengths"], outputs["durations"]
 
     model.forward = _infer_forward
     model.to_onnx(
@@ -68,6 +70,22 @@ def export_as_onnx(model, out_filename, opset):
         do_constant_folding=True,
     )
     return out_filename
+
+
+def add_inference_metadata(onnxfile, model):
+    onnx_model = onnx.load(onnxfile)
+    infer_dict = json.dumps(dict(
+        tokenizer=model.hparams.tokenizer,
+        language=model.hparams.language,
+        add_blank=model.hparams.add_blank,
+        sample_rate=model.hparams.sample_rate,
+        hop_length=model.hparams.hop_length,
+    ))
+    m1 = onnx_model.metadata_props.add()
+    m1.key = 'inference'
+    m1.value = infer_dict
+    onnx.checker.check_model(onnx_model)
+    onnx.save(onnx_model, onnxfile)
 
 
 def main():
@@ -91,6 +109,7 @@ def main():
     model.eval()
 
     export_as_onnx(model, args.output, args.opset)
+    add_inference_metadata(args.output, model)
     log.info(f"ONNX model exported to  {args.output}")
 
 

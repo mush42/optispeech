@@ -18,14 +18,9 @@ print(f"Length of phoneme ids: {len(phids)}")
 
 # Config pipeline
 with initialize(version_base=None, config_path="./configs"):
-    dataset_cfg = compose(config_name="data/hfc_female-en_us.yaml")
+    dataset_cfg = compose(config_name="data/herald-en_gb.yaml")
     cfg = compose(config_name="model/optispeech.yaml")
-    cfg.model.n_feats = dataset_cfg.data.n_feats
-    cfg.model.n_fft = dataset_cfg.data.n_fft
-    cfg.model.hop_length = dataset_cfg.data.hop_length
-    cfg.model.sample_rate = dataset_cfg.data.sample_rate
-    cfg.model.f_min = dataset_cfg.data.f_min
-    cfg.model.f_max = dataset_cfg.data.f_max
+    cfg.model.feature_extractor = dataset_cfg.data.feature_extractor
     cfg.model.language = dataset_cfg.data.language
     cfg.model.tokenizer = dataset_cfg.data.tokenizer
     cfg.model.add_blank = dataset_cfg.data.add_blank
@@ -38,6 +33,9 @@ dataset_cfg.data.seed = 42
 dataset_cfg.data.pin_memory = False
 dataset = hydra.utils.instantiate(dataset_cfg.data)
 dataset.setup()
+# Feature extraction
+audio_path = "data/audio.wav"
+feats = dataset.trainset.preprocess_utterance(audio_path, "Audio file.")
 td = dataset.train_dataloader()
 vd = dataset.val_dataloader()
 batch = next(iter(vd))
@@ -55,26 +53,17 @@ opts = model.configure_optimizers()
 print(summarize(model, 2))
 
 # Sanity check
-f_out = model(
-    x=batch["x"],
-    x_lengths=batch["x_lengths"],
-    mel=batch["mel"],
-    mel_lengths=batch["mel_lengths"],
-    pitches=batch["pitches"],
-    energies=batch["energies"],
-)
+gen_out = model._process_batch(batch)
+wav, wav_hat = gen_out["wav"], gen_out["wav_hat"]
+disc_d_out = model.discriminator.forward_disc(wav, wav_hat)
+disc_g_out = model.discriminator.forward_gen(wav, wav_hat)
+disc_mel_out = model.discriminator.forward_mel(wav, wav_hat)
 
-# Training loop
-model.train_discriminator = True
-gen_step_out = model._forward_g(batch, batch["wav"])
-disc_step_out = model._forward_d(batch, batch["wav"])
 
 # Inference
 x = batch["x"]
 x_lengths = batch["x_lengths"]
 
-synth_outs = model.synthesize(x, x_lengths)
-print(f"AM RTF: {synth_outs['am_rtf']}")
-print(f"Voc RTF: {synth_outs['voc_rtf']}")
+synth_outs = model.synthesise(x, x_lengths)
 print(f"RTF: {synth_outs['rtf']}")
 print(f"Latency: {synth_outs['latency']}")

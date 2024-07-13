@@ -1,20 +1,17 @@
+defaults:
+  - _self_
+  - feature_extractor: vocos
+
 _target_: optispeech.dataset.TextWavDataModule
 name: ljspeech
-language: en-us
-tokenizer: default
-add_blank: True
 train_filelist_path: data/LJSpeech-1.1/train.txt 
 valid_filelist_path: data/LJSpeech-1.1/val.txt
 batch_size: 64 
 num_workers: 8
 pin_memory: True
-n_fft: 1024
-n_feats: 100
-sample_rate: 24000
-hop_length: 256
-win_length: 1024
-f_min: 0
-f_max: 8000
+language: en-us
+tokenizer: default
+add_blank: True
 data_statistics:  # Computed for ljspeech dataset
   pitch_min: 67.836174 
   pitch_max: 792.962036

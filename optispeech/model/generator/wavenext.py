@@ -15,10 +15,9 @@ class WaveNeXtHead(nn.Module):
         n_fft (int): Size of Fourier transform.
         hop_length (int): The distance between neighboring sliding window frames, which should align with
                           the resolution of the input features.
-        padding (str, optional): Type of padding. Options are "center" or "same". Defaults to "same".
     """
 
-    def __init__(self, dim: int, n_fft: int, hop_length: int, padding: str = "same"):
+    def __init__(self, dim: int, n_fft: int, hop_length: int):
         super().__init__()
         l_fft = n_fft + 2
         l_shift = hop_length
@@ -28,8 +27,6 @@ class WaveNeXtHead(nn.Module):
         # W init
         nn.init.trunc_normal_(self.linear_1.weight, std=0.02)
         nn.init.trunc_normal_(self.linear_2.weight, std=0.02)
-
-        #self.istft = ISTFT(n_fft=n_fft, hop_length=hop_length, win_length=n_fft, padding=padding)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -64,7 +61,6 @@ class WaveNeXt(nn.Module):
         hop_length: int,
         drop_path: float=0.0,
         layer_scale_init_value: Optional[float] = None,
-        padding: str="same"
     ):
         super().__init__()
         self.embed = nn.Conv1d(input_channels, dim, kernel_size=7, padding=3)
@@ -80,11 +76,10 @@ class WaveNeXt(nn.Module):
             dim=dim,
             n_fft=n_fft,
             hop_length=hop_length,
-            padding=padding
         )
 
-    def forward(self, x):
+    def forward(self, x, padding_mask=None):
         x = self.embed(x)
         x = self.norm(x.transpose(1, 2))
-        x = self.backbone(x)
+        x = self.backbone(x, padding_mask)
         return self.head(x)

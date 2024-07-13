@@ -1,4 +1,5 @@
 import argparse
+from hashlib import md5
 from pathlib import Path
 from time import perf_counter
 
@@ -15,18 +16,18 @@ log = pylogger.get_pylogger(__name__)
 
 
 def main():
-    parser = argparse.ArgumentParser(description=" Synthesizing text using OptiSpeech")
+    parser = argparse.ArgumentParser(description=" Speaking text using OptiSpeech")
 
     parser.add_argument(
         "checkpoint",
         type=str,
         help="Path to OptiSpeech checkpoint",
     )
-    parser.add_argument("text", type=str, help="Text to synthesize")
+    parser.add_argument("text", type=str, help="Text to synthesise")
     parser.add_argument(
         "output_dir",
         type=str,
-        help="Directory to write generated wav  to.",
+        help="Directory to write generated audio  to.",
     )
     parser.add_argument("--d-factor", type=float, default=1.0, help="Scale to control speech rate")
     parser.add_argument("--p-factor", type=float, default=1.0, help="Scale to control pitch")
@@ -36,7 +37,6 @@ def main():
     args = parser.parse_args()
 
     device = torch.device("cuda") if args.cuda else torch.device("cpu")
-
     model = OptiSpeech.load_from_checkpoint(args.checkpoint, map_location="cpu")
     model.to(device)
     model.eval()
@@ -44,28 +44,25 @@ def main():
     x, x_lengths, clean_text = model.prepare_input(args.text)
     log.info(f"Cleaned text: {clean_text}")
 
-    synth_outs = model.synthesize(
+    synth_outs = model.synthesise(
         x=x,
         x_lengths=x_lengths,
         d_factor=args.d_factor,
         p_factor=args.p_factor,
         e_factor=args.e_factor,
     )
-    print(f"AM RTF: {synth_outs['am_rtf']}")
-    print(f"Voc RTF: {synth_outs['voc_rtf']}")
+    wavs = synth_outs["wav"]
+    wav_lengths = synth_outs["wav_lengths"]
     print(f"RTF: {synth_outs['rtf']}")
     print(f"Latency: {synth_outs['latency']}")
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    wavs = synth_outs["wav"]
-    wav_lengths = torch.sum(synth_outs["durations"], dim=1) * model.hop_length
-
     for (i, wav) in enumerate(unpad_sequence(wavs, wav_lengths, batch_first=True)):
         outfile = output_dir.joinpath(f"gen-{i + 1}")
         out_wav = outfile.with_suffix(".wav")
-        wav = wav.squeeze().detach().cpu().numpy()
+        wav = wav.squeeze().float().detach().cpu().numpy()
         sf.write(out_wav, wav, model.sample_rate)
         log.info(f"Wrote audio to {out_wav}")
 

@@ -1,0 +1,5 @@
+_target_: optispeech.model.discriminator.OptiSpeechDiscriminator
+_partial_: true
+loss_coeffs:
+  lambda_mel: 45.0
+  lambda_mrd: 1.0

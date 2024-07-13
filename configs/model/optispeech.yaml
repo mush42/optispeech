@@ -1,19 +1,16 @@
 defaults:
   - _self_
-  - generator: default.yaml
-  - optimizer: adamw.yaml
-  - scheduler: exponential_decay.yaml
+  - generator: default
+  - discriminator: default
+  - optimizer: adamw
+  - scheduler: cosine_with_warmup
 
 _target_: optispeech.model.OptiSpeech
 dim: 256
-segment_size: 64
-val_segment_size: 512
-n_feats: ${data.n_feats}
-n_fft: ${data.n_fft}
-hop_length: ${data.hop_length}
-sample_rate: ${data.sample_rate}
-f_min: ${data.f_min}
-f_max: ${data.f_max}
+pretraining_steps: 1000
+decay_mel_coeff: false
+gradient_clip_val: 1.0
+feature_extractor: ${data.feature_extractor}
 language: ${data.language}
 tokenizer: ${data.tokenizer}
 add_blank: ${data.add_blank}

@@ -7,14 +7,13 @@ import inspect
 from abc import ABC
 from typing import Any, Dict
 
-import transformers
 import torch
 import torchaudio
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
 
-from optispeech.utils import get_pylogger, plot_spectrogram_to_numpy
-from .components.loss import safe_log
+from optispeech.utils import get_pylogger, plot_tensor
+from optispeech.utils.segments import get_segments
 
 
 log = get_pylogger(__name__)
@@ -22,211 +21,178 @@ log = get_pylogger(__name__)
 
 class BaseLightningModule(LightningModule, ABC):
 
-    def _process_batch(self, batch, segment_size=None):
-        return self(
-            x=batch["x"],
-            x_lengths=batch["x_lengths"],
-            mel=batch["mel"],
-            mel_lengths=batch["mel_lengths"],
-            pitches=batch["pitches"],
-            energies=batch["energies"],
-            segment_size=segment_size
+    def _process_batch(self, batch):
+        gen_outputs = self.generator(
+            x=batch["x"].to(self.device),
+            x_lengths=batch["x_lengths"].to("cpu"),
+            mel=batch["mel"].to(self.device),
+            mel_lengths=batch["mel_lengths"].to("cpu").to(self.device),
+            pitches=batch["pitches"].to(self.device),
+            energies=batch["energies"].to(self.device),
+        )
+        segment_size = gen_outputs["segment_size"]
+        seg_gt_wav = get_segments(
+            x=batch["wav"].unsqueeze(1),
+            start_idxs=gen_outputs["start_idx"] * self.hop_length,
+            segment_size=segment_size * self.hop_length,
+        )
+        seg_gt_wav = seg_gt_wav.squeeze(1).type_as(gen_outputs["wav_hat"])
+        gen_outputs["wav"] = seg_gt_wav
+        return gen_outputs
+
+    def _opti_log_metric(self, name, value):
+        self.log(
+            name,
+            value,
+            on_step=True,
+            prog_bar=True,
+            logger=True,
+            sync_dist=True,
         )
 
     def configure_optimizers(self):
-        disc_params = [
-            {"params": self.multiperioddisc.parameters()},
-            {"params": self.multiresddisc.parameters()},
-        ]
         gen_params = [
             {"params": self.generator.parameters()},
         ]
-        opt_disc = torch.optim.AdamW(disc_params, lr=self.hparams.initial_learning_rate, betas=(0.8, 0.9))
-        opt_gen = torch.optim.AdamW(gen_params, lr=self.hparams.initial_learning_rate , betas=(0.8, 0.9))
-
+        disc_params = [
+            {"params": self.discriminator.parameters()},
+        ]
+        opt_gen = self.hparams.optimizer(gen_params)
+        opt_disc= self.hparams.optimizer(disc_params)
         # Max steps per optimizer
-        max_steps = self.trainer.max_steps // 2
-
-        scheduler_disc = transformers.get_cosine_schedule_with_warmup(
-            opt_disc,
-            num_warmup_steps=self.hparams.num_warmup_steps,
-            num_training_steps=max_steps,
-            last_epoch=getattr("self", "ckpt_loaded_epoch", -1)
-        )
-        scheduler_gen = transformers.get_cosine_schedule_with_warmup(
+        max_steps = self.trainer.max_steps
+        scheduler_gen = self.hparams.scheduler(
             opt_gen,
-            num_warmup_steps=self.hparams.num_warmup_steps,
             num_training_steps=max_steps,
             last_epoch=getattr("self", "ckpt_loaded_epoch", -1)
         )
-
+        scheduler_disc = self.hparams.scheduler(
+            opt_disc,
+            num_training_steps=max_steps,
+            last_epoch=getattr("self", "ckpt_loaded_epoch", -1)
+        )
         return (
-            [opt_disc, opt_gen],
-            [{"scheduler": scheduler_disc, "interval": "step"}, {"scheduler": scheduler_gen, "interval": "step"}],
+            [opt_gen, opt_disc],
+            [
+                {"scheduler": scheduler_gen, "interval": "step"},
+                {"scheduler": scheduler_disc, "interval": "step"}
+            ],
         )
-
-    def training_step(self, batch, batch_idx, **kwargs):
-        audio_input = batch["wav"]
-        optimizer_d, optimizer_g = self.optimizers()
-        lr_sch_d, lr_sch_g = self.lr_schedulers()
-        # train discriminator
-        self.toggle_optimizer(optimizer_d)
-        disc_outputs = self._forward_d(batch, audio_input, **kwargs)
-        d_loss = disc_outputs["loss"]
-        optimizer_d.zero_grad()
-        self.manual_backward(d_loss)
-        self.clip_gradients(optimizer_d, gradient_clip_val=1.0, gradient_clip_algorithm="norm")
-        optimizer_d.step()
-        self.untoggle_optimizer(optimizer_d)
-        lr_sch_d.step()
-        self.log(
-            "discriminator/total",
-            disc_outputs["loss"],
-            on_step=True,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "discriminator/multi_period_loss",
-            disc_outputs["loss_mp"],
-            on_step=True,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "discriminator/multi_res_loss",
-            disc_outputs["loss_mrd"],
-            on_step=True,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
-        # train generator
-        self.toggle_optimizer(optimizer_g)
-        g_outputs = self._forward_g(batch, audio_input)
-        g_loss = g_outputs["loss"]
-        optimizer_g.zero_grad()
-        self.manual_backward(g_loss)
-        self.clip_gradients(optimizer_g, gradient_clip_val=1.0, gradient_clip_algorithm="norm")
-        optimizer_g.step()
-        self.untoggle_optimizer(optimizer_g)
-        lr_sch_g.step()
-        if self.train_discriminator:
-            self.log(
-                "generator/multi_period_loss",
-                g_outputs["loss_gen_mp"],
-                on_step=True,
-                prog_bar=True,
-                logger=True,
-                sync_dist=True,
-            )
-            self.log(
-                "generator/multi_res_loss",
-                g_outputs["loss_gen_mrd"],
-                on_step=True,
-                prog_bar=True,
-                logger=True,
-                sync_dist=True
-            )
-            self.log(
-                "generator/feature_matching_mp",
-                g_outputs["loss_fm_mp"],
-                on_step=True,
-                prog_bar=True,
-                logger=True,
-                sync_dist=True,
-            )
-            self.log(
-                "generator/feature_matching_mrd",
-                g_outputs["loss_fm_mrd"],
-                on_step=True,
-                prog_bar=True,
-                logger=True,
-                sync_dist=True,
-            )
-        self.log(
-            "generator/total_loss",
-            g_outputs["loss"],
-            on_step=True,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "generator/mel_loss",
-            g_outputs["mel_loss"],
-            on_step=True,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "generator/train_align_loss",
-            g_outputs["align_loss"],
-            on_step=True,
-            on_epoch=True,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "generator/train_duration_loss",
-            g_outputs["duration_loss"],
-            on_step=True,
-            on_epoch=True,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "generator/train_pitch_loss",
-            g_outputs["pitch_loss"],
-            on_step=True,
-            on_epoch=True,
-            logger=True,
-            sync_dist=True,
-        )
-        if  g_outputs.get("energy_loss") is not None:
-            self.log(
-                "generator/train_energy_loss",
-                g_outputs["energy_loss"],
-                on_step=True,
-                on_epoch=True,
-                logger=True,
-                sync_dist=True,
-            )
-        if self.global_step % 1000 == 0 and self.global_rank == 0:
-            preview = g_outputs["preview"]
-            self.logger.experiment.add_audio(
-                "train/audio_gt",
-                preview["audio_gt"],
-                self.global_step,
-                self.hparams.sample_rate
-            )
-            self.logger.experiment.add_audio(
-                "train/audio_hat",
-                preview["audio_hat"],
-                self.global_step,
-                self.hparams.sample_rate
-            )
-            self.logger.experiment.add_image(
-                "train/mel_gt",
-                plot_spectrogram_to_numpy(preview["mel_gt"]),
-                self.global_step,
-                dataformats="HWC",
-            )
-            self.logger.experiment.add_image(
-                "train/mel_hat",
-                plot_spectrogram_to_numpy(preview["mel_hat"]),
-                self.global_step,
-                dataformats="HWC",
-            )
 
     def on_train_batch_start(self, *args):
-        if self.global_step >= self.hparams.pretrain_mel_steps:
-            self.train_discriminator = True
+        self.train_discriminator = self.global_step >= self.hparams.pretraining_steps
+
+    def training_step(self, batch, batch_idx, **kwargs):
+        opt_g, opt_d = self.optimizers()
+        sched_g, sched_d = self.lr_schedulers()
+        # train generator
+        self.toggle_optimizer(opt_g)
+        loss_g = self.training_step_g(batch)
+        opt_g.zero_grad()
+        self.manual_backward(loss_g)
+        self.clip_gradients(opt_g, gradient_clip_val=self.hparams.gradient_clip_val, gradient_clip_algorithm="norm")
+        opt_g.step()
+        sched_g.step()
+        self.untoggle_optimizer(opt_g)
+        # train discriminator
+        self.toggle_optimizer(opt_d)
+        loss_d = self.training_step_d(batch)
+        opt_d.zero_grad()
+        self.manual_backward(loss_d)
+        self.clip_gradients(opt_d, gradient_clip_val=self.hparams.gradient_clip_val, gradient_clip_algorithm="norm")
+        opt_d.step()
+        sched_d.step()
+        self.untoggle_optimizer(opt_d)
+
+    def training_step_g(self, batch):
+        gen_outputs = self._process_batch(batch)
+        gen_loss = gen_outputs["loss"]
+        self._opti_log_metric("generator/gen_loss", gen_loss)
+        self._opti_log_metric("generator/subloss/train_alighn_loss", gen_outputs["align_loss"])
+        self._opti_log_metric("generator/subloss/train_durationn_loss", gen_outputs["duration_loss"])
+        self._opti_log_metric("generator/subloss/train_pitch_loss", gen_outputs["pitch_loss"])
+        if  gen_outputs.get("energy_loss") is not None:
+            self._opti_log_metric("generator/subloss/train_energy_loss", gen_outputs["energy_loss"])
+        wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
+        if self.train_discriminator:
+            d_gen_loss, loss_gen_mp, loss_gen_mrd, loss_fm_mp, loss_fm_mrd = self.discriminator.forward_gen(wav, wav_hat)
+            self._opti_log_metric("generator/d_gen_loss", d_gen_loss)
+            self._opti_log_metric("generator/loss_gen_mp", loss_gen_mp)
+            self._opti_log_metric("generator/loss_gen_mrd", loss_gen_mrd)
+            self._opti_log_metric("generator/loss_fm_mp", loss_fm_mp)
+            self._opti_log_metric("generator/loss_fm_mrd", loss_fm_mrd)
         else:
-            self.train_discriminator = False
+            d_gen_loss = 0.0
+        mel_loss = self.discriminator.forward_mel(wav, wav_hat)
+        mel_loss = mel_loss * self.lambda_mel
+        self._opti_log_metric("generator/mel_loss", mel_loss)
+        loss = gen_loss + mel_loss + d_gen_loss
+        self._opti_log_metric("generator/train_total", loss)
+        return loss
+
+    def training_step_d(self, batch):
+        # Don't train generator in discriminator's turn
+        with torch.no_grad():
+            gen_outputs = self._process_batch(batch)
+        wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
+        loss, loss_mp, loss_mrd = self.discriminator.forward_disc(wav, wav_hat)
+        self._opti_log_metric("discriminator/total", loss)
+        self._opti_log_metric("discriminator/subloss/multi_period", loss_mp)
+        self._opti_log_metric("discriminator/subloss/multi_res", loss_mrd)
+        return loss
+
+    def validation_step(self, batch, batch_idx, **kwargs):
+        gen_outputs = self._process_batch(batch)
+        self._opti_log_metric("generator/val_gen_total", gen_outputs["loss"])
+        self._opti_log_metric("generator/subloss/val_align_loss", gen_outputs["align_loss"])
+        self._opti_log_metric("generator/subloss/val_duration_loss", gen_outputs["duration_loss"])
+        self._opti_log_metric("generator/subloss/val_pitch_loss", gen_outputs["pitch_loss"])
+        if  gen_outputs.get("energy_loss") is not None:
+            self._opti_log_metric("generator/subloss/val_energy_loss", gen_outputs["energy_loss"])
+        wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
+        mel_loss = self.discriminator.forward_mel(wav, wav_hat)
+        mel_loss = mel_loss * self.lambda_mel
+        self._opti_log_metric("generator/subloss/val_mel_loss", mel_loss)
+
+    def on_validation_end(self) -> None:
+        if self.trainer.is_global_zero:
+            one_batch = next(iter(self.trainer.val_dataloaders))
+            if self.current_epoch == 0:
+                log.debug("Plotting original samples")
+                for i in range(2):
+                    gt_wav = one_batch["wav"][i].squeeze()
+                    self.logger.experiment.add_audio(
+                        f"val/gt_{i}",
+                        gt_wav.float().data.cpu().numpy(),
+                        self.global_step,
+                        self.sample_rate
+                    )
+                    mel = one_batch["mel"][i].unsqueeze(0).to(self.device)
+                    self.logger.experiment.add_image(
+                        f"original/{i}",
+                        plot_tensor(mel.squeeze().float().cpu()),
+                        self.current_epoch,
+                        dataformats="HWC",
+                    )
+            log.debug("Synthesising...")
+            for i in range(2):
+                x = one_batch["x"][i].unsqueeze(0).to(self.device)
+                x_lengths = one_batch["x_lengths"][i].unsqueeze(0).to(self.device)
+                synth_out = self.synthesise(x=x[:, :x_lengths], x_lengths=x_lengths)
+                wav_hat = synth_out["wav"].squeeze().float().detach().cpu().numpy()
+                mel_hat = self.hparams.feature_extractor.get_mel(wav_hat)
+                self.logger.experiment.add_image(
+                    f"generated_mel/{i}",
+                    plot_tensor(mel_hat.squeeze()),
+                    self.current_epoch,
+                    dataformats="HWC",
+                )
+                self.logger.experiment.add_audio(
+                    f"val/gen{i}",
+                    wav_hat,
+                    self.global_step,
+                    self.sample_rate
+                )
 
     def on_train_batch_end(self, *args):
         def mel_loss_coeff_decay(current_step, num_cycles=0.5):
@@ -239,151 +205,10 @@ class BaseLightningModule(LightningModule, ABC):
             return max(0.0, 0.5 * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress)))
 
         if self.hparams.decay_mel_coeff:
-            self.mel_loss_coeff = self.base_mel_coeff * mel_loss_coeff_decay(self.global_step + 1)
+            self.lambda_mel = self.base_lambda_mel * mel_loss_coeff_decay(self.global_step + 1)
 
-
-    def on_validation_epoch_start(self):
-        self._val_step_outputs = []
-        if self.hparams.evaluate_utmos:
-            from optispeech.model.metrics.UTMOS import UTMOSScore
-
-            if not hasattr(self, "utmos_model"):
-                self.utmos_model = UTMOSScore(device=self.device)
-
-    def validation_step(self, batch, batch_idx, **kwargs):
-        gen_outputs = self._process_batch(batch, segment_size=self.hparams.val_segment_size)
-        audio_input, audio_hat = self._get_audio_segments(gen_outputs, batch["wav"])
-        audio_16_khz = torchaudio.functional.resample(audio_input, orig_freq=self.hparams.sample_rate, new_freq=16000)
-        audio_hat_16khz = torchaudio.functional.resample(audio_hat, orig_freq=self.hparams.sample_rate, new_freq=16000)
-
-        if self.hparams.evaluate_utmos:
-            utmos_score = self.utmos_model.score(audio_hat_16khz.unsqueeze(1)).mean()
-        else:
-            utmos_score = torch.zeros(1, device=self.device)
-
-        if self.hparams.evaluate_pesq:
-            from pesq import pesq
-            pesq_score = 0
-            for ref, deg in zip(audio_16_khz.float().cpu().numpy(), audio_hat_16khz.float().cpu().numpy()):
-                pesq_score += pesq(16000, ref, deg, "wb", on_error=1)
-            pesq_score /= len(audio_16_khz)
-            pesq_score = torch.tensor(pesq_score)
-        else:
-            pesq_score = torch.zeros(1, device=self.device)
-
-        mel_loss = self.melspec_loss(audio_hat.unsqueeze(1), audio_input.unsqueeze(1))
-        total_loss = mel_loss + (5 - utmos_score) + (5 - pesq_score)
-
-        self._val_step_outputs.append({
-            "val_loss": total_loss,
-            "mel_loss": mel_loss,
-            "utmos_score": utmos_score,
-            "pesq_score": pesq_score,
-            "align_loss": gen_outputs["align_loss"],
-            "duration_loss": gen_outputs["duration_loss"],
-            "pitch_loss": gen_outputs["pitch_loss"],
-            "energy_loss": gen_outputs.get("energy_loss", torch.Tensor([0.0])),
-            "audio_input": audio_input[0],
-            "audio_pred": audio_hat[0],
-        })
-
-    def on_validation_epoch_end(self):
-        outputs = self._val_step_outputs
-        if self.global_rank == 0:
-            audio_in = outputs[0]["audio_input"]
-            audio_pred = outputs[0]["audio_pred"]
-            self.logger.experiment.add_audio(
-                "val/audio_gt",
-                audio_in.float().data.cpu().numpy(),
-                self.global_step,
-                self.hparams.sample_rate
-            )
-            self.logger.experiment.add_audio(
-                "val/audio_hat",
-                audio_pred.float().data.cpu().numpy(),
-                self.global_step,
-                self.hparams.sample_rate
-            )
-            mel_target = safe_log(self.melspec_loss.mel_spec(audio_in))
-            mel_hat = safe_log(self.melspec_loss.mel_spec(audio_pred))
-            self.logger.experiment.add_image(
-                "val/mel_gt",
-                plot_spectrogram_to_numpy(mel_target.float().data.cpu().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
-            self.logger.experiment.add_image(
-                "val/mel_hat",
-                plot_spectrogram_to_numpy(mel_hat.float().data.cpu().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
-        avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
-        mel_loss = torch.stack([x["mel_loss"] for x in outputs]).mean()
-        utmos_score = torch.stack([x["utmos_score"] for x in outputs]).mean()
-        pesq_score = torch.stack([x["pesq_score"] for x in outputs]).mean()
-        align_loss = torch.stack([x["align_loss"] for x in outputs]).mean()
-        duration_loss = torch.stack([x["duration_loss"] for x in outputs]).mean()
-        pitch_loss = torch.stack([x["pitch_loss"] for x in outputs]).mean()
-        energy_loss = torch.stack([x["energy_loss"] for x in outputs]).mean()
-        self.log(
-            "val/loss",
-            avg_loss,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "val/mel_loss",
-            mel_loss,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "val/utmos_score",
-            utmos_score,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "val/pesq_score",
-            pesq_score,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "val/align_loss",
-            align_loss,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "val/duration_loss",
-            duration_loss,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
-        self.log(
-            "val/pitch_loss",
-            pitch_loss,
-            prog_bar=True,
-            logger=True,
-            sync_dist=True,
-        )
-        if energy_loss > 0.0:
-            self.log(
-                "val/energy_loss",
-                energy_loss,
-                prog_bar=True,
-                logger=True,
-                sync_dist=True,
-            )
-        self._val_step_outputs.clear()
+    def on_before_optimizer_step(self, optimizer):
+        self.log_dict({f"grad_norm/{k}": v for k, v in grad_norm(self, norm_type=2).items()})
 
     @property
     def global_step(self):
