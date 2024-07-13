@@ -95,7 +95,7 @@ class ConvNeXtBackbone(nn.Module):
             nn.init.trunc_normal_(m.weight, std=0.02)
             nn.init.constant_(m.bias, 0)
 
-    def forward(self, x: torch.Tensor, padding_mask: Optional[torch.Tensor]=None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, padding_mask: torch.Tensor) -> torch.Tensor:
         x = x.transpose(1, 2)
         mask = (1 - padding_mask.float().unsqueeze(1))
         for conv_block in self.convnext:
