@@ -3,3 +3,4 @@ defaults:
   - optispeech
   - override generator/encoder: transformer
   - override generator/decoder: transformer
+  - override scheduler: exponential_decay
