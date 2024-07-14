@@ -61,14 +61,14 @@ class BaseLightningModule(LightningModule, ABC):
         opt_disc= self.hparams.optimizer(disc_params)
         # Max steps per optimizer
         max_steps = self.trainer.max_steps
+        if "num_training_steps" in self.hparams.scheduler.keywords:
+            self.hparams.scheduler.keywords["num_training_steps"] = max_steps
         scheduler_gen = self.hparams.scheduler(
             opt_gen,
-            num_training_steps=max_steps,
             last_epoch=getattr("self", "ckpt_loaded_epoch", -1)
         )
         scheduler_disc = self.hparams.scheduler(
             opt_disc,
-            num_training_steps=max_steps,
             last_epoch=getattr("self", "ckpt_loaded_epoch", -1)
         )
         return (
@@ -95,6 +95,9 @@ class BaseLightningModule(LightningModule, ABC):
         sched_g.step()
         self.untoggle_optimizer(opt_g)
         # train discriminator
+        if not self.train_discriminator:
+            # we're still in pretraining
+            return
         self.toggle_optimizer(opt_d)
         if self.hparams.cache_generator_outputs:
             wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
@@ -119,7 +122,7 @@ class BaseLightningModule(LightningModule, ABC):
         self._opti_log_metric("generator/subloss/train_alighn_loss", gen_outputs["align_loss"])
         self._opti_log_metric("generator/subloss/train_durationn_loss", gen_outputs["duration_loss"])
         self._opti_log_metric("generator/subloss/train_pitch_loss", gen_outputs["pitch_loss"])
-        if  gen_outputs.get("energy_loss") is not None:
+        if  gen_outputs.get("energy_loss") != 0.0:
             self._opti_log_metric("generator/subloss/train_energy_loss", gen_outputs["energy_loss"])
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         if self.train_discriminator:
@@ -187,6 +190,17 @@ class BaseLightningModule(LightningModule, ABC):
                         self.current_epoch,
                         dataformats="HWC",
                     )
+            # Plot alignment
+            gen_outputs = self._process_batch(one_batch)
+            attns = gen_outputs["attn"]
+            for i in range(2):
+                attn = attns[i]
+                self.logger.experiment.add_image(
+                    f"alignment/{i}",
+                    plot_tensor(attn.squeeze().float().cpu()),
+                    self.current_epoch,
+                    dataformats="HWC",
+                )
             log.debug("Synthesising...")
             for i in range(2):
                 x = one_batch["x"][i].unsqueeze(0).to(self.device)
@@ -196,7 +210,7 @@ class BaseLightningModule(LightningModule, ABC):
                 mel_hat = self.hparams.feature_extractor.get_mel(wav_hat)
                 self.logger.experiment.add_image(
                     f"generated_mel/{i}",
-                    plot_tensor(mel_hat.squeeze()),
+                    plot_tensor(mel_hat.squeeze().float().cpu()),
                     self.current_epoch,
                     dataformats="HWC",
                 )
