@@ -96,8 +96,15 @@ class BaseLightningModule(LightningModule, ABC):
         self.untoggle_optimizer(opt_g)
         # train discriminator
         self.toggle_optimizer(opt_d)
-        gen_outputs = gen_outputs if self.hparams.cache_generator_outputs else None
-        loss_d = self.training_step_d(batch, gen_outputs=gen_outputs)
+        if self.hparams.cache_generator_outputs:
+            wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
+            wav_outputs = (
+                wav.detach(),
+                wav_hat.detach(),
+            )
+        else:
+            wav_outputs = None
+        loss_d = self.training_step_d(batch, wav_outputs=wav_outputs)
         opt_d.zero_grad()
         self.manual_backward(loss_d)
         self.clip_gradients(opt_d, gradient_clip_val=self.hparams.gradient_clip_val, gradient_clip_algorithm="norm")
@@ -127,16 +134,20 @@ class BaseLightningModule(LightningModule, ABC):
         mel_loss = self.discriminator.forward_mel(wav, wav_hat)
         mel_loss = mel_loss * self.lambda_mel
         self._opti_log_metric("generator/mel_loss", mel_loss)
-        loss = gen_loss + mel_loss + d_gen_loss
+        mr_stft_loss = self.discriminator.forward_mr_stft(wav, wav_hat)
+        self._opti_log_metric("generator/mr_stft_loss", mr_stft_loss)
+        loss = gen_loss + mel_loss + mr_stft_loss + d_gen_loss
         self._opti_log_metric("generator/train_total", loss)
         return loss, gen_outputs
 
-    def training_step_d(self, batch, gen_outputs=None):
-        if gen_outputs is None:
+    def training_step_d(self, batch, wav_outputs=None):
+        if wav_outputs is None:
             # Don't train generator in discriminator's turn
             with torch.no_grad():
                 gen_outputs = self._process_batch(batch)
-        wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
+            wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
+        else:
+            wav, wav_hat = wav_outputs
         loss, loss_mp, loss_mrd = self.discriminator.forward_disc(wav, wav_hat)
         self._opti_log_metric("discriminator/total", loss)
         self._opti_log_metric("discriminator/subloss/multi_period", loss_mp)

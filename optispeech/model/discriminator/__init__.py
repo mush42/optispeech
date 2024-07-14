@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from ._discriminators import MultiPeriodDiscriminator, MultiResolutionDiscriminator
-from .loss import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss, MelSpecReconstructionLoss
+from .loss import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss, MelSpecReconstructionLoss, MultiResolutionSTFTLoss
 
 
 class OptiSpeechDiscriminator(nn.Module):
@@ -31,6 +31,7 @@ class OptiSpeechDiscriminator(nn.Module):
             n_mels=self.feature_extractor.n_feats,
             center=self.feature_extractor.center,
         )
+        self.mr_stft_loss = MultiResolutionSTFTLoss()
 
     def forward_disc(self, wav, wav_hat):
         real_score_mp, gen_score_mp, _, _ = self.multiperioddisc(y=wav, y_hat=wav_hat)
@@ -73,3 +74,7 @@ class OptiSpeechDiscriminator(nn.Module):
     def forward_mel(self, wav, wav_hat):
         mel_loss = self.melspec_loss(wav_hat, wav)
         return mel_loss
+
+    def forward_mr_stft(self, wav, wav_hat):
+        spec_converge_loss, mr_mag_loss = self.mr_stft_loss(wav_hat, wav)
+        return spec_converge_loss + mr_mag_loss
