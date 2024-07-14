@@ -10,6 +10,7 @@ dim: 256
 pretraining_steps: 1000
 decay_mel_coeff: false
 gradient_clip_val: 1.0
+cache_generator_outputs: false
 feature_extractor: ${data.feature_extractor}
 language: ${data.language}
 tokenizer: ${data.tokenizer}

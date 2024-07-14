@@ -87,7 +87,7 @@ class BaseLightningModule(LightningModule, ABC):
         sched_g, sched_d = self.lr_schedulers()
         # train generator
         self.toggle_optimizer(opt_g)
-        loss_g = self.training_step_g(batch)
+        loss_g, gen_outputs = self.training_step_g(batch)
         opt_g.zero_grad()
         self.manual_backward(loss_g)
         self.clip_gradients(opt_g, gradient_clip_val=self.hparams.gradient_clip_val, gradient_clip_algorithm="norm")
@@ -96,7 +96,8 @@ class BaseLightningModule(LightningModule, ABC):
         self.untoggle_optimizer(opt_g)
         # train discriminator
         self.toggle_optimizer(opt_d)
-        loss_d = self.training_step_d(batch)
+        gen_outputs = gen_outputs if self.hparams.cache_generator_outputs else None
+        loss_d = self.training_step_d(batch, gen_outputs=gen_outputs)
         opt_d.zero_grad()
         self.manual_backward(loss_d)
         self.clip_gradients(opt_d, gradient_clip_val=self.hparams.gradient_clip_val, gradient_clip_algorithm="norm")
@@ -128,12 +129,13 @@ class BaseLightningModule(LightningModule, ABC):
         self._opti_log_metric("generator/mel_loss", mel_loss)
         loss = gen_loss + mel_loss + d_gen_loss
         self._opti_log_metric("generator/train_total", loss)
-        return loss
+        return loss, gen_outputs
 
-    def training_step_d(self, batch):
-        # Don't train generator in discriminator's turn
-        with torch.no_grad():
-            gen_outputs = self._process_batch(batch)
+    def training_step_d(self, batch, gen_outputs=None):
+        if gen_outputs is None:
+            # Don't train generator in discriminator's turn
+            with torch.no_grad():
+                gen_outputs = self._process_batch(batch)
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         loss, loss_mp, loss_mrd = self.discriminator.forward_disc(wav, wav_hat)
         self._opti_log_metric("discriminator/total", loss)

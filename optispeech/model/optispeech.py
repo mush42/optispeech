@@ -22,6 +22,7 @@ class OptiSpeech(BaseLightningModule):
         data_statistics,
         pretraining_steps=1000,
         decay_mel_coeff=False,
+        cache_generator_outputs=False,
         gradient_clip_val=1.0,
         optimizer=None,
         scheduler=None,
