@@ -41,9 +41,10 @@ class BaseLightningModule(LightningModule, ABC):
         opt_gen = self.hparams.optimizer(gen_params)
         # Max steps per optimizer
         max_steps = self.trainer.max_steps
+        if "num_training_steps" in self.hparams.scheduler.keywords:
+            self.hparams.scheduler.keywords["num_training_steps"] = max_steps
         scheduler_gen = self.hparams.scheduler(
             opt_gen,
-            num_training_steps=max_steps,
             last_epoch=getattr("self", "ckpt_loaded_epoch", -1)
         )
         return (
