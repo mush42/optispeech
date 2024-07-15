@@ -1,0 +1,24 @@
+defaults:
+  - ljspeech
+  - _self_
+
+_target_: optispeech.dataset.TextWavDataModule
+name: kareenm-ar
+language: ar
+tokenizer: default
+add_blank: True
+train_filelist_path: data/kareem-ar/train.txt
+valid_filelist_path: data/kareem-ar/val.txt
+batch_size: 32
+num_workers: 4
+data_statistics:  # Computed for this dataset
+  pitch_min: 0.0
+  pitch_max: 260.499786
+  pitch_mean: 56.696926
+  pitch_std: 55.619644
+  energy_min: 0.051334
+  energy_max: 91.998489
+  energy_mean: 14.146477
+  energy_std: 16.662613
+  mel_mean: -6.366495
+  mel_std: 2.579537
