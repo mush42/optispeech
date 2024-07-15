@@ -23,13 +23,15 @@ HIFIGAN_MODEL = None
 class BaseLightningModule(LightningModule, ABC):
 
     def _process_batch(self, batch):
-        return self(
-            x=batch["x"],
-            x_lengths=batch["x_lengths"],
-            mel=batch["mel"],
-            mel_lengths=batch["mel_lengths"],
-            pitches=batch["pitches"],
-            energies=batch["energies"],
+        durations = batch["durations"] if self.hparams.use_precomputed_durations else None
+        return self.generator(
+            x=batch["x"].to(self.device),
+            x_lengths=batch["x_lengths"].long().to("cpu"),
+            mel=batch["mel"].to(self.device),
+            mel_lengths=batch["mel_lengths"].long().to("cpu"),
+            pitches=batch["pitches"].to(self.device),
+            energies=batch["energies"].to(self.device),
+            durations=durations.to(self.device) if durations is not None else durations
         )
 
     def configure_optimizers(self):
@@ -172,7 +174,7 @@ class BaseLightningModule(LightningModule, ABC):
                             f"val/gt_{i}",
                             gt_wav.float().data.cpu().numpy(),
                             self.global_step,
-                            self.hparams.sample_rate
+                            self.sample_rate
                         )
                     mel = one_batch["mel"][i].unsqueeze(0).to(self.device)
                     self.logger.experiment.add_image(
@@ -199,7 +201,7 @@ class BaseLightningModule(LightningModule, ABC):
                         f"val/gen{i}",
                         gen_wav.float().data.cpu().numpy(),
                         self.global_step,
-                        self.hparams.sample_rate
+                        self.sample_rate
                     )
             if HIFIGAN_MODEL is not None:
                 HIFIGAN_MODEL.to("cpu")

@@ -12,6 +12,8 @@ pin_memory: True
 language: en-us
 tokenizer: default
 add_blank: True
+normalize_text: true
+use_precomputed_durations: false
 data_statistics:  # Computed for ljspeech dataset
   pitch_min: 67.836174 
   pitch_max: 792.962036

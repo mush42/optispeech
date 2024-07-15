@@ -17,6 +17,7 @@ class OptiSpeech(BaseLightningModule):
         tokenizer,
         add_blank,
         feature_extractor,
+        use_precomputed_durations,
         generator,
         data_statistics,
         hifigan_ckpt=None,
@@ -26,9 +27,12 @@ class OptiSpeech(BaseLightningModule):
         super().__init__()
         self.save_hyperparameters(logger=False)
 
+        self.sample_rate = feature_extractor.sample_rate
+
         self.generator = generator(
             dim=dim,
             feature_extractor=feature_extractor,
+            use_precomputed_durations=use_precomputed_durations,
             data_statistics=data_statistics,
         )
 
@@ -54,8 +58,6 @@ class OptiSpeech(BaseLightningModule):
             energy: (torch.Tensor): predicted energy
                 shape: (batch_size, max_text_length)
             rtf: (float): total Realtime Factor (inference_t/audio_t)
-            am_rtf: (float): acoustic generator Realtime Factor
-            voc_rtf: (float): wave generator Realtime Factor
         """
         x = x.to(self.device)
         x_lengths = x_lengths.long().to("cpu")
@@ -93,51 +95,3 @@ class OptiSpeech(BaseLightningModule):
             x_lengths = torch.LongTensor([1])
             x = torch.LongTensor(phoneme_ids).unsqueeze(0)
         return x.long(), x_lengths.long(), clean_text
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        x_lengths: torch.LongTensor,
-        mel: torch.Tensor,
-        mel_lengths: torch.Tensor,
-        pitches: torch.Tensor,
-        energies: torch.Tensor,
-    ):
-        """
-        Args:
-            x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
-                shape: (batch_size, max_text_length)
-            x_lengths (torch.Tensor): lengths of texts in batch.
-                shape: (batch_size,)
-            mel (torch.Tensor): mel spectogram.
-                shape: (batch_size, n_feats, max_mel_lengths)
-            mel_lengths (torch.Tensor): lengths of mel spectograms.
-                shape: (batch_size,)
-            pitches (torch.Tensor): phoneme-level pitch values.
-                shape: (batch_size, max_text_length)
-            energies (torch.Tensor): phoneme-level energy values.
-                shape: (batch_size, max_text_length)
-        Returns:
-            wav_hat: (torch.Tensor): generated audio
-            loss: (torch.Tensor): scaler representing total loss
-            duration_loss: (torch.Tensor): scaler representing duration loss
-            align_loss: (torch.Tensor): scaler representing alignment loss
-            pitch_loss: (torch.Tensor): scaler representing pitch loss
-            energy_loss: (torch.Tensor): scaler representing energy loss
-        """
-        x = x.to(self.device)
-        x_lengths = x_lengths.long().to("cpu")
-        mel = mel.to(self.device)
-        mel_lengths = mel_lengths.long().to("cpu")
-        pitches = pitches.to(self.device)
-        energies = energies.to(self.device) if energies is not None else energies
-
-        return self.generator(
-            x=x,
-            x_lengths=x_lengths,
-            mel=mel,
-            mel_lengths=mel_lengths,
-            pitches=pitches,
-            energies=energies,
-        )
-

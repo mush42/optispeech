@@ -22,10 +22,12 @@ class OptiSpeechGenerator(nn.Module):
         decoder,
         loss_coeffs,
         feature_extractor,
+        use_precomputed_durations,
         data_statistics,
     ):
         super().__init__()
 
+        self.use_precomputed_durations = use_precomputed_durations
         self.loss_coeffs = loss_coeffs
 
         self.n_feats = feature_extractor.n_feats
@@ -35,7 +37,11 @@ class OptiSpeechGenerator(nn.Module):
 
         self.text_embedding = text_embedding(dim=dim)
         self.encoder = encoder(dim=dim)
-        self.alignment_module = AlignmentModule(adim=dim, odim=self.n_feats)
+        if not self.use_precomputed_durations:
+            self.alignment_module = AlignmentModule(adim=dim, odim=self.n_feats)
+            self.forwardsum_loss = ForwardSumLoss()
+        else:
+            self.alignment_module = None
         self.feature_upsampler = GaussianUpsampling()
         dp = DurationPredictor(
             dim=dim,
@@ -79,20 +85,19 @@ class OptiSpeechGenerator(nn.Module):
         self.decoder = decoder(dim=dim)
         self.mel_proj = nn.Linear(dim, self.n_feats)
         self.loss_criterion = FastSpeech2Loss()
-        self.forwardsum_loss = ForwardSumLoss()
 
-    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies):
+    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies, durations=None):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
                 shape: (batch_size, max_text_length)
             x_lengths (torch.Tensor): lengths of texts in batch.
                 shape: (batch_size,)
-            durations (torch.Tensor): phoneme durations.
-                shape: (batch_size, max_text_length)
             pitches (torch.Tensor): phoneme-level pitch values.
                 shape: (batch_size, max_text_length)
             energies (torch.Tensor): phoneme-level energy values.
+                shape: (batch_size, max_text_length)
+            durations (torch.Tensor): phoneme durations.
                 shape: (batch_size, max_text_length)
 
         Returns:
@@ -123,14 +128,19 @@ class OptiSpeechGenerator(nn.Module):
         x = self.encoder(x, padding_mask)
 
         # alignment
-        log_p_attn = self.alignment_module(
-            x,
-            mel.transpose(1, 2),
-            x_lengths,
-            mel_lengths,
-            padding_mask,
-        )
-        durations, bin_loss = viterbi_decode(log_p_attn, x_lengths, mel_lengths)
+        if not self.use_precomputed_durations:
+            log_p_attn = self.alignment_module(
+                x,
+                mel.transpose(1, 2),
+                x_lengths,
+                mel_lengths,
+                padding_mask,
+            )
+            durations, bin_loss = viterbi_decode(log_p_attn, x_lengths, mel_lengths)
+        else:
+            log_p_attn = None
+
+        # Frame-level -> token level
         pitches = average_by_duration(durations, pitches.unsqueeze(-1), x_lengths, mel_lengths)
         energies = average_by_duration(durations, energies.unsqueeze(-1), x_lengths, mel_lengths)
 
@@ -171,8 +181,11 @@ class OptiSpeechGenerator(nn.Module):
         )
 
         loss_coeffs = self.loss_coeffs
-        forwardsum_loss = self.forwardsum_loss(log_p_attn, x_lengths, mel_lengths)
-        align_loss = forwardsum_loss + bin_loss
+        if not self.use_precomputed_durations:
+            forwardsum_loss = self.forwardsum_loss(log_p_attn, x_lengths, mel_lengths)
+            align_loss = forwardsum_loss + bin_loss
+        else:
+            align_loss = 0.0
         loss =  (
             (align_loss * loss_coeffs.lambda_align)
             + (mel_loss * loss_coeffs.lambda_mel)

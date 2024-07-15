@@ -27,13 +27,18 @@ def write_data(data_dir, file_stem, data):
             "text": data["text"],
         }
         json.dump(ph_text_data, file, ensure_ascii=False)
-    np.savez(
-        out_arrays,
-        allow_pickle=False,
+    arrays = dict(
         wav=data["wav"],
         mel=data["mel"],
         energy=data["energy"],
         pitch=data["pitch"]
+    )
+    if data["durations"] is not None:
+        arrays["durations"] = data["durations"]
+    np.savez(
+        out_arrays,
+        allow_pickle=False,
+        **arrays
     )
 
 
@@ -72,8 +77,10 @@ def main():
         language=cfg.language,
         tokenizer=cfg.tokenizer,
         add_blank=cfg.add_blank,
+        normalize_text=cfg.normalize_text,
+        use_precomputed_durations=cfg.use_precomputed_durations,
         filelist_path=os.devnull,
-            feature_extractor=    feature_extractor,
+        feature_extractor=    feature_extractor,
     )
 
     if args.format != 'ljspeech':
@@ -108,6 +115,8 @@ def main():
             audio_path = wav_path.joinpath(filestem + ".wav")
             audio_path = audio_path.resolve()
             data = dataset.preprocess_utterance(audio_path, text)
+            if cfg.use_precomputed_durations:
+                assert data["durations"] is not None, "durations are not included, and `use_precomputed_durations` is true"
             write_data(data_dir, audio_path.stem, data)
             out_filelist.append(data_dir.joinpath(filestem))
         out_txt = output_dir.joinpath(out_filename)

@@ -7,6 +7,7 @@ defaults:
 _target_: optispeech.model.OptiSpeech
 dim: 256
 feature_extractor: ${data.feature_extractor}
+use_precomputed_durations: ${data.use_precomputed_durations}
 language: ${data.language}
 tokenizer: ${data.tokenizer}
 add_blank: ${data.add_blank}

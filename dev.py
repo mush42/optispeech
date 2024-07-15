@@ -18,9 +18,10 @@ print(f"Length of phoneme ids: {len(phids)}")
 
 # Config pipeline
 with initialize(version_base=None, config_path="./configs"):
-    dataset_cfg = compose(config_name="data/hfc_female-en_us.yaml")
+    dataset_cfg = compose(config_name="data/kareem-ar.yaml")
     cfg = compose(config_name="model/optispeech.yaml")
     cfg.model.feature_extractor = dataset_cfg.data.feature_extractor
+    cfg.model.use_precomputed_durations = dataset_cfg.data.use_precomputed_durations
     cfg.model.language = dataset_cfg.data.language
     cfg.model.tokenizer = dataset_cfg.data.tokenizer
     cfg.model.add_blank = dataset_cfg.data.add_blank
@@ -34,8 +35,8 @@ dataset_cfg.data.pin_memory = False
 dataset = hydra.utils.instantiate(dataset_cfg.data)
 dataset.setup()
 # Feature extraction
-audio_path = "data/audio.wav"
-feats = dataset.trainset.preprocess_utterance(audio_path, "Audio file.")
+# audio_path = "data/audio.wav"
+# feats = dataset.trainset.preprocess_utterance(audio_path, "Audio file.")
 td = dataset.train_dataloader()
 vd = dataset.val_dataloader()
 batch = next(iter(vd))
@@ -53,14 +54,7 @@ opts = model.configure_optimizers()
 print(summarize(model, 2))
 
 # Sanity check
-f_out = model(
-    x=batch["x"],
-    x_lengths=batch["x_lengths"],
-    mel=batch["mel"],
-    mel_lengths=batch["mel_lengths"],
-    pitches=batch["pitches"],
-    energies=batch["energies"],
-)
+f_out = model._process_batch(batch)
 
 # Inference
 x = batch["x"]

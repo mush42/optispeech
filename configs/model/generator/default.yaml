@@ -3,7 +3,7 @@ defaults:
   - text_embedding: default
   - encoder: transformer
   - variance_adaptor: default
-  - decoder: convnext
+  - decoder: transformer
 
 _target_: optispeech.model.components.OptiSpeechGenerator
 _partial_: true

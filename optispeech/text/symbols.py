@@ -1,12 +1,14 @@
 # coding: utf-8
 
-_pad = "_"
-_symbols_ipa = [
+
+SYMBOLS = [
+    "_",
+    "^",
+    "$",
     " ",
     "!",
     "\"",
     "#",
-    "$",
     "'",
     "(",
     ")",
@@ -27,8 +29,6 @@ _symbols_ipa = [
     ";",
     "?",
     "X",
-    "^",
-    "_",
     "a",
     "b",
     "c",
@@ -164,37 +164,18 @@ _symbols_ipa = [
 ]
 
 
-# Export all symbols:
-symbols = [_pad] + list(_symbols_ipa)
+# Special symbols
+PAD = "_"
+BOS = "^"
+EOS = "$"
 
 # Special symbol ids
-SPACE_ID = symbols.index(" ")
+PAD_ID = SYMBOLS.index(PAD)
+BOS_ID = SYMBOLS.index(BOS)
+EOS_ID = SYMBOLS.index(EOS)
+SPACE_ID = SYMBOLS.index(" ")
 
 # Mappings from symbol to numeric ID and vice versa:
-_symbol_to_id = {s: i for i, s in enumerate(symbols)}
-_id_to_symbol = {i: s for i, s in enumerate(symbols)}  # pylint: disable=unnecessary-comprehension
-
-
-def text_to_sequence(text):
-    """Converts a string of text to a sequence of IDs corresponding to the symbols in the text.
-    Args:
-      text: string to convert to a sequence
-    Returns:
-      List of integers corresponding to the symbols in the text
-    """
-    sequence = []
-        
-    for symbol in text:
-        symbol_id = _symbol_to_id[symbol]
-        sequence += [symbol_id]
-    return sequence
-
-
-def sequence_to_text(sequence):
-    """Converts a sequence of IDs back to a string"""
-    result = ""
-    for symbol_id in sequence:
-        s = _id_to_symbol[symbol_id]
-        result += s
-    return result
+SYMBOL_TO_ID = {s: i for i, s in enumerate(SYMBOLS)}
+ID_TO_SYMBOL = {i: s for i, s in enumerate(SYMBOLS)}  # pylint: disable=unnecessary-comprehension
 

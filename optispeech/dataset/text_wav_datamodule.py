@@ -35,6 +35,8 @@ class TextWavDataModule(LightningDataModule):
         language,
         tokenizer,
         add_blank,
+        normalize_text,
+        use_precomputed_durations,
         train_filelist_path,
         valid_filelist_path,
         batch_size,
@@ -64,6 +66,8 @@ class TextWavDataModule(LightningDataModule):
             language=self.hparams.language,
             tokenizer=self.hparams.tokenizer,
             add_blank=self.hparams.add_blank,
+            normalize_text=self.hparams.normalize_text,
+            use_precomputed_durations=self.hparams.use_precomputed_durations,
             filelist_path=self.hparams.train_filelist_path,
             feature_extractor=self.feature_extractor,
             seed=self.hparams.seed,
@@ -72,6 +76,8 @@ class TextWavDataModule(LightningDataModule):
             language=self.hparams.language,
             tokenizer=self.hparams.tokenizer,
             add_blank=self.hparams.add_blank,
+            normalize_text=self.hparams.normalize_text,
+            use_precomputed_durations=self.hparams.use_precomputed_durations,
             filelist_path=self.hparams.valid_filelist_path,
             feature_extractor=self.feature_extractor,
             seed=self.hparams.seed,
@@ -116,6 +122,8 @@ class TextWavDataset(torch.utils.data.Dataset):
         language,
         tokenizer,
         add_blank,
+        normalize_text,
+        use_precomputed_durations,
         filelist_path,
         feature_extractor,
         seed=None,
@@ -123,7 +131,9 @@ class TextWavDataset(torch.utils.data.Dataset):
         self.language = language
         self.text_tokenizer = tokenizer
         self.add_blank = add_blank
+        self.normalize_text = normalize_text
 
+        self.use_precomputed_durations = use_precomputed_durations
         self.file_paths = parse_filelist(filelist_path)
         self.data_dir = Path(filelist_path).parent.joinpath("data")
         self.feature_extractor = feature_extractor
@@ -140,12 +150,17 @@ class TextWavDataset(torch.utils.data.Dataset):
             text = data["text"]
             phoneme_ids = torch.LongTensor(phoneme_ids)
         data = np.load(arrays_filepath, allow_pickle=False)
+        if self.use_precomputed_durations :
+            if "durations" not in data:
+                raise ValueError("Durations array not found and self.use_precomputed_durations  is set to True")
+            assert data["durations"].shape[-1] == phoneme_ids.shape[-1], "Duration and text lengths must match."
         return dict(
             x=phoneme_ids,
             wav=torch.from_numpy(data["wav"]),
             mel=torch.from_numpy(data["mel"]),
             energy=torch.from_numpy(data["energy"]),
             pitch=torch.from_numpy(data["pitch"]),
+            durations=torch.from_numpy(data["durations"]) if self.use_precomputed_durations else None,
             text=text,
             filepath=filepath,
         )
@@ -153,6 +168,14 @@ class TextWavDataset(torch.utils.data.Dataset):
     def preprocess_utterance(self, audio_filepath: str, text: str):
         phoneme_ids, text = self.get_text(text)
         wav, mel, energy, pitch = self.feature_extractor(audio_filepath)
+        durations = None
+        if self.use_precomputed_durations:
+            filestem = Path(audio_filepath).stem
+            durfilename = filestem + ".npy" 
+            dur_filepath = Path(audio_filepath).parent.parent.joinpath("durations").joinpath(durfilename)
+            if not dur_filepath.is_file():
+                raise FileNotFoundError(f"Duration file not found at path: {dur_filepath} and use_precomputed_durations is set to True.")
+            durations = np.load(dur_filepath, allow_pickle=False)
         return dict(
             phoneme_ids=phoneme_ids,
             text=text,
@@ -160,6 +183,7 @@ class TextWavDataset(torch.utils.data.Dataset):
             mel=mel,
             energy=energy,
             pitch=pitch,
+            durations=durations
         )
 
     def get_text(self, text):
@@ -168,6 +192,7 @@ class TextWavDataset(torch.utils.data.Dataset):
             self.language,
             tokenizer=self.text_tokenizer,
             add_blank=self.add_blank,
+            normalize=self.normalize_text,
             split_sentences=False
         )
         return phoneme_ids, clean_text
@@ -189,6 +214,7 @@ class TextWavBatchCollate:
         self.do_normalize = do_normalize
 
     def __call__(self, batch):
+        has_precomputed_durations = batch[0]["durations"] is not None
         B = len(batch)
 
         x_max_length = max([item["x"].shape[-1] for item in batch])
@@ -204,6 +230,9 @@ class TextWavBatchCollate:
         pitches = torch.zeros((B, pitch_max_length), dtype=torch.float)
         energies = torch.zeros((B, energy_max_length), dtype=torch.float)
 
+        if has_precomputed_durations:
+            durations = torch.zeros((B, x_max_length), dtype=torch.float)
+
         x_lengths, wav_lengths, mel_lengths = [], [], []
         x_texts, filepaths = [], []
         for i, item in enumerate(batch):
@@ -216,6 +245,8 @@ class TextWavBatchCollate:
             mel[i, :, :item["mel"].shape[-1]] = mel_
             energies[i, : item["energy"].shape[-1]] = item["energy"].float()
             pitches[i, : item["pitch"].shape[-1]] = item["pitch"].float()
+            if has_precomputed_durations:
+                durations[i, : item["durations"].shape[-1]] = item["durations"].long()
             x_texts.append(item["text"])
             filepaths.append(item["filepath"])
 
@@ -238,6 +269,7 @@ class TextWavBatchCollate:
             mel_lengths=mel_lengths,
             energies=energies,
             pitches=pitches,
+            durations=durations if has_precomputed_durations else None,
             x_texts=x_texts,
             filepaths=filepaths,
         )
