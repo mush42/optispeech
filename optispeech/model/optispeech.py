@@ -20,6 +20,7 @@ class OptiSpeech(BaseLightningModule):
         use_precomputed_durations,
         generator,
         data_statistics,
+        normalize_text=False,
         hifigan_ckpt=None,
         optimizer=None,
         scheduler=None,
@@ -83,7 +84,8 @@ class OptiSpeech(BaseLightningModule):
             lang=self.hparams.language,
             tokenizer=self.hparams.tokenizer,
             add_blank=self.hparams.add_blank,
-            split_sentences=split_sentences
+            normalize=self.hparams.normalize_text,
+            split_sentences=split_sentences,
         )
         if split_sentences:
             x_lengths = torch.LongTensor([len(phids) for phids in phoneme_ids])
