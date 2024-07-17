@@ -5,8 +5,9 @@ import unicodedata
 WHITESPACE_RE = re.compile(r"\s+")
 
 
-def preprocess_text(text: str) -> str:
-    text = unicodedata.normalize("NFD", text)
+def preprocess_text(text: str, *, normalize: bool=False) -> str:
+    if normalize:
+        text = unicodedata.normalize("NFKC", text)
     text = collapse_whitespace(text)
     return text
 

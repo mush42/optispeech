@@ -15,4 +15,5 @@ feature_extractor: ${data.feature_extractor}
 language: ${data.language}
 tokenizer: ${data.tokenizer}
 add_blank: ${data.add_blank}
+normalize_text: ${data.normalize_text}
 data_statistics: ${data.data_statistics}

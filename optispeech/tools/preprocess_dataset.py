@@ -72,6 +72,7 @@ def main():
         language=cfg.language,
         tokenizer=cfg.tokenizer,
         add_blank=cfg.add_blank,
+        normalize_text=cfg.normalize_text,
         filelist_path=os.devnull,
             feature_extractor=    feature_extractor,
     )

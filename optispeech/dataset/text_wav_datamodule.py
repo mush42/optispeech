@@ -35,6 +35,7 @@ class TextWavDataModule(LightningDataModule):
         language,
         tokenizer,
         add_blank,
+        normalize_text,
         train_filelist_path,
         valid_filelist_path,
         batch_size,
@@ -64,6 +65,7 @@ class TextWavDataModule(LightningDataModule):
             language=self.hparams.language,
             tokenizer=self.hparams.tokenizer,
             add_blank=self.hparams.add_blank,
+            normalize_text=self.hparams.normalize_text,
             filelist_path=self.hparams.train_filelist_path,
             feature_extractor=self.feature_extractor,
             seed=self.hparams.seed,
@@ -72,6 +74,7 @@ class TextWavDataModule(LightningDataModule):
             language=self.hparams.language,
             tokenizer=self.hparams.tokenizer,
             add_blank=self.hparams.add_blank,
+            normalize_text=self.hparams.normalize_text,
             filelist_path=self.hparams.valid_filelist_path,
             feature_extractor=self.feature_extractor,
             seed=self.hparams.seed,
@@ -116,6 +119,7 @@ class TextWavDataset(torch.utils.data.Dataset):
         language,
         tokenizer,
         add_blank,
+        normalize_text,
         filelist_path,
         feature_extractor,
         seed=None,
@@ -123,6 +127,7 @@ class TextWavDataset(torch.utils.data.Dataset):
         self.language = language
         self.text_tokenizer = tokenizer
         self.add_blank = add_blank
+        self.normalize_text = normalize_text
 
         self.file_paths = parse_filelist(filelist_path)
         self.data_dir = Path(filelist_path).parent.joinpath("data")
@@ -168,6 +173,7 @@ class TextWavDataset(torch.utils.data.Dataset):
             self.language,
             tokenizer=self.text_tokenizer,
             add_blank=self.add_blank,
+            normalize=self.normalize_text,
             split_sentences=False
         )
         return phoneme_ids, clean_text

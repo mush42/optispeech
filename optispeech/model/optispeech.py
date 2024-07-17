@@ -19,6 +19,7 @@ class OptiSpeech(BaseLightningModule):
         language,
         tokenizer,
         add_blank,
+        normalize_text,
         data_statistics,
         pretraining_steps=1000,
         decay_mel_coeff=False,
@@ -95,6 +96,7 @@ class OptiSpeech(BaseLightningModule):
             lang=self.hparams.language,
             tokenizer=self.hparams.tokenizer,
             add_blank=self.hparams.add_blank,
+            normalize=self.hparams.normalize_text,
             split_sentences=split_sentences
         )
         if split_sentences:
