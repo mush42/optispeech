@@ -10,7 +10,7 @@ tokenizer: default
 add_blank: True
 train_filelist_path: data/hfc_female-en_us/train.txt
 valid_filelist_path: data/hfc_female-en_us/val.txt
-batch_size: 64 
+batch_size: 128 
 num_workers: 8
 data_statistics:  # Computed for this dataset
   energy_min: 0.049677

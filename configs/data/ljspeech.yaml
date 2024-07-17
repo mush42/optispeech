@@ -6,7 +6,7 @@ _target_: optispeech.dataset.TextWavDataModule
 name: ljspeech
 train_filelist_path: data/LJSpeech-1.1/train.txt 
 valid_filelist_path: data/LJSpeech-1.1/val.txt
-batch_size: 64 
+batch_size: 128 
 num_workers: 8
 pin_memory: True
 language: en-us

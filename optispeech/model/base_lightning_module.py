@@ -210,7 +210,7 @@ class BaseLightningModule(LightningModule, ABC):
                 mel_hat = self.hparams.feature_extractor.get_mel(wav_hat)
                 self.logger.experiment.add_image(
                     f"generated_mel/{i}",
-                    plot_tensor(mel_hat.squeeze().float().cpu()),
+                    plot_tensor(mel_hat.squeeze()),
                     self.current_epoch,
                     dataformats="HWC",
                 )
