@@ -47,7 +47,7 @@ print(f"Batch['wav'] shape: {batch['wav'].shape}")
 print(f"Batch['pitches'] shape: {batch['pitches'].shape}")
 
 # Model
-device = "cuda"
+device = "cpu"
 model = hydra.utils.instantiate(cfg.model)
 model = model.eval()
 model = model.to(device)

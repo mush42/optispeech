@@ -14,6 +14,8 @@ class OptiSpeechDiscriminator(nn.Module):
         super().__init__()
         self.loss_coeffs = loss_coeffs
         self.lambda_mel = self.loss_coeffs.lambda_mel
+        self.lambda_mr_stft = self.loss_coeffs.lambda_mr_stft
+
         self.feature_extractor = feature_extractor
 
         # Discriminators
@@ -77,4 +79,4 @@ class OptiSpeechDiscriminator(nn.Module):
 
     def forward_mr_stft(self, wav, wav_hat):
         spec_converge_loss, mr_mag_loss = self.mr_stft_loss(wav_hat, wav)
-        return spec_converge_loss + mr_mag_loss
+        return (spec_converge_loss + mr_mag_loss) * self.lambda_mr_stft
