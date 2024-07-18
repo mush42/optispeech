@@ -7,13 +7,17 @@ defaults:
 
 _target_: optispeech.model.OptiSpeech
 dim: 256
-pretraining_steps: 1000
-decay_mel_coeff: false
-gradient_clip_val: 1.0
-cache_generator_outputs: true
-feature_extractor: ${data.feature_extractor}
-language: ${data.language}
-tokenizer: ${data.tokenizer}
-add_blank: ${data.add_blank}
-normalize_text: ${data.normalize_text}
-data_statistics: ${data.data_statistics}
+train_args:
+  cache_generator_outputs: true
+  decay_mel_coeff: false
+  gradient_clip_val: 1.0
+  gradient_accumulate_batches: null
+  pretraining_steps: 1000
+data_args:
+  feature_extractor: ${data.feature_extractor}
+  batch_size: ${data.batch_size}
+  language: ${data.language}
+  tokenizer: ${data.tokenizer}
+  add_blank: ${data.add_blank}
+  normalize_text: ${data.normalize_text}
+  data_statistics: ${data.data_statistics}

@@ -89,18 +89,18 @@ class OptiSpeechGenerator(nn.Module):
         self.loss_criterion = FastSpeech2Loss()
         self.forwardsum_loss = ForwardSumLoss()
 
-    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies):
+    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies, durations=None):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
                 shape: (batch_size, max_text_length)
             x_lengths (torch.Tensor): lengths of texts in batch.
                 shape: (batch_size,)
-            durations (torch.Tensor): phoneme durations.
-                shape: (batch_size, max_text_length)
             pitches (torch.Tensor): phoneme-level pitch values.
                 shape: (batch_size, max_text_length)
             energies (torch.Tensor): phoneme-level energy values.
+                shape: (batch_size, max_text_length)
+            durations (Optional[torch.Tensor]): precalculated phoneme durations (TBD).
                 shape: (batch_size, max_text_length)
 
         Returns:
@@ -114,11 +114,8 @@ class OptiSpeechGenerator(nn.Module):
         x_mask = x_mask.to(x.device)
 
         mel_max_length = mel_lengths.max()
-        mel_mask = torch.unsqueeze(
-            sequence_mask(mel_lengths, mel_max_length),
-            1
-        ).to(mel.dtype)
-        mel_mask = mel_mask.to(mel.device)
+        mel_mask = torch.unsqueeze(sequence_mask(mel_lengths, mel_max_length), 1).to(x.dtype)
+        mel_mask = mel_mask.to(x.device)
 
         padding_mask = ~x_mask.squeeze(1).bool()
         padding_mask = padding_mask.to(x.device)

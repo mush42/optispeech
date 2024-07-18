@@ -24,15 +24,15 @@ class MultiPeriodDiscriminator(nn.Module):
         ])
 
     def forward(
-        self, y: torch.Tensor, y_hat: torch.Tensor, bandwidth_id: torch.Tensor = None
+        self, y: torch.Tensor, y_hat: torch.Tensor
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[List[torch.Tensor]], List[List[torch.Tensor]]]:
         y_d_rs = []
         y_d_gs = []
         fmap_rs = []
         fmap_gs = []
         for d in self.discriminators:
-            y_d_r, fmap_r = d(x=y, cond_embedding_id=bandwidth_id)
-            y_d_g, fmap_g = d(x=y_hat, cond_embedding_id=bandwidth_id)
+            y_d_r, fmap_r = d(x=y)
+            y_d_g, fmap_g = d(x=y_hat)
             y_d_rs.append(y_d_r)
             fmap_rs.append(fmap_r)
             y_d_gs.append(y_d_g)
@@ -61,7 +61,7 @@ class DiscriminatorP(nn.Module):
         self.conv_post = weight_norm(Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
         self.lrelu_slope = lrelu_slope
 
-    def forward(self, x: Tensor, cond_embedding_id: None | Tensor = None) -> tuple[Tensor, list[Tensor]]:
+    def forward(self, x: Tensor) -> tuple[Tensor, list[Tensor]]:
         """
         Args:
             x :: (B, T)
@@ -86,12 +86,7 @@ class DiscriminatorP(nn.Module):
             if i > 0:
                 fmap.append(x)
 
-        if cond_embedding_id is not None:
-            emb = self.emb(cond_embedding_id)
-            h = (emb.view(1, -1, 1, 1) * x).sum(dim=1, keepdims=True)
-        else:
-            h = 0
-
+        h = 0
         # :: (B, Feat, Frame<frm, Period=prd) ->  (B, 1, Frame<frm, Period=prd)
         x = self.conv_post(x)
         fmap.append(x)
@@ -110,7 +105,6 @@ class MultiResolutionDiscriminator(nn.Module):
     ):
         """
         Multi-Resolution Discriminator module adapted from https://github.com/mindslab-ai/univnet.
-        Additionally, it allows incorporating conditional information with a learned embeddings table.
 
         Args:
             resolutions    - triplet (nfft, hop, winLength) for each discriminator. Default: 3/4 overlaped nfft=512/1024/2048
@@ -122,7 +116,7 @@ class MultiResolutionDiscriminator(nn.Module):
             for r in resolutions
         ])
 
-    def forward(self, y: Tensor, y_hat: Tensor, bandwidth_id: None | Tensor = None) -> tuple[list[Tensor], list[Tensor], list[list[Tensor]], list[list[Tensor]]]:
+    def forward(self, y: Tensor, y_hat: Tensor) -> tuple[list[Tensor], list[Tensor], list[list[Tensor]], list[list[Tensor]]]:
         """
         Args:
             y     :: (B, T)
@@ -134,8 +128,8 @@ class MultiResolutionDiscriminator(nn.Module):
         fmap_gs = []
 
         for d in self.discriminators:
-            y_d_r, fmap_r = d(x=y,     cond_embedding_id=bandwidth_id)
-            y_d_g, fmap_g = d(x=y_hat, cond_embedding_id=bandwidth_id)
+            y_d_r, fmap_r = d(x=y)
+            y_d_g, fmap_g = d(x=y_hat)
             y_d_rs.append(y_d_r)
             fmap_rs.append(fmap_r)
             y_d_gs.append(y_d_g)
@@ -168,7 +162,7 @@ class DiscriminatorR(nn.Module):
         ])
         self.conv_post = weight_norm(nn.Conv2d(channels, 1, (3, 3), padding=(1, 1)))
 
-    def forward(self, x: Tensor, cond_embedding_id: Tensor = None) -> tuple[Tensor, list[Tensor]]:
+    def forward(self, x: Tensor) -> tuple[Tensor, list[Tensor]]:
         """wave -> (STFT) -> spec -> (Nx[conv2d-LReLU]) -> feat -> (conv2d) -> (cond) -> o_disc.
         
         Args:
@@ -187,12 +181,7 @@ class DiscriminatorR(nn.Module):
             x = F.leaky_relu(x, self.lrelu_slope)
             fmap.append(x)
 
-        if cond_embedding_id is not None:
-            emb = self.emb(cond_embedding_id)
-            h = (emb.view(1, -1, 1, 1) * x).sum(dim=1, keepdims=True)
-        else:
-            h = 0
-
+        h = 0
         # :: (B, Feat, Freq<freq, Frame<frm) -> (B, 1, Freq<freq, Frame<frm)
         x = self.conv_post(x)
         fmap.append(x)

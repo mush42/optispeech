@@ -15,34 +15,33 @@ class OptiSpeech(BaseLightningModule):
         dim,
         generator,
         discriminator,
-        feature_extractor,
-        language,
-        tokenizer,
-        add_blank,
-        normalize_text,
-        data_statistics,
-        pretraining_steps=1000,
-        decay_mel_coeff=False,
-        cache_generator_outputs=False,
-        gradient_clip_val=1.0,
+        data_args,
+        train_args,
         optimizer=None,
         scheduler=None,
     ):
         super().__init__()
         self.save_hyperparameters(logger=False)
 
-        self.sample_rate = feature_extractor.sample_rate
-        self.hop_length = feature_extractor.hop_length
+        # Sanity checks
+        if (train_args.gradient_accumulate_batches is not None) and (train_args.gradient_accumulate_batches <= 0):
+            raise ValueError("gradient_accumulate_batches should be a positive number")
+
+        self.data_args = data_args
+        self.train_args = train_args
+
+        self.sample_rate = data_args.feature_extractor.sample_rate
+        self.hop_length = data_args.feature_extractor.hop_length
 
         # GAN training requires this
         self.automatic_optimization = False
 
         self.generator = generator(
             dim=dim,
-            feature_extractor=feature_extractor,
-            data_statistics=data_statistics,
+            feature_extractor=data_args.feature_extractor,
+            data_statistics=data_args.data_statistics,
         )
-        self.discriminator = discriminator(feature_extractor=feature_extractor)
+        self.discriminator = discriminator(feature_extractor=data_args.feature_extractor)
 
         self.train_discriminator = False
         self.base_lambda_mel = self.lambda_mel = self.discriminator.lambda_mel
@@ -93,10 +92,10 @@ class OptiSpeech(BaseLightningModule):
         """
         phoneme_ids, clean_text = process_and_phonemize_text(
             text,
-            lang=self.hparams.language,
-            tokenizer=self.hparams.tokenizer,
-            add_blank=self.hparams.add_blank,
-            normalize=self.hparams.normalize_text,
+            lang=self.data_args.language,
+            tokenizer=self.data_args.tokenizer,
+            add_blank=self.data_args.add_blank,
+            normalize=self.data_args.normalize_text,
             split_sentences=split_sentences
         )
         if split_sentences:

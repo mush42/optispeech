@@ -20,11 +20,14 @@ print(f"Length of phoneme ids: {len(phids)}")
 with initialize(version_base=None, config_path="./configs"):
     dataset_cfg = compose(config_name="data/herald-en_gb.yaml")
     cfg = compose(config_name="model/optispeech.yaml")
-    cfg.model.feature_extractor = dataset_cfg.data.feature_extractor
-    cfg.model.language = dataset_cfg.data.language
-    cfg.model.tokenizer = dataset_cfg.data.tokenizer
-    cfg.model.add_blank = dataset_cfg.data.add_blank
-    cfg.model.data_statistics = dataset_cfg.data.data_statistics
+    cfg.model.data_args = dict(
+        feature_extractor=dataset_cfg.data.feature_extractor,
+        language = dataset_cfg.data.language,
+        tokenizer = dataset_cfg.data.tokenizer,
+        add_blank = dataset_cfg.data.add_blank,
+        normalize_text = dataset_cfg.data.normalize_text,
+        data_statistics = dataset_cfg.data.data_statistics
+    )
 
 # Dataset pipeline
 dataset_cfg.data.batch_size = 2
@@ -44,7 +47,7 @@ print(f"Batch['wav'] shape: {batch['wav'].shape}")
 print(f"Batch['pitches'] shape: {batch['pitches'].shape}")
 
 # Model
-device = "cpu"
+device = "cuda"
 model = hydra.utils.instantiate(cfg.model)
 model = model.eval()
 model = model.to(device)
