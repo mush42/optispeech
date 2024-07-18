@@ -76,6 +76,11 @@ class BaseLightningModule(LightningModule, ABC):
             ],
         )
 
+    def on_train_epoch_start(self) -> None:
+        if self.current_epoch == self.trainer.max_epochs - 1:
+            # Workaround to always save the last epoch until the bug is fixed in lightning (https://github.com/Lightning-AI/lightning/issues/4539)
+            self.trainer.check_val_every_n_epoch = 1
+
     def on_train_batch_start(self, *args):
         self.train_discriminator = self.global_step >= self.train_args.pretraining_steps
 
@@ -125,7 +130,7 @@ class BaseLightningModule(LightningModule, ABC):
         gen_outputs = self._process_batch(batch)
         gen_loss = gen_outputs["loss"]
         log_outputs.update({
-            "gen_subloss/train_am_loss": gen_loss.item(),
+            "total_loss/train_am_loss": gen_loss.item(),
             "gen_subloss/train_alighn_loss": gen_outputs["align_loss"].item(),
             "gen_subloss/train_duration_loss": gen_outputs["duration_loss"].item(),
             "gen_subloss/train_pitch_loss": gen_outputs["pitch_loss"].item(),
@@ -190,7 +195,7 @@ class BaseLightningModule(LightningModule, ABC):
         log_outputs = {}
         gen_outputs = self._process_batch(batch)
         log_outputs.update({
-            "gen_subloss/val_am_loss": gen_outputs["loss"].item(),
+            "total_loss/val_am_loss": gen_outputs["loss"].item(),
             "gen_subloss/val_alighn_loss": gen_outputs["align_loss"].item(),
             "gen_subloss/val_duration_loss": gen_outputs["duration_loss"].item(),
             "gen_subloss/val_pitch_loss": gen_outputs["pitch_loss"].item(),
@@ -282,8 +287,10 @@ class BaseLightningModule(LightningModule, ABC):
     @property
     def global_step(self):
         """
-        Override global_step so that it returns the total number of batches processed
+        Override global_step so that it returns the total number of batches processed with respect to `gradient_accumulate_batches`
         """
+        if self.train_args.gradient_accumulate_batches is not None:
+            return self.trainer.fit_loop.epoch_loop.total_batch_idx // self.train_args.gradient_accumulate_batches
         return self.trainer.fit_loop.epoch_loop.total_batch_idx
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
