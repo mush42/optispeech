@@ -42,8 +42,6 @@ class OptiSpeech(BaseLightningModule):
             data_statistics=data_args.data_statistics,
         )
         self.discriminator = discriminator(feature_extractor=data_args.feature_extractor)
-
-        self.train_discriminator = False
         self.base_lambda_mel = self.lambda_mel = self.discriminator.lambda_mel
 
     @torch.inference_mode()

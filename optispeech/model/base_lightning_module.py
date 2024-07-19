@@ -81,9 +81,6 @@ class BaseLightningModule(LightningModule, ABC):
             # Workaround to always save the last epoch until the bug is fixed in lightning (https://github.com/Lightning-AI/lightning/issues/4539)
             self.trainer.check_val_every_n_epoch = 1
 
-    def on_train_batch_start(self, *args):
-        self.train_discriminator = self.global_step >= self.train_args.pretraining_steps
-
     def training_step(self, batch, batch_idx, **kwargs):
         # manual gradient accumulation
         gradient_accumulate_batches = self.train_args.gradient_accumulate_batches
@@ -93,11 +90,14 @@ class BaseLightningModule(LightningModule, ABC):
         else:
             loss_scaling_factor = 1.0
             should_apply_gradients = True
+        # Generator pretraining
+        train_discriminator = self.global_step  >= self.train_args.pretraining_steps
+        # Extract generator/discriminator
         opt_g, opt_d = self.optimizers()
         sched_g, sched_d = self.lr_schedulers()
         # train generator
         self.toggle_optimizer(opt_g)
-        loss_g, wav_outputs = self.training_step_g(batch)
+        loss_g, wav_outputs = self.training_step_g(batch, train_discriminator=train_discriminator)
         # Scale (grad accumulate)
         loss_g /= loss_scaling_factor
         self.manual_backward(loss_g)
@@ -108,7 +108,7 @@ class BaseLightningModule(LightningModule, ABC):
             sched_g.step()
         self.untoggle_optimizer(opt_g)
         # train discriminator
-        if not self.train_discriminator:
+        if not train_discriminator:
             # we're still in pretraining
             return
         self.toggle_optimizer(opt_d)
@@ -125,7 +125,7 @@ class BaseLightningModule(LightningModule, ABC):
             sched_d.step()
         self.untoggle_optimizer(opt_d)
 
-    def training_step_g(self, batch):
+    def training_step_g(self, batch, train_discriminator):
         log_outputs = {}
         gen_outputs = self._process_batch(batch)
         gen_loss = gen_outputs["loss"]
@@ -138,19 +138,19 @@ class BaseLightningModule(LightningModule, ABC):
         if  gen_outputs.get("energy_loss") != 0.0:
             log_outputs["gen_subloss/train_energy_loss"] = gen_outputs["energy_loss"].item()
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
-        if self.train_discriminator:
+        if train_discriminator:
             d_gen_loss, loss_gen_mp, loss_gen_mrd, loss_fm_mp, loss_fm_mrd = self.discriminator.forward_gen(wav, wav_hat)
             log_outputs.update({
-                "gen_subloss/disc_loss": d_gen_loss.item(),
-                "gen_subloss/loss_gen_mp": loss_gen_mp.item(),
-                "gen_subloss/loss_gen_mrd": loss_gen_mrd.item(),
-                "gen_subloss/loss_fm_mp": loss_fm_mp.item(),
-                "gen_subloss/loss_fm_mrd": loss_fm_mrd.item(),
+                "discriminator/gen_loss": d_gen_loss.item(),
+                "discriminator/loss_gen_mp": loss_gen_mp.item(),
+                "discriminator/loss_gen_mrd": loss_gen_mrd.item(),
+                "discriminator/loss_fm_mp": loss_fm_mp.item(),
+                "discriminator/loss_fm_mrd": loss_fm_mrd.item(),
             })
         else:
             d_gen_loss = 0.0
         mel_loss = self.discriminator.forward_mel(wav, wav_hat)
-        mel_loss = mel_loss * self.lambda_mel
+        mel_loss *= self.lambda_mel
         log_outputs["gen_subloss/train_mel_loss"] = mel_loss.item()
         mr_stft_loss = self.discriminator.forward_mr_stft(wav, wav_hat)
         log_outputs["gen_subloss/train_mr_stft_loss"] = mr_stft_loss.item()
@@ -290,8 +290,10 @@ class BaseLightningModule(LightningModule, ABC):
         Override global_step so that it returns the total number of batches processed with respect to `gradient_accumulate_batches`
         """
         if self.train_args.gradient_accumulate_batches is not None:
-            return self.trainer.fit_loop.epoch_loop.total_batch_idx // self.train_args.gradient_accumulate_batches
-        return self.trainer.fit_loop.epoch_loop.total_batch_idx
+            global_step = self.trainer.fit_loop.total_batch_idx // self.train_args.gradient_accumulate_batches
+        else:
+            global_step = self.trainer.fit_loop.total_batch_idx
+        return int(global_step)
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         self.ckpt_loaded_epoch = checkpoint["epoch"]  # pylint: disable=attribute-defined-outside-init
