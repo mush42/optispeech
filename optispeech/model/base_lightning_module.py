@@ -92,7 +92,7 @@ class BaseLightningModule(LightningModule, ABC):
             should_apply_gradients = True
         # Generator pretraining
         train_discriminator = self.global_step  >= self.train_args.pretraining_steps
-        # Extract generator/discriminator
+        # Extract generator/discriminator optimizer/scheduler
         opt_g, opt_d = self.optimizers()
         sched_g, sched_d = self.lr_schedulers()
         # train generator
@@ -104,8 +104,8 @@ class BaseLightningModule(LightningModule, ABC):
         if should_apply_gradients:
             self.clip_gradients(opt_g, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm")
             opt_g.step()
-            opt_g.zero_grad()
             sched_g.step()
+            opt_g.zero_grad()
         self.untoggle_optimizer(opt_g)
         # train discriminator
         if not train_discriminator:
@@ -120,9 +120,9 @@ class BaseLightningModule(LightningModule, ABC):
         self.manual_backward(loss_d)
         if should_apply_gradients:
             self.clip_gradients(opt_d, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm")
-            opt_d.zero_grad()
             opt_d.step()
             sched_d.step()
+            opt_d.zero_grad()
         self.untoggle_optimizer(opt_d)
 
     def training_step_g(self, batch, train_discriminator):
