@@ -11,6 +11,16 @@ import torch
 from optispeech.model import OptiSpeech
 
 
+APP_DESC = """
+# OptiSpeech
+
+**OptiSpeech** is ment to be an ultra **efficient**, **lightweight** and **fast** text-to-speech model for **on-device** text-to-speech.
+
+## Important
+
+The inference time will be higher  in the first run or when the `Load latest checkpoint` checkbox is checked.
+ 
+""".strip()
 CHECKPOINTS_DIR = None
 CKPT_PATH = CKPT_EPOCH = CKPT_GSTEP = None
 MODEL = None
@@ -55,6 +65,8 @@ def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -
 
 gui = gr.Interface(
     title="OptiSpeech demo",
+    description=APP_DESC,
+    server_name="0.0.0.0",
     fn=speak,
     inputs=[
         gr.Text(label="Enter sentence", ),
