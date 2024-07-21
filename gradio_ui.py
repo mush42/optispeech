@@ -2,6 +2,7 @@ import argparse
 import glob
 import os
 import sys
+from pathlib import Path
 from typing import Tuple
 
 import gradio as gr
@@ -28,9 +29,9 @@ MODEL = None
 
 
 def _get_latest_ckpt():
-    files_path = os.path.join(CHECKPOINTS_DIR, '*.ckpt')
-    files = list(sorted(glob.iglob(files_path), key=os.path.getctime, reverse=True) )
-    return files[0]
+    files = Path(CHECKPOINTS_DIR).rglob("*.ckpt")
+    files = list(sorted(files, key=os.path.getctime, reverse=True))
+    return os.fspath(files[0])
 
 
 def percent_to_param(percent: int, min: float, max: float) -> float:
