@@ -48,7 +48,7 @@ def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -
         MODEL.to(DEVICE)
         MODEL.eval()
         # For information purposes
-        data = torch.load(CKPT_PATH)
+        data = torch.load(CKPT_PATH, map_location="cpu")
         CKPT_EPOCH = data["epoch"]
         CKPT_GSTEP = data["global_step"]
     d_factor = percent_to_param(d_factor or 50.0, 0.0, 2.0)
