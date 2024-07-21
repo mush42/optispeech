@@ -66,7 +66,7 @@ def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -
 gui = gr.Interface(
     title="OptiSpeech demo",
     description=APP_DESC,
-    server_name="0.0.0.0",
+    clear_btn: =None,
     fn=speak,
     inputs=[
         gr.Text(label="Enter sentence", ),
@@ -86,4 +86,4 @@ if __name__ == '__main__':
     parser.add_argument("checkpoints_dir")
     args = parser.parse_args()
     CHECKPOINTS_DIR = args.checkpoints_dir
-    gui.launch()
+    gui.launch(server_name="0.0.0.0")
