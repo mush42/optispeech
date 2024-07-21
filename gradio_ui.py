@@ -12,14 +12,15 @@ from optispeech.model import OptiSpeech
 
 
 APP_DESC = """
-# OptiSpeech
+## About OptiSpeech
 
 **OptiSpeech** is ment to be an ultra **efficient**, **lightweight** and **fast** text-to-speech model for **on-device** text-to-speech.
 
-## Important
+## Important notes
 
-The inference time will be higher  in the first run or when the `Load latest checkpoint` checkbox is checked.
- 
+- The inference time will be higher  in the first run or when the `Load latest checkpoint` checkbox is checked.
+- The submitted text is limmited to 1024 chars to prevent overloading the system. Longer text will be truncated.
+
 """.strip()
 CHECKPOINTS_DIR = None
 CKPT_PATH = CKPT_EPOCH = CKPT_GSTEP = None
