@@ -17,10 +17,11 @@ APP_DESC = """
 
 **OptiSpeech** is ment to be an ultra **efficient**, **lightweight** and **fast** text-to-speech model for **on-device** text-to-speech.
 
-## Important notes
+## Notes
 
+- The input text is limmited to 1024 chars to prevent overloading the system. Longer input will be truncated.
 - The inference time will be higher  in the first run or when the `Load latest checkpoint` checkbox is checked.
-- The submitted text is limmited to 1024 chars to prevent overloading the system. Longer text will be truncated.
+- The values of **Latency** and **RTF (Real Time Factor)** will vary depending on the machine you run inference on. 
 
 """.strip()
 
@@ -59,6 +60,8 @@ def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -
     outputs = MODEL.synthesise(x, x_lengths, d_factor=d_factor, p_factor=p_factor)
     info = "\n".join([
         f"Normalized text: {normalized_text}",
+        f"Latency (ms): {outputs['latency']}",
+        f"RTF: {outputs['rtf']}",
         f"checkpoint epoch: {CKPT_EPOCH}",
         f"checkpoint steps: {CKPT_GSTEP}",
     ])
