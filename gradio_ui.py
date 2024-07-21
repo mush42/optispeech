@@ -37,10 +37,6 @@ def _get_latest_ckpt():
     return os.fspath(files[0])
 
 
-def percent_to_param(percent: int, min: float, max: float) -> float:
-    return round(float(percent) / 100 * (max - min) + min)
-
-
 def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -> Tuple[np.ndarray, int]:
     global MODEL, CKPT_PATH, CKPT_EPOCH, CKPT_GSTEP
     if load_latest_ckpt or (MODEL is None):
@@ -52,8 +48,6 @@ def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -
         data = torch.load(CKPT_PATH, map_location="cpu")
         CKPT_EPOCH = data["epoch"]
         CKPT_GSTEP = data["global_step"]
-    d_factor = percent_to_param(d_factor or 50.0, 0.0, 2.0)
-    p_factor = percent_to_param(p_factor or 50.0, 0.0, 2.0)
     # Avoid extremely long sentences
     text = text[:1024]
     x, x_lengths, normalized_text = MODEL.prepare_input(text)
@@ -78,8 +72,8 @@ gui = gr.Interface(
     fn=speak,
     inputs=[
         gr.Text(label="Enter sentence", ),
-        gr.Slider(value=50.0, label="Length factor"),
-        gr.Slider(value=50.0, label="Pitch factor"),
+        gr.Slider(value=1.0, minimum=0.1, maximum=2.0, label="Length factor"),
+        gr.Slider(value=1.0, minimum=0.1, maximum=2.0, label="Pitch factor"),
         gr.Checkbox(value=False, label="Load latest checkpoint"),
     ],
     outputs=[
@@ -94,4 +88,4 @@ if __name__ == '__main__':
     parser.add_argument("checkpoints_dir")
     args = parser.parse_args()
     CHECKPOINTS_DIR = args.checkpoints_dir
-    gui.launch(server_name="0.0.0.0")
+    gui.launch(server_name="0.0.0.0", server_port=7860)
