@@ -23,6 +23,8 @@ APP_DESC = """
 - The submitted text is limmited to 1024 chars to prevent overloading the system. Longer text will be truncated.
 
 """.strip()
+
+DEVICE = torch.device("cpu")
 CHECKPOINTS_DIR = None
 CKPT_PATH = CKPT_EPOCH = CKPT_GSTEP = None
 MODEL = None
@@ -42,7 +44,8 @@ def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -
     global MODEL, CKPT_PATH, CKPT_EPOCH, CKPT_GSTEP
     if load_latest_ckpt or (MODEL is None):
         CKPT_PATH = _get_latest_ckpt()
-        MODEL = OptiSpeech.load_from_checkpoint(CKPT_PATH)
+        MODEL = OptiSpeech.load_from_checkpoint(CKPT_PATH, map_location="cpu")
+        MODEL.to(DEVICE)
         MODEL.eval()
         # For information purposes
         data = torch.load(CKPT_PATH)
