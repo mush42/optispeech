@@ -298,3 +298,6 @@ class BaseLightningModule(LightningModule, ABC):
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         self.ckpt_loaded_epoch = checkpoint["epoch"]  # pylint: disable=attribute-defined-outside-init
 
+
+    def test_step(self, batch, batch_idx):
+        pass
