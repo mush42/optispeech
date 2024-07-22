@@ -74,7 +74,7 @@ def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -
     )
 
 
-gui = gr.Blocks(title="OptiSpeech demo", theme="compact")
+gui = gr.Blocks(title="OptiSpeech demo")
 
 with gui:
     gr.Markdown(APP_DESC)
