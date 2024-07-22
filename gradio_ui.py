@@ -1,6 +1,8 @@
 import argparse
 import glob
 import os
+import urllib.request
+import random
 import sys
 from pathlib import Path
 from typing import Tuple
@@ -25,6 +27,13 @@ APP_DESC = """
 
 """.strip()
 
+RAND_SENTS_URL = "https://gist.github.com/mush42/17ec8752de20f595941e44df1d3fc5c4/raw/946c8c1e5d11e3753ae8771476138602a0f6002c/tts-demo-sentences.txt"
+try:
+    with urllib.request.urlopen(RAND_SENTS_URL) as response:
+        RANDOM_SENTENCES = response.read().decode('utf-8').splitlines()
+except Exception as e:
+    print(e)
+    RANDOM_SENTENCES = ["Learning a new language not only facilitates communication across borders but also opens doors to understanding different cultures, broadening one's worldview, and forging connections with people from diverse linguistic backgrounds."]
 DEVICE = torch.device("cpu")
 CHECKPOINTS_DIR = None
 CKPT_PATH = CKPT_EPOCH = CKPT_GSTEP = None
@@ -65,22 +74,28 @@ def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -
     )
 
 
-gui = gr.Interface(
-    title="OptiSpeech demo",
-    description=APP_DESC,
-    clear_btn=None,
-    fn=speak,
-    inputs=[
-        gr.Text(label="Enter sentence", ),
-        gr.Slider(value=1.0, minimum=0.1, maximum=2.0, label="Length factor"),
-        gr.Slider(value=1.0, minimum=0.1, maximum=2.0, label="Pitch factor"),
-        gr.Checkbox(value=False, label="Load latest checkpoint"),
-    ],
-    outputs=[
-        gr.Audio(label="Generated audio"),
-        gr.Text(label="Info", interactive=False),
-    ],
-)
+gui = gr.Blocks(title="OptiSpeech demo", theme="compact")
+
+with gui:
+    gr.Markdown(APP_DESC)
+    with gr.Row():
+        with gr.Column():
+            text = gr.Text(label="Enter sentence")
+            random_sent_btn = gr.Button("Random sentence...")
+        with gr.Column():
+            gr.Markdown("## Synthesis options")
+            d_factor = gr.Slider(value=1.0, minimum=0.1, maximum=2.0, label="Length factor")
+            p_factor = gr.Slider(value=1.0, minimum=0.1, maximum=2.0, label="Pitch factor")
+            load_latest_ckpt = gr.Checkbox(value=False, label="Load latest checkpoint")
+    speak_btn = gr.Button("Speak")
+    audio = gr.Audio(label="Generated audio")
+    info = gr.Text(label="Info", interactive=False)
+    speak_btn.click(fn=speak, inputs=[text, d_factor, p_factor, load_latest_ckpt], outputs=[audio, info])
+    random_sent_btn.click(
+        fn=lambda txt: random.choice(RANDOM_SENTENCES),
+        inputs=text,
+        outputs=text
+    )
 
 
 if __name__ == '__main__':
@@ -88,4 +103,6 @@ if __name__ == '__main__':
     parser.add_argument("checkpoints_dir")
     args = parser.parse_args()
     CHECKPOINTS_DIR = args.checkpoints_dir
-    gui.launch(server_name="0.0.0.0", server_port=7860)
+    gui.launch(
+        server_name="0.0.0.0", server_port=7860
+    )
