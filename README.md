@@ -19,7 +19,7 @@
 
 ## Audio sample
 
-https://raw.githubusercontent.com/mush42/optispeech/main/samples/OptiSpeech-ConvNeXtTTS-run1.mp4
+https://github.com/user-attachments/assets/31350325-2062-47b3-bcb6-b803869553ce
 
 Note that this is still WIP. Final model designed decisions are still being made.
 
