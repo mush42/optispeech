@@ -67,6 +67,8 @@ disc_mel_out = model.discriminator.forward_mel(wav, wav_hat)
 x = batch["x"]
 x_lengths = batch["x_lengths"]
 
+x = x[0].unsqueeze(0)
+x_lengths = x_lengths[0].unsqueeze(0)
 synth_outs = model.synthesise(x, x_lengths)
 print(f"RTF: {synth_outs['rtf']}")
 print(f"Latency: {synth_outs['latency']}")

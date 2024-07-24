@@ -7,7 +7,7 @@ from torch.nn import functional as F
 from optispeech.utils import sequence_mask, denormalize
 from optispeech.utils.segments import get_random_segments
 
-from .alignments import AlignmentModule, GaussianUpsampling, viterbi_decode, average_by_duration
+from .alignments import DifferentiableAlignmentModule, average_by_duration
 from .loss import FastSpeech2Loss, ForwardSumLoss
 from .modules import TextEmbedding, TransformerEncoder, TransformerDecoder, DurationPredictor, PitchPredictor, EnergyPredictor
 from .variance_adaptor import VarianceAdaptor
@@ -39,8 +39,7 @@ class OptiSpeechGenerator(nn.Module):
 
         self.text_embedding = text_embedding(dim=dim)
         self.encoder = encoder(dim=dim)
-        self.alignment_module = AlignmentModule(adim=dim, odim=self.n_feats)
-        self.feature_upsampler = GaussianUpsampling()
+        self.alignment_module = DifferentiableAlignmentModule(n_feats=self.n_feats, dim=dim)
         dp = DurationPredictor(
             dim=dim,
             n_layers=variance_adaptor["duration_predictor"]["n_layers"],
@@ -89,19 +88,23 @@ class OptiSpeechGenerator(nn.Module):
         self.loss_criterion = FastSpeech2Loss()
         self.forwardsum_loss = ForwardSumLoss()
 
-    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies, durations=None):
+    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies, energy_weights):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
                 shape: (batch_size, max_text_length)
             x_lengths (torch.Tensor): lengths of texts in batch.
                 shape: (batch_size,)
+            mel (torch.Tensor): batch of melspectogram.
+                shape: (batch_size, n_feats, max_mel_length)
+            mel_lengths (torch.Tensor): lengths of mels in batch.
+                shape: (batch_size,)
             pitches (torch.Tensor): phoneme-level pitch values.
-                shape: (batch_size, max_text_length)
+                shape: (batch_size, max_mel_length)
             energies (torch.Tensor): phoneme-level energy values.
-                shape: (batch_size, max_text_length)
-            durations (Optional[torch.Tensor]): precalculated phoneme durations (TBD).
-                shape: (batch_size, max_text_length)
+                shape: (batch_size, max_mel_length)
+            energy_weights (torch.Tensor): precalculated energy weights.
+                shape: (batch_size, max_text_length, max_mel_length)
 
         Returns:
             loss: (torch.Tensor): scaler representing total loss
@@ -127,14 +130,7 @@ class OptiSpeechGenerator(nn.Module):
         x = self.encoder(x, padding_mask)
 
         # alignment
-        log_p_attn = self.alignment_module(
-            x,
-            mel.transpose(1, 2),
-            x_lengths,
-            mel_lengths,
-            padding_mask,
-        )
-        durations, bin_loss = viterbi_decode(log_p_attn, x_lengths, mel_lengths)
+        durations, reconst_alpha = self.alignment_module(x, x_lengths, mel, mel_lengths, energy_weights)
         pitches = average_by_duration(durations, pitches.unsqueeze(-1), x_lengths, mel_lengths)
         energies = average_by_duration(durations, energies.unsqueeze(-1), x_lengths, mel_lengths)
 
@@ -147,12 +143,9 @@ class OptiSpeechGenerator(nn.Module):
         energy_hat = va_outputs.get("energy_hat")
 
         # upsample to mel lengths
-        z = self.feature_upsampler(
-            z,
-            durations,
-            mel_mask.squeeze(1).bool(),
-            x_mask.squeeze(1).bool()
-        )
+        z = torch.bmm(z.transpose(1, 2), reconst_alpha)
+        z = z * mel_mask
+        z = z.transpose(1, 2).to(x.device)
         target_padding_mask = ~mel_mask.squeeze(1).bool()
 
         # Decoder
@@ -180,11 +173,8 @@ class OptiSpeechGenerator(nn.Module):
             es=energies.unsqueeze(-1) if energies is not None else None,
             ilens=x_lengths,
         )
-        forwardsum_loss = self.forwardsum_loss(log_p_attn, x_lengths, mel_lengths)
-        align_loss = forwardsum_loss + bin_loss
         loss =  (
-            (align_loss * loss_coeffs.lambda_align)
-            + (duration_loss * loss_coeffs.lambda_duration)
+            (duration_loss * loss_coeffs.lambda_duration)
             + (pitch_loss * loss_coeffs.lambda_pitch)
             + (energy_loss * loss_coeffs.lambda_energy)
         )
@@ -193,9 +183,7 @@ class OptiSpeechGenerator(nn.Module):
             "wav_hat": wav_hat,
             "start_idx": z_start_idx,
             "segment_size": segment_size,
-            "attn": log_p_attn,
             "loss": loss,
-            "align_loss": align_loss,
             "duration_loss": duration_loss,
             "pitch_loss": pitch_loss,
             "energy_loss": energy_loss,
@@ -214,7 +202,7 @@ class OptiSpeechGenerator(nn.Module):
             e_factor (float.Tensor): scaler to control energy.
 
         Returns:
-            mel (torch.Tensor): generated mel
+            wav (torch.Tensor): generated mel
                 shape: (batch_size, n_feats, T)
             durations: (torch.Tensor): predicted phoneme durations
                 shape: (batch_size, max_text_length)
@@ -258,14 +246,13 @@ class OptiSpeechGenerator(nn.Module):
         y_mask = y_mask.to(y.device)
         target_padding_mask = ~y_mask.squeeze(1).bool()
 
-        y = self.feature_upsampler(
-            y,
-            durations,
-            y_mask.squeeze(1).bool(),
-            x_mask.squeeze(1).bool()
-        )
+        alpha = self.alignment_module.infer(durations)
+        y = torch.bmm(y.transpose(1, 2), alpha)
+        y = y.transpose(1, 2).to(x.device)
 
         # Decoder
+        b, t, h = y.size()
+        target_padding_mask = torch.zeros(b, t).bool().to(x.device)
         y = self.decoder(y, target_padding_mask)
         am_infer = (perf_counter() - am_t0) * 1000
 

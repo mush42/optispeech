@@ -22,6 +22,11 @@ def make_non_pad_mask(lengths):
     return sequence_mask(lengths, max_length).unsqueeze(1).bool()
 
 
+def make_pad_mask(lengths, max_len=None):
+    max_length = max_len if max_len is not None else lengths.max()
+    return ~sequence_mask(lengths, max_length).bool()
+
+
 def fix_len_compatibility(length, num_downsamplings_in_unet=2):
     factor = torch.scalar_tensor(2).pow(num_downsamplings_in_unet)
     length = (length / factor).ceil() * factor
@@ -29,6 +34,10 @@ def fix_len_compatibility(length, num_downsamplings_in_unet=2):
         return length.int().item()
     else:
         return length
+
+
+def get_padding(kernel_size, dilation=1):
+    return int((kernel_size * dilation - dilation) / 2)
 
 
 def convert_pad_shape(pad_shape):
@@ -278,4 +287,5 @@ def set_incremental_state(module, incremental_state, key, value):
     if incremental_state is not None:
         full_key = _get_full_incremental_state_key(module, key)
         incremental_state[full_key] = value
+
 

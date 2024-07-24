@@ -3,7 +3,7 @@ defaults:
   - generator: default
   - discriminator: default
   - optimizer: adamw
-  - scheduler: cosine_with_warmup
+  - scheduler: exponential_decay
 
 _target_: optispeech.model.OptiSpeech
 dim: 256

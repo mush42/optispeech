@@ -33,7 +33,8 @@ def write_data(data_dir, file_stem, data):
         wav=data["wav"],
         mel=data["mel"],
         energy=data["energy"],
-        pitch=data["pitch"]
+        pitch=data["pitch"],
+        energy_weights=data["energy_weights"]
     )
 
 

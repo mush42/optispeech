@@ -1,247 +1,96 @@
-# Copyright 2022 Dan Lim
-#  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
-
-import logging
-
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch import nn
 from numba import jit
-from scipy.stats import betabinom
+
+from optispeech.utils.model import make_pad_mask, get_padding
 
 
-class AlignmentModule(nn.Module):
-    """Alignment Learning Framework proposed for parallel TTS models in:
-
-    https://arxiv.org/abs/2108.10447
-
+def reconstruct_align_from_aligned_position(
+    e, delta=0.2, mel_lens=None, text_lens=None, max_mel_len=None
+):
+    """Reconstruct alignment matrix from aligned positions.
+    Args:
+        e: aligned positions [B, T1].
+        delta: a scalar, default 0.01
+        mel_mask: mask of mel-spectrogram [B, T2], None if inference and B==1.
+        text_mask: mask of text-sequence, None if B==1.
+    Returns:
+        alignment matrix [B, T1, T2].
     """
-
-    def __init__(self, adim, odim, cache_prior=True):
-        """Initialize AlignmentModule.
-
-        Args:
-            adim (int): Dimension of attention.
-            odim (int): Dimension of feats.
-            cache_prior (bool): Whether to cache beta-binomial prior.
-
-        """
-        super().__init__()
-        self.cache_prior = cache_prior
-        self._cache = {}
-
-        self.t_conv1 = nn.Conv1d(adim, adim, kernel_size=3, padding=1)
-        self.t_conv2 = nn.Conv1d(adim, adim, kernel_size=1, padding=0)
-
-        self.f_conv1 = nn.Conv1d(odim, adim, kernel_size=3, padding=1)
-        self.f_conv2 = nn.Conv1d(adim, adim, kernel_size=3, padding=1)
-        self.f_conv3 = nn.Conv1d(adim, adim, kernel_size=1, padding=0)
-
-    def forward(self, text, feats, text_lengths, feats_lengths, x_masks=None):
-        """Calculate alignment loss.
-
-        Args:
-            text (Tensor): Batched text embedding (B, T_text, adim).
-            feats (Tensor): Batched acoustic feature (B, T_feats, odim).
-            text_lengths (Tensor): Text length tensor (B,).
-            feats_lengths (Tensor): Feature length tensor (B,).
-            x_masks (Tensor): Mask tensor (B, T_text).
-
-        Returns:
-            Tensor: Log probability of attention matrix (B, T_feats, T_text).
-
-        """
-        text = text.transpose(1, 2)
-        text = F.relu(self.t_conv1(text))
-        text = self.t_conv2(text)
-        text = text.transpose(1, 2)
-
-        feats = feats.transpose(1, 2)
-        feats = F.relu(self.f_conv1(feats))
-        feats = F.relu(self.f_conv2(feats))
-        feats = self.f_conv3(feats)
-        feats = feats.transpose(1, 2)
-
-        dist = feats.unsqueeze(2) - text.unsqueeze(1)
-        dist = torch.norm(dist, p=2, dim=3)
-        score = -dist
-
-        if x_masks is not None:
-            x_masks = x_masks.unsqueeze(-2)
-            score = score.masked_fill(x_masks, -np.inf)
-
-        log_p_attn = F.log_softmax(score, dim=-1)
-
-        # add beta-binomial prior
-        bb_prior = self._generate_prior(
-            text_lengths,
-            feats_lengths,
-        ).to(dtype=log_p_attn.dtype, device=log_p_attn.device)
-        log_p_attn = log_p_attn + bb_prior
-
-        return log_p_attn
-
-    def _generate_prior(self, text_lengths, feats_lengths, w=1) -> torch.Tensor:
-        """Generate alignment prior formulated as beta-binomial distribution
-
-        Args:
-            text_lengths (Tensor): Batch of the lengths of each input (B,).
-            feats_lengths (Tensor): Batch of the lengths of each target (B,).
-            w (float): Scaling factor; lower -> wider the width.
-
-        Returns:
-            Tensor: Batched 2d static prior matrix (B, T_feats, T_text).
-
-        """
-        B = len(text_lengths)
-        T_text = text_lengths.max()
-        T_feats = feats_lengths.max()
-
-        bb_prior = torch.full((B, T_feats, T_text), fill_value=-np.inf)
-        for bidx in range(B):
-            T = feats_lengths[bidx].item()
-            N = text_lengths[bidx].item()
-
-            key = str(T) + "," + str(N)
-            if self.cache_prior and key in self._cache:
-                prob = self._cache[key]
-            else:
-                alpha = w * np.arange(1, T + 1, dtype=float)  # (T,)
-                beta = w * np.array([T - t + 1 for t in alpha])
-                k = np.arange(N)
-                batched_k = k[..., None]  # (N,1)
-                prob = betabinom.logpmf(batched_k, N, alpha, beta)  # (N,T)
-
-            # store cache
-            if self.cache_prior and key not in self._cache:
-                self._cache[key] = prob
-
-            prob = torch.from_numpy(prob).transpose(0, 1)  # -> (T,N)
-            bb_prior[bidx, :T, :N] = prob
-
-        return bb_prior
-
-
-class GaussianUpsampling(torch.nn.Module):
-    """
-    Gaussian upsampling with fixed temperature as in:
-    https://arxiv.org/abs/2010.04301
-    """
-
-    def __init__(self, delta=0.1):
-        super().__init__()
-        self.delta = delta
-
-    def forward(self, hs, ds, h_masks=None, d_masks=None):
-        """Upsample hidden states according to durations.
-
-        Args:
-            hs (Tensor): Batched hidden state to be expanded (B, T_text, adim).
-            ds (Tensor): Batched token duration (B, T_text).
-            h_masks (Tensor): Mask tensor (B, T_feats).
-            d_masks (Tensor): Mask tensor (B, T_text).
-
-        Returns:
-            Tensor: Expanded hidden state (B, T_feat, adim).
-
-        """
-        B = ds.size(0)
-        device = ds.device
-
-        if ds.sum() == 0:
-            logging.warning(
-                "predicted durations includes all 0 sequences. "
-                "fill the first element with 1."
-            )
-            # NOTE(kan-bayashi): This case must not be happened in teacher forcing.
-            #   It will be happened in inference with a bad duration predictor.
-            #   So we do not need to care the padded sequence case here.
-            ds[ds.sum(dim=1).eq(0)] = 1
-
-        if h_masks is None:
-            T_feats = ds.sum().int()
+    b, T1 = e.shape
+    if mel_lens is None:
+        assert b == 1
+        max_length = torch.round(e[:, -1]).squeeze().item()
+    else:
+        if max_mel_len is None:
+            max_length = mel_lens.max()
         else:
-            T_feats = h_masks.size(-1)
-        t = torch.arange(0, T_feats).unsqueeze(0).repeat(B, 1).to(device).float()
-        if h_masks is not None:
-            t = t * h_masks.float()
+            max_length = max_mel_len
 
-        c = ds.cumsum(dim=-1) - ds / 2
-        energy = -1 * self.delta * (t.unsqueeze(-1) - c.unsqueeze(1)) ** 2
-        if d_masks is not None:
-            energy = energy.masked_fill(
-                ~(d_masks.unsqueeze(1).repeat(1, T_feats, 1)), -float("inf")
-            )
+    q = (
+        torch.arange(0, max_length)
+        .unsqueeze(0)
+        .repeat(e.size(0), 1)
+        .to(e.device)
+        .float()
+    )
+    if mel_lens is not None:
+        mel_mask = make_pad_mask(mel_lens, max_len=max_length).to(e.device)
+        q = q * (~mel_mask).float()
+    energies = -1 * delta * (q.unsqueeze(1) - e.unsqueeze(-1)) ** 2
+    if text_lens is not None:
+        text_mask = make_pad_mask(text_lens, max_len=T1).to(e.device)
+        energies = energies.masked_fill(
+            text_mask.unsqueeze(-1).repeat(1, 1, max_length), -float("inf")
+        )
 
-        p_attn = torch.softmax(energy, dim=2)  # (B, T_feats, T_text)
-        hs = torch.matmul(p_attn, hs)
-        return hs
+    alpha = torch.softmax(energies, dim=1)
+    if mel_lens is not None:
+        alpha = alpha.masked_fill(
+            mel_mask.unsqueeze(1).repeat(1, text_mask.size(1), 1), 0.0
+        )
 
-
-@jit(nopython=True)
-def _monotonic_alignment_search(log_p_attn):
-    # https://arxiv.org/abs/2005.11129
-    T_mel = log_p_attn.shape[0]
-    T_inp = log_p_attn.shape[1]
-    Q = np.full((T_inp, T_mel), fill_value=-np.inf)
-
-    log_prob = log_p_attn.transpose(1, 0)  # -> (T_inp,T_mel)
-    # 1.  Q <- init first row for all j
-    for j in range(T_mel):
-        Q[0, j] = log_prob[0, : j + 1].sum()
-
-    # 2.
-    for j in range(1, T_mel):
-        for i in range(1, min(j + 1, T_inp)):
-            Q[i, j] = max(Q[i - 1, j - 1], Q[i, j - 1]) + log_prob[i, j]
-
-    # 3.
-    A = np.full((T_mel,), fill_value=T_inp - 1)
-    for j in range(T_mel - 2, -1, -1):  # T_mel-2, ..., 0
-        # 'i' in {A[j+1]-1, A[j+1]}
-        i_a = A[j + 1] - 1
-        i_b = A[j + 1]
-        if i_b == 0:
-            argmax_i = 0
-        elif Q[i_a, j] >= Q[i_b, j]:
-            argmax_i = i_a
-        else:
-            argmax_i = i_b
-        A[j] = argmax_i
-    return A
+    return alpha
 
 
-def viterbi_decode(log_p_attn, text_lengths, feats_lengths):
-    """Extract duration from an attention probability matrix
+def scaled_dot_attention(key, key_lens, query, query_lens, e_weight=None):
+    dim = key.size(-1)
+    T1 = query.size(1)
+    N1 = key.size(1)
+    device = key.device
+    energies = query @ key.transpose(1, 2) / np.sqrt(float(dim))
+    if e_weight is not None:
+        energies = energies * e_weight.transpose(1, 2)
+    key_mask = make_pad_mask(key_lens, max_len=N1).to(device)
+    key_mask = key_mask.unsqueeze(1).repeat(1, T1, 1)
+    energies = energies.masked_fill(key_mask, -float("inf"))
+    alpha = torch.softmax(energies, dim=-1)
+    query_mask = make_pad_mask(query_lens, max_len=T1).to(device)
+    query_mask = query_mask.unsqueeze(2).repeat(1, 1, N1)
+    alpha = alpha.masked_fill(query_mask, 0.0)
+    return alpha.transpose(1, 2)
+
+
+def average_by_duration(ds, xs, text_lengths, feats_lengths):
+    """Average frame-level features into token-level according to durations
 
     Args:
-        log_p_attn (Tensor): Batched log probability of attention
-            matrix (B, T_feats, T_text).
+        ds (Tensor): Batched token duration (B, T_text).
+        xs (Tensor): Batched feature sequences to be averaged (B, T_feats).
         text_lengths (Tensor): Text length tensor (B,).
-        feats_legnths (Tensor): Feature length tensor (B,).
+        feats_lengths (Tensor): Feature length tensor (B,).
 
     Returns:
-        Tensor: Batched token duration extracted from `log_p_attn` (B, T_text).
-        Tensor: Binarization loss tensor ().
+        Tensor: Batched feature averaged according to the token duration (B, T_text).
 
     """
-    B = log_p_attn.size(0)
-    T_text = log_p_attn.size(2)
-    device = log_p_attn.device
-
-    bin_loss = 0
-    ds = torch.zeros((B, T_text), device=device)
-    for b in range(B):
-        cur_log_p_attn = log_p_attn[b, : feats_lengths[b], : text_lengths[b]]
-        viterbi = _monotonic_alignment_search(cur_log_p_attn.detach().float().cpu().numpy())
-        _ds = np.bincount(viterbi)
-        ds[b, : len(_ds)] = torch.from_numpy(_ds).to(device)
-
-        t_idx = torch.arange(feats_lengths[b])
-        bin_loss = bin_loss - cur_log_p_attn[t_idx, viterbi].mean()
-    bin_loss = bin_loss / B
-    return ds, bin_loss
+    device = ds.device
+    args = [ds, xs, text_lengths, feats_lengths]
+    args = [arg.detach().float().cpu().numpy() for arg in args]
+    xs_avg = _average_by_duration(*args)
+    xs_avg = torch.from_numpy(xs_avg).to(device)
+    return xs_avg
 
 
 @jit(nopython=True)
@@ -264,22 +113,217 @@ def _average_by_duration(ds, xs, text_lengths, feats_lengths):
     return xs_avg
 
 
-def average_by_duration(ds, xs, text_lengths, feats_lengths):
-    """Average frame-level features into token-level according to durations
+class DifferentiableAlignmentModule(nn.Module):
+    def __init__(self, n_feats, dim, delta=0.2):
+        super().__init__()
+        self.delta = delta
+        self.mel_encoder = MelEncoder(n_mels=n_feats, n_channels=dim)
 
-    Args:
-        ds (Tensor): Batched token duration (B, T_text).
-        xs (Tensor): Batched feature sequences to be averaged (B, T_feats).
-        text_lengths (Tensor): Text length tensor (B,).
-        feats_lengths (Tensor): Feature length tensor (B,).
+    def forward(
+        self,
+        x,
+        x_lengths,
+        feats,
+        feats_lengths,
+        e_weight,
+    ):
+        feats_h = self.mel_encoder(feats.transpose(1, 2))
+        alpha = scaled_dot_attention(
+            key=x,
+            key_lens=x_lengths,
+            query=feats_h,
+            query_lens=feats_lengths,
+            e_weight=e_weight,
+        )
+        durations = torch.sum(alpha, dim=-1)
+        e = torch.cumsum(durations, dim=-1)
+        e = e - durations / 2
+        reconst_alpha = reconstruct_align_from_aligned_position(
+            e,
+            mel_lens=feats_lengths,
+            text_lens=x_lengths,
+            delta=self.delta
+        )
+        return durations, reconst_alpha
 
-    Returns:
-        Tensor: Batched feature averaged according to the token duration (B, T_text).
+    @torch.inference_mode()
+    def infer(self, durations):
+        e = torch.cumsum(durations, dim=1) - durations / 2
+        alpha = reconstruct_align_from_aligned_position(e, mel_lens=None, text_lens=None, delta=self.delta)
+        return alpha
 
-    """
-    device = ds.device
-    args = [ds, xs, text_lengths, feats_lengths]
-    args = [arg.detach().float().cpu().numpy() for arg in args]
-    xs_avg = _average_by_duration(*args)
-    xs_avg = torch.from_numpy(xs_avg).to(device)
-    return xs_avg
+
+class MelEncoder(torch.nn.Module):
+    def __init__(
+        self,
+        n_mels,
+        n_channels=256,
+        nonlinear_activation="LeakyReLU",
+        nonlinear_activation_params={"negative_slope": 0.1},
+        dropout_rate=0.1,
+        n_mel_encoder_layer=6,
+        k_size=7,
+        use_weight_norm=True,
+        dilations=[1, 1, 1],
+    ):
+        super().__init__()
+        self.n_channels = n_channels
+        self.mel_prenet = torch.nn.Sequential(
+            torch.nn.Linear(n_mels, n_channels),
+            getattr(torch.nn, nonlinear_activation)(**nonlinear_activation_params),
+            torch.nn.Dropout(dropout_rate),
+        )
+        self.mel_encoder = ResConvBlock(
+            num_layers=n_mel_encoder_layer,
+            n_channels=n_channels,
+            k_size=k_size,
+            nonlinear_activation=nonlinear_activation,
+            nonlinear_activation_params=nonlinear_activation_params,
+            dropout_rate=dropout_rate,
+            use_weight_norm=use_weight_norm,
+            dilations=dilations,
+        )
+
+    def forward(self, speech):
+        mel_h = self.mel_prenet(speech).transpose(1, 2)
+        mel_h = self.mel_encoder(mel_h).transpose(1, 2)
+        return mel_h
+
+
+class ResConv1d(torch.nn.Module):
+    """Residual Conv1d layer"""
+
+    def __init__(
+        self,
+        n_channels=512,
+        k_size=5,
+        nonlinear_activation="LeakyReLU",
+        nonlinear_activation_params={"negative_slope": 0.1},
+        dropout_rate=0.1,
+        dilation=1,
+    ):
+        super().__init__()
+        if dropout_rate < 1e-5:
+            self.conv = torch.nn.Sequential(
+                torch.nn.Conv1d(
+                    n_channels,
+                    n_channels,
+                    kernel_size=k_size,
+                    padding=(k_size - 1) // 2,
+                ),
+                getattr(torch.nn, nonlinear_activation)(**nonlinear_activation_params),
+            )
+        else:
+            self.conv = torch.nn.Sequential(
+                torch.nn.Conv1d(
+                    n_channels,
+                    n_channels,
+                    kernel_size=k_size,
+                    padding=get_padding(kernel_size=k_size, dilation=dilation),
+                    dilation=dilation,
+                ),
+                getattr(torch.nn, nonlinear_activation)(**nonlinear_activation_params),
+                torch.nn.Dropout(dropout_rate),
+            )
+
+    def forward(self, x):
+        # x [B, C, T]
+        x = x + self.conv(x)
+        return x
+
+
+class ResConvBlock(torch.nn.Module):
+    """Block containing several ResConv1d layers."""
+
+    def __init__(
+        self,
+        num_layers,
+        n_channels=512,
+        k_size=5,
+        nonlinear_activation="LeakyReLU",
+        nonlinear_activation_params={"negative_slope": 0.1},
+        dropout_rate=0.1,
+        use_weight_norm=True,
+        dilations=None,
+    ):
+        super().__init__()
+        self.num_layers = num_layers
+        if dilations is not None:
+            blocks = []
+            for i, dialation in enumerate(dilations):
+                blocks.append(
+                    ResConv1d(
+                        n_channels,
+                        k_size,
+                        nonlinear_activation,
+                        nonlinear_activation_params,
+                        dropout_rate,
+                        dialation,
+                    )
+                )
+            self.layers = torch.nn.Sequential(*blocks)
+        else:
+            self.layers = torch.nn.Sequential(
+                *[
+                    ResConv1d(
+                        n_channels,
+                        k_size,
+                        nonlinear_activation,
+                        nonlinear_activation_params,
+                        dropout_rate,
+                    )
+                    for _ in range(num_layers)
+                ]
+            )
+        if use_weight_norm:
+            self.apply_weight_norm()
+
+    def forward(self, x):
+        # x: [B, C, T]
+        return self.layers(x)
+
+    def remove_weight_norm(self):
+        """Remove weight normalization module from all of the layers."""
+
+        def _remove_weight_norm(m):
+            try:
+                print(f"Weight norm is removed from {m}.")
+                torch.nn.utils.remove_weight_norm(m)
+            except ValueError:  # this module didn't have weight norm
+                return
+
+        self.apply(_remove_weight_norm)
+
+    def apply_weight_norm(self):
+        """Apply weight normalization module from all of the layers."""
+
+        def _apply_weight_norm(m):
+            if isinstance(m, torch.nn.Conv1d) or isinstance(
+                m, torch.nn.ConvTranspose1d
+            ):
+                torch.nn.utils.weight_norm(m)
+                print(f"Weight norm is applied to {m}.")
+
+        self.apply(_apply_weight_norm)
+
+    def reset_parameters(self):
+        """Reset parameters.
+
+        This initialization follows official implementation manner.
+        https://github.com/descriptinc/melgan-neurips/blob/master/mel2wav/modules.py
+
+        """
+
+        def _reset_parameters(m):
+            if isinstance(m, torch.nn.Conv1d) or isinstance(
+                m, torch.nn.ConvTranspose1d
+            ):
+                # m.weight.data.normal_(0.0, 0.02)
+                torch.nn.init.kaiming_uniform_(m.weight.data)
+                if m.bias is not None:
+                    torch.nn.init.zeros_(m.bias)
+                print(f"Reset parameters in {m}.")
+
+        self.apply(_reset_parameters)
+
+

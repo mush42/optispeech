@@ -13,13 +13,13 @@ valid_filelist_path: data/herald-en_gb/val.txt
 batch_size: 32
 num_workers: 4
 data_statistics:  # Computed for this dataset
-  pitch_min: 0.0
-  pitch_max: 260.499786
-  pitch_mean: 56.696926
-  pitch_std: 55.619644
-  energy_min: 0.051334
+  pitch_min: 58.225437
+  pitch_max: 453.219299
+  pitch_mean: 98.825066
+  pitch_std: 18.524767
+  energy_min: 0.050585
   energy_max: 91.998489
-  energy_mean: 14.146477
-  energy_std: 16.662613
-  mel_mean: -6.366495
-  mel_std: 2.579537
+  energy_mean: 13.897362
+  energy_std: 14.465195
+  mel_mean: -2.20957
+  mel_std: 2.256962
