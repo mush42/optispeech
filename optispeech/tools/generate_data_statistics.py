@@ -22,8 +22,6 @@ log = pylogger.get_pylogger(__name__)
 
 
 def calculate_data_statistics(dataset: torch.utils.data.Dataset, output_dir: Path, cfg: DictConfig, save_stats=True):
-    x_lengths = 0
-
     # Pitch stats
     pitch_min = float("inf")
     pitch_max = -float("inf")
@@ -44,13 +42,12 @@ def calculate_data_statistics(dataset: torch.utils.data.Dataset, output_dir: Pat
     # Benefit of doing it over batch is the added speed due to multiprocessing
     for batch in tqdm(dataset, desc="Calculating"):
         for i in range(batch['x'].shape[0]):
-            inp_len = batch['x_lengths'][i]
             mel_len = batch['mel_lengths'][i]
             mel_spec = batch['mel'][i][:, :mel_len]
-            pitch = batch['pitches'][i][:inp_len]
+            pitch = batch['pitches'][i][:mel_len]
             pitch_min = min(pitch_min, torch.min(pitch).item())
             pitch_max = max(pitch_max, torch.max(pitch).item())
-            energy = batch['energies'][i][:inp_len]
+            energy = batch['energies'][i][:mel_len]
             energy_min = min(energy_min, torch.min(energy).item())
             energy_max = max(energy_max, torch.max(energy).item())
             # normalisation statistics
@@ -61,14 +58,13 @@ def calculate_data_statistics(dataset: torch.utils.data.Dataset, output_dir: Pat
             mel_sum += torch.sum(mel_spec)
             mel_sq_sum += torch.sum(mel_spec ** 2)
             total_mel_len += mel_len
-            x_lengths += inp_len
     
     # Save normalisation statistics
-    pitch_mean = pitch_sum / x_lengths
-    pitch_std = torch.sqrt((pitch_sq_sum / x_lengths) - torch.pow(pitch_mean, 2))
+    pitch_mean = pitch_sum / total_mel_len
+    pitch_std = torch.sqrt((pitch_sq_sum / total_mel_len) - torch.pow(pitch_mean, 2))
     
-    energy_mean = energy_sum / x_lengths
-    energy_std = torch.sqrt((energy_sq_sum / x_lengths) - torch.pow(energy_mean,2))
+    energy_mean = energy_sum / total_mel_len
+    energy_std = torch.sqrt((energy_sq_sum / total_mel_len) - torch.pow(energy_mean,2))
 
     mel_mean = mel_sum / (total_mel_len * cfg.feature_extractor.n_feats)
     mel_std = torch.sqrt((mel_sq_sum / (total_mel_len * cfg.feature_extractor.n_feats)) - torch.pow(mel_mean, 2))
