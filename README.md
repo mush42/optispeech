@@ -15,6 +15,7 @@
 
 **OptiSpeech** is ment to be an ultra **efficient**, **lightweight** and **fast** text-to-speech model for **on-device** text-to-speech.
 
+I would like to thank [Pneuma Solutions](https://pneumasolutions.com/) for providing GPU resources for training this model. Their support significantly accelerated my development process.
 </div>
 
 ## Audio sample
