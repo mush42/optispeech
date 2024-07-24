@@ -19,7 +19,7 @@
 
 ## Audio sample
 
-[![Early sample using HiFiCaptin Female en-US dataset](https://raw.githubusercontent.com/mush42/optispeech/main/assets/logo.jpeg)](https://raw.githubusercontent.com/mush42/optispeech/main/samples/OptiSpeech-ConvNeXtTTS-run1.mp4)
+https://raw.githubusercontent.com/mush42/optispeech/main/samples/OptiSpeech-ConvNeXtTTS-run1.mp4
 
 Note that this is still WIP. Final model designed decisions are still being made.
 
