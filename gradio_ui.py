@@ -1,9 +1,7 @@
 import argparse
-import glob
 import os
 import urllib.request
 import random
-import sys
 from pathlib import Path
 from typing import Tuple
 
