@@ -1,4 +1,5 @@
 _target_: optispeech.dataset.CommonFeatureExtractor
+trim_silence: false
 sample_rate: 22050
 n_feats: 80
 n_fft: 1024

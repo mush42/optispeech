@@ -1,4 +1,5 @@
 _target_: optispeech.dataset.VocosFeatureExtractor
+trim_silence: false
 sample_rate: 24000
 n_feats: 100
 n_fft: 1024

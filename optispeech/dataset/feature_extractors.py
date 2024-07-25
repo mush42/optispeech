@@ -12,6 +12,8 @@ from scipy.interpolate import interp1d
 from optispeech.utils import pylogger, safe_log, trim_or_pad_to_target_length
 from optispeech.utils.audio import spectral_normalize_torch
 
+from .norm_audio import make_silence_detector, trim_audio 
+
 
 log = pylogger.get_pylogger(__name__)
 
@@ -21,6 +23,7 @@ class FeatureExtractor:
 
     def __init__(
         self,
+        trim_silence: bool,
         sample_rate: int,
         n_feats: int,
         n_fft: int,
@@ -30,6 +33,7 @@ class FeatureExtractor:
         f_max: int,
         center: bool=False
     ):
+        self.trim_silence = trim_silence
         self.sample_rate = sample_rate
         self.n_feats = n_feats
         self.n_fft = n_fft
@@ -38,9 +42,18 @@ class FeatureExtractor:
         self.f_min = f_min
         self.f_max = f_max
         self.center = center
+        if self.trim_silence:
+            self._silence_detector = make_silence_detector()
 
     def __call__(self, audio_path):
-        wav, __sr = librosa.load(audio_path, sr=self.sample_rate)
+        if not self.trim_silence:
+            wav, __sr = librosa.load(audio_path, sr=self.sample_rate)
+        else:
+            wav, __sr = trim_audio(
+                audio_path=audio_path,
+                detector=self._silence_detector,
+                sample_rate=self.sample_rate
+            )
         assert __sr == self.sample_rate
         mel = self.get_mel(wav)
         mel_length = mel.shape[-1]

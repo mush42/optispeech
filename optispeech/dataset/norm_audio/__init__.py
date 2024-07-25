@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, Tuple, Union
 
 import librosa
+import numpy as np
 import torch
 
 from .trim import trim_silence
@@ -15,7 +16,7 @@ def make_silence_detector() -> SileroVoiceActivityDetector:
     return SileroVoiceActivityDetector(silence_model)
 
 
-def trim_silence(
+def trim_audio(
     audio_path: Path,
     detector: SileroVoiceActivityDetector,
     sample_rate: int,
@@ -23,7 +24,7 @@ def trim_silence(
     silence_samples_per_chunk: int = 480,
     silence_keep_chunks_before: int = 2,
     silence_keep_chunks_after: int = 2,
-) -> Tuple[Path, Path]:
+) -> Tuple[np.array, int]:
     # The VAD model works on 16khz, so we determine the portion of audio
     # to keep and then just load that with librosa.
     vad_sample_rate = 16000
@@ -47,4 +48,4 @@ def trim_silence(
         duration=duration_sec,
     )
 
-    return audio_norm_array
+    return audio_norm_array, _sr
