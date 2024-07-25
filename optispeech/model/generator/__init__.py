@@ -269,7 +269,7 @@ class OptiSpeechGenerator(nn.Module):
             "durations": durations,
             "pitch": pitch,
             "energy": energy,
-            "alpha": alpha,
+            "attn": alpha,
             "am_rtf": am_rtf,
             "v_rtf": v_rtf,
             "rtf": rtf,

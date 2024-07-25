@@ -201,6 +201,15 @@ def save_figure_to_numpy(fig):
     return data
 
 
+def plot_attention(attn):
+    fig = plt.figure(figsize=(12, 6))
+    plt.imshow(attn.T, interpolation="nearest", aspect="auto")
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close(fig)
+    return data
+
+
 def plot_tensor(tensor):
     plt.style.use("default")
     fig, ax = plt.subplots(figsize=(12, 3))

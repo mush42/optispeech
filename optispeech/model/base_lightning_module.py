@@ -13,7 +13,7 @@ import torchaudio
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
 
-from optispeech.utils import get_pylogger, plot_tensor
+from optispeech.utils import get_pylogger, plot_attention, plot_tensor
 from optispeech.utils.segments import get_segments
 
 
@@ -242,8 +242,15 @@ class BaseLightningModule(LightningModule, ABC):
                 x = one_batch["x"][i].unsqueeze(0).to(self.device)
                 x_lengths = one_batch["x_lengths"][i].unsqueeze(0).to(self.device)
                 synth_out = self.synthesise(x=x[:, :x_lengths], x_lengths=x_lengths)
+                attn = synth_out["attn"].squeeze().detach().cpu()
                 wav_hat = synth_out["wav"].squeeze().float().detach().cpu().numpy()
                 mel_hat = self.data_args.feature_extractor.get_mel(wav_hat)
+                self.logger.experiment.add_image(
+                    f"attn/{i}",
+                    plot_attention(attn),
+                    self.current_epoch,
+                    dataformats="HWC",
+                )
                 self.logger.experiment.add_image(
                     f"mel/generated_{i}",
                     plot_tensor(mel_hat.squeeze()),
