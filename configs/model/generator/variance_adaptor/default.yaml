@@ -1,9 +1,8 @@
-pitch_predictor:
-  n_layers: 5
-  intermediate_dim: 384
-  kernel_size: 5
-  activation: relu
-  dropout: 0.1
-  max_source_positions: 2000
+defaults:
+  - _self_
+  - pitch_predictor: default
 
+_target_: optispeech.model.generator.VarianceAdaptor
+_partial_: true
 energy_predictor: null
+n_bins: 256

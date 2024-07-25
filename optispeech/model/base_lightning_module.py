@@ -30,7 +30,6 @@ class BaseLightningModule(LightningModule, ABC):
             mel_lengths=batch["mel_lengths"].to("cpu").to(self.device),
             pitches=batch["pitches"].to(self.device),
             energies=batch["energies"].to(self.device),
-            energy_weights=batch["energy_weights"].to(self.device),
         )
         segment_size = gen_outputs["segment_size"]
         seg_gt_wav = get_segments(
@@ -132,6 +131,7 @@ class BaseLightningModule(LightningModule, ABC):
         gen_loss = gen_outputs["loss"]
         log_outputs.update({
             "total_loss/train_am_loss": gen_loss.item(),
+            "gen_subloss/train_alighn_loss": gen_outputs["align_loss"].item(),
             "gen_subloss/train_duration_loss": gen_outputs["duration_loss"].item(),
             "gen_subloss/train_pitch_loss": gen_outputs["pitch_loss"].item(),
         })
@@ -196,6 +196,7 @@ class BaseLightningModule(LightningModule, ABC):
         gen_outputs = self._process_batch(batch)
         log_outputs.update({
             "total_loss/val_am_loss": gen_outputs["loss"].item(),
+            "gen_subloss/val_alighn_loss": gen_outputs["align_loss"].item(),
             "gen_subloss/val_duration_loss": gen_outputs["duration_loss"].item(),
             "gen_subloss/val_pitch_loss": gen_outputs["pitch_loss"].item(),
         })
@@ -237,20 +238,23 @@ class BaseLightningModule(LightningModule, ABC):
                         dataformats="HWC",
                     )
             # Plot alignment
+            gen_outputs = self._process_batch(one_batch)
+            attns = gen_outputs["attn"]
+            for i in range(2):
+                attn = attns[i]
+                self.logger.experiment.add_image(
+                    f"alignment/{i}",
+                    plot_attention(attn.squeeze().float().cpu()),
+                    self.current_epoch,
+                    dataformats="HWC",
+                )
             log.debug("Synthesising...")
             for i in range(2):
                 x = one_batch["x"][i].unsqueeze(0).to(self.device)
                 x_lengths = one_batch["x_lengths"][i].unsqueeze(0).to(self.device)
                 synth_out = self.synthesise(x=x[:, :x_lengths], x_lengths=x_lengths)
-                attn = synth_out["attn"].squeeze().detach().cpu()
                 wav_hat = synth_out["wav"].squeeze().float().detach().cpu().numpy()
                 mel_hat = self.data_args.feature_extractor.get_mel(wav_hat)
-                self.logger.experiment.add_image(
-                    f"attn/{i}",
-                    plot_attention(attn),
-                    self.current_epoch,
-                    dataformats="HWC",
-                )
                 self.logger.experiment.add_image(
                     f"mel/generated_{i}",
                     plot_tensor(mel_hat.squeeze()),

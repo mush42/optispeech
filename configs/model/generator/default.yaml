@@ -11,6 +11,7 @@ _target_: optispeech.model.generator.OptiSpeechGenerator
 _partial_: true
 segment_size: 64
 loss_coeffs:
+  lambda_align: 2.0
   lambda_duration: 1.0
   lambda_pitch: 1.0
   lambda_energy: 1.0

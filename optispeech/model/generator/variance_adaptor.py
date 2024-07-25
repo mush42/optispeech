@@ -19,8 +19,8 @@ class VarianceAdaptor(nn.Module):
         n_bins=256
     ):
         super().__init__()
-        self.pitch_predictor = pitch_predictor
-        self.energy_predictor = energy_predictor if energy_predictor is not None else None
+        self.pitch_predictor = pitch_predictor(dim=dim)
+        self.energy_predictor = energy_predictor(dim=dim) if energy_predictor is not None else None
 
         n_bins, steps = n_bins, n_bins - 1
         self.pitch_bins = nn.Parameter(torch.linspace(pitch_min, pitch_max, steps), requires_grad=False)

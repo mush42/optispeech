@@ -134,7 +134,6 @@ class TextWavDataset(torch.utils.data.Dataset):
             mel=torch.from_numpy(data["mel"]),
             energy=torch.from_numpy(data["energy"]),
             pitch=torch.from_numpy(data["pitch"]),
-            energy_weights=torch.from_numpy(data["energy_weights"]),
             text=text,
             filepath=filepath,
         )
@@ -142,7 +141,6 @@ class TextWavDataset(torch.utils.data.Dataset):
     def preprocess_utterance(self, audio_filepath: str, text: str):
         phoneme_ids, text = self.text_processor(text)
         wav, mel, energy, pitch = self.feature_extractor(audio_filepath)
-        energy_weights = self.get_energy_weights(phoneme_ids, mel)
         return dict(
             phoneme_ids=phoneme_ids,
             text=text,
@@ -150,16 +148,7 @@ class TextWavDataset(torch.utils.data.Dataset):
             mel=mel,
             energy=energy,
             pitch=pitch,
-            energy_weights=energy_weights
         )
-
-    def get_energy_weights(self, phoneme_ids, mel, g=0.2):
-        t1 = len(phoneme_ids)
-        t2 = mel.shape[-1]
-        n_items = torch.arange(0, t1) / (t1 - 1)
-        t_items = torch.arange(0, t2) / (t2 - 1)
-        w = torch.exp(-((n_items.unsqueeze(1) - t_items.unsqueeze(0)) ** 2) / (2 * g**2))
-        return w.cpu().numpy()
 
     def __getitem__(self, index):
         filepath = self.file_paths[index]
@@ -190,7 +179,6 @@ class TextWavBatchCollate:
 
         pitches = torch.zeros((B, mel_max_length), dtype=torch.float)
         energies = torch.zeros((B, mel_max_length), dtype=torch.float)
-        energy_weights = torch.zeros((B, x_max_length, mel_max_length), dtype=torch.float)
 
         x_lengths, wav_lengths, mel_lengths = [], [], []
         x_texts, filepaths = [], []
@@ -204,7 +192,6 @@ class TextWavBatchCollate:
             mel[i, :, :item["mel"].shape[-1]] = mel_
             energies[i, : item["energy"].shape[-1]] = item["energy"].float()
             pitches[i, : item["pitch"].shape[-1]] = item["pitch"].float()
-            energy_weights[i, :item["energy_weights"].shape[0], :item["energy_weights"].shape[1]] = item["energy_weights"].float()
             x_texts.append(item["text"])
             filepaths.append(item["filepath"])
 
@@ -227,7 +214,6 @@ class TextWavBatchCollate:
             mel_lengths=mel_lengths,
             energies=energies,
             pitches=pitches,
-            energy_weights=energy_weights,
             x_texts=x_texts,
             filepaths=filepaths,
         )
