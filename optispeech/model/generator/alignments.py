@@ -188,13 +188,13 @@ class MelEncoder(torch.nn.Module):
             use_weight_norm=use_weight_norm,
             dilations=dilations,
         )
-        self.proj = nn.Conv1d(n_channels, output_dim, 1)
+        self.proj = nn.Linear(n_channels, output_dim)
 
     def forward(self, speech):
         mel_h = self.mel_prenet(speech).transpose(1, 2)
         mel_h = self.mel_encoder(mel_h)
-        mel_h = self.proj(mel_h)
-        return mel_h.transpose(1, 2)
+        mel_h = self.proj(mel_h.transpose(1, 2))
+        return mel_h
 
 
 class ResConv1d(torch.nn.Module):
