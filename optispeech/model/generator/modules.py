@@ -184,7 +184,7 @@ class DurationPredictor(torch.nn.Module):
         self.padding = padding
         self.conv = torch.nn.ModuleList([
             torch.nn.Sequential(
-                ConvSeparable(dim if idx == 0 else intermediate_dim, intermediate_dim, kernel_size),
+                nn.Conv1d(dim if idx == 0 else intermediate_dim, intermediate_dim, kernel_size),
                 build_activation(activation),
                 LayerNorm(intermediate_dim, dim=1),
                 torch.nn.Dropout(dropout)
