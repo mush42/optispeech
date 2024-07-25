@@ -1,0 +1,7 @@
+_target_: optispeech.model.generator.DurationPredictor
+_partial_: true
+n_layers: 5
+intermediate_dim: 384
+kernel_size: 3
+activation: relu
+dropout: 0.1

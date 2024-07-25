@@ -4,7 +4,6 @@ import torch
 from torch import nn
 
 from optispeech.utils import pad_list
-from optispeech.text import process_and_phonemize_text
 
 from .base_lightning_module import BaseLightningModule
 
@@ -88,12 +87,8 @@ class OptiSpeech(BaseLightningModule):
                 shape: [B]
             clean_text (str): cleaned an normalized text
         """
-        phoneme_ids, clean_text = process_and_phonemize_text(
+        phoneme_ids, clean_text = self.data_args.text_processor(
             text,
-            lang=self.data_args.language,
-            tokenizer=self.data_args.tokenizer,
-            add_blank=self.data_args.add_blank,
-            normalize=self.data_args.normalize_text,
             split_sentences=split_sentences
         )
         if split_sentences:

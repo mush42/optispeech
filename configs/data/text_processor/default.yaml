@@ -1,0 +1,7 @@
+_target_: optispeech.text.process_and_phonemize_text
+_partial_: true
+language: en-us
+tokenizer: default
+add_blank: false
+add_bos_eos: true
+normalize_text: true

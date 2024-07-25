@@ -21,11 +21,9 @@ with initialize(version_base=None, config_path="./configs"):
     dataset_cfg = compose(config_name="data/herald-en_gb.yaml")
     cfg = compose(config_name="model/optispeech.yaml")
     cfg.model.data_args = dict(
+        text_processor=dataset_cfg.data.text_processor,
         feature_extractor=dataset_cfg.data.feature_extractor,
-        language = dataset_cfg.data.language,
-        tokenizer = dataset_cfg.data.tokenizer,
-        add_blank = dataset_cfg.data.add_blank,
-        normalize_text = dataset_cfg.data.normalize_text,
+        batch_size=dataset_cfg.data.batch_size,
         data_statistics = dataset_cfg.data.data_statistics
     )
 

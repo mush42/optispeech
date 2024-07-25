@@ -1,13 +1,11 @@
 defaults:
   - ljspeech
+  - override text_processor: en_gb
   - _self_
 
 # Dataset URL: https://ast-astrec.nict.go.jp/en/release/hi-fi-captain/
 _target_: optispeech.dataset.TextWavDataModule
 name: herald-en_gb
-language: en #English (United Kingdom)
-tokenizer: default
-add_blank: True
 train_filelist_path: data/herald-en_gb/train.txt
 valid_filelist_path: data/herald-en_gb/val.txt
 batch_size: 32

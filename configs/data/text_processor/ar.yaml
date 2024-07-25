@@ -1,0 +1,6 @@
+defaults:
+  - default
+  - _self_
+
+language: ar
+normalize_text: false

@@ -117,22 +117,26 @@ class DifferentiableAlignmentModule(nn.Module):
     def __init__(self, n_feats, dim, delta=0.2):
         super().__init__()
         self.delta = delta
-        self.mel_encoder = MelEncoder(n_mels=n_feats, n_channels=dim)
+        self.mel_encoder = MelEncoder(input_dim=n_feats, output_dim=dim)
+        self.linear_key = nn.Linear(dim, dim)
+        self.linear_value = nn.Linear(dim, dim)
 
     def forward(
         self,
         x,
         x_lengths,
-        feats,
-        feats_lengths,
+        mel,
+        mel_lengths,
         e_weight,
     ):
-        feats_h = self.mel_encoder(feats.transpose(1, 2))
+        x_key = self.linear_key(x)
+        x_value = self.linear_value(x)
+        mel_h = self.mel_encoder(mel.transpose(1, 2))
         alpha = scaled_dot_attention(
-            key=x,
+            key=x_key,
             key_lens=x_lengths,
-            query=feats_h,
-            query_lens=feats_lengths,
+            query=mel_h,
+            query_lens=mel_lengths,
             e_weight=e_weight,
         )
         durations = torch.sum(alpha, dim=-1)
@@ -140,36 +144,37 @@ class DifferentiableAlignmentModule(nn.Module):
         e = e - durations / 2
         reconst_alpha = reconstruct_align_from_aligned_position(
             e,
-            mel_lens=feats_lengths,
+            mel_lens=mel_lengths,
             text_lens=x_lengths,
             delta=self.delta
         )
-        return durations, reconst_alpha
+        return x_value, durations, alpha, reconst_alpha
 
     @torch.inference_mode()
-    def infer(self, durations):
+    def infer(self, x, durations):
+        x_value = self.linear_value(x)
         e = torch.cumsum(durations, dim=1) - durations / 2
         alpha = reconstruct_align_from_aligned_position(e, mel_lens=None, text_lens=None, delta=self.delta)
-        return alpha
+        return x_value, alpha
 
 
 class MelEncoder(torch.nn.Module):
     def __init__(
         self,
-        n_mels,
-        n_channels=256,
+        input_dim,
+        output_dim,
+        n_channels=512,
         nonlinear_activation="LeakyReLU",
         nonlinear_activation_params={"negative_slope": 0.1},
         dropout_rate=0.1,
-        n_mel_encoder_layer=6,
-        k_size=7,
+        n_mel_encoder_layer=4,
+        k_size=5,
         use_weight_norm=True,
         dilations=[1, 1, 1],
     ):
         super().__init__()
-        self.n_channels = n_channels
         self.mel_prenet = torch.nn.Sequential(
-            torch.nn.Linear(n_mels, n_channels),
+            torch.nn.Linear(input_dim, n_channels),
             getattr(torch.nn, nonlinear_activation)(**nonlinear_activation_params),
             torch.nn.Dropout(dropout_rate),
         )
@@ -183,11 +188,13 @@ class MelEncoder(torch.nn.Module):
             use_weight_norm=use_weight_norm,
             dilations=dilations,
         )
+        self.proj = nn.Conv1d(n_channels, output_dim, 1)
 
     def forward(self, speech):
         mel_h = self.mel_prenet(speech).transpose(1, 2)
-        mel_h = self.mel_encoder(mel_h).transpose(1, 2)
-        return mel_h
+        mel_h = self.mel_encoder(mel_h)
+        mel_h = self.proj(mel_h)
+        return mel_h.transpose(1, 2)
 
 
 class ResConv1d(torch.nn.Module):

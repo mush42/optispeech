@@ -14,7 +14,6 @@ from lightning import LightningDataModule
 from scipy.interpolate import interp1d
 from torch.utils.data.dataloader import DataLoader
 
-from optispeech.text import process_and_phonemize_text
 from optispeech.utils import pylogger, normalize
 from optispeech.dataset.feature_extractors import FeatureExtractor
 
@@ -32,15 +31,12 @@ class TextWavDataModule(LightningDataModule):
     def __init__(  # pylint: disable=unused-argument
         self,
         name,
-        language,
-        tokenizer,
-        add_blank,
-        normalize_text,
         train_filelist_path,
         valid_filelist_path,
         batch_size,
         num_workers,
         pin_memory,
+        text_processor,
         feature_extractor,
         data_statistics,
         seed,
@@ -62,20 +58,14 @@ class TextWavDataModule(LightningDataModule):
         # load and split datasets only if not loaded already
 
         self.trainset = TextWavDataset(  # pylint: disable=attribute-defined-outside-init
-            language=self.hparams.language,
-            tokenizer=self.hparams.tokenizer,
-            add_blank=self.hparams.add_blank,
-            normalize_text=self.hparams.normalize_text,
             filelist_path=self.hparams.train_filelist_path,
+            text_processor=self.hparams.text_processor,
             feature_extractor=self.feature_extractor,
             seed=self.hparams.seed,
         )
         self.validset = TextWavDataset(  # pylint: disable=attribute-defined-outside-init
-            language=self.hparams.language,
-            tokenizer=self.hparams.tokenizer,
-            add_blank=self.hparams.add_blank,
-            normalize_text=self.hparams.normalize_text,
             filelist_path=self.hparams.valid_filelist_path,
+            text_processor=self.hparams.text_processor,
             feature_extractor=self.feature_extractor,
             seed=self.hparams.seed,
         )
@@ -116,22 +106,15 @@ class TextWavDataModule(LightningDataModule):
 class TextWavDataset(torch.utils.data.Dataset):
     def __init__(
         self,
-        language,
-        tokenizer,
-        add_blank,
-        normalize_text,
         filelist_path,
+        text_processor,
         feature_extractor,
         seed=None,
     ):
-        self.language = language
-        self.text_tokenizer = tokenizer
-        self.add_blank = add_blank
-        self.normalize_text = normalize_text
-
+        self.text_processor = text_processor
+        self.feature_extractor = feature_extractor
         self.file_paths = parse_filelist(filelist_path)
         self.data_dir = Path(filelist_path).parent.joinpath("data")
-        self.feature_extractor = feature_extractor
         random.seed(seed)
         random.shuffle(self.file_paths)
 
@@ -157,7 +140,7 @@ class TextWavDataset(torch.utils.data.Dataset):
         )
 
     def preprocess_utterance(self, audio_filepath: str, text: str):
-        phoneme_ids, text = self.get_text(text)
+        phoneme_ids, text = self.text_processor(text)
         wav, mel, energy, pitch = self.feature_extractor(audio_filepath)
         energy_weights = self.get_energy_weights(phoneme_ids, mel)
         return dict(
@@ -169,17 +152,6 @@ class TextWavDataset(torch.utils.data.Dataset):
             pitch=pitch,
             energy_weights=energy_weights
         )
-
-    def get_text(self, text):
-        phoneme_ids, clean_text = process_and_phonemize_text(
-            text,
-            self.language,
-            tokenizer=self.text_tokenizer,
-            add_blank=self.add_blank,
-            normalize=self.normalize_text,
-            split_sentences=False
-        )
-        return phoneme_ids, clean_text
 
     def get_energy_weights(self, phoneme_ids, mel, g=0.2):
         t1 = len(phoneme_ids)

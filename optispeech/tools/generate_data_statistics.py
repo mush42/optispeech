@@ -140,7 +140,7 @@ def main():
         cfg["train_filelist_path"] = str(os.path.join(root_path, cfg["train_filelist_path"]))
         cfg["valid_filelist_path"] = str(os.path.join(root_path, cfg["valid_filelist_path"]))
         # Remove this after testing let the multiprocessing do its job 
-        cfg['num_workers'] = 0
+        # cfg['num_workers'] = 0
 
     if args.output_dir is not None:
         output_dir = Path(args.output_dir)

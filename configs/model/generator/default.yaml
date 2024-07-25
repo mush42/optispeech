@@ -2,6 +2,7 @@ defaults:
   - _self_
   - text_embedding: default
   - encoder: transformer
+  - duration_predictor: default
   - variance_adaptor: default
   - decoder: transformer
   - wav_generator: wavenext
@@ -10,7 +11,6 @@ _target_: optispeech.model.generator.OptiSpeechGenerator
 _partial_: true
 segment_size: 64
 loss_coeffs:
-  lambda_align: 2.0
   lambda_duration: 1.0
   lambda_pitch: 1.0
   lambda_energy: 1.0

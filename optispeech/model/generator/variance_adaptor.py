@@ -10,7 +10,6 @@ class VarianceAdaptor(nn.Module):
     def __init__(
         self,
         dim,
-        duration_predictor,
         pitch_predictor,
         pitch_min,
         pitch_max,
@@ -20,7 +19,6 @@ class VarianceAdaptor(nn.Module):
         n_bins=256
     ):
         super().__init__()
-        self.duration_predictor = duration_predictor
         self.pitch_predictor = pitch_predictor
         self.energy_predictor = energy_predictor if energy_predictor is not None else None
 
@@ -59,15 +57,11 @@ class VarianceAdaptor(nn.Module):
         x,
         x_mask,
         padding_mask,
-        durations,
         pitches,
         energies=None,
     ):
         """x: B x T x C"""
         outputs = {}
-
-        duration_hat = self.duration_predictor(x, padding_mask)
-        outputs["duration_hat"] = duration_hat
 
         pitch_hat, pitch_emb = self.get_pitch_emb(x, x_mask, padding_mask, pitches)
         x = x + pitch_emb
@@ -92,9 +86,6 @@ class VarianceAdaptor(nn.Module):
     ):
         """x: B x T x C"""
         outputs = {}
-
-        durations = self.duration_predictor.infer(x, padding_mask, factor=d_factor)
-        outputs["durations"] = durations
 
         pitch_hat, pitch_emb = self.get_pitch_emb(x, x_mask, padding_mask, factor=p_factor)
         x = x + pitch_emb
