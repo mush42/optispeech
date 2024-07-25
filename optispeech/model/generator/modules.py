@@ -219,11 +219,8 @@ class DurationPredictor(torch.nn.Module):
         """
         log_durations = self(x, mask)
         # linear domain
-        durations = (torch.exp(log_durations) - self.clip_val)
-        durations = torch.ceil(durations * factor)
-        # avoid negative values
-        durations = torch.clamp(durations.long(), min=0) 
-        durations = durations.masked_fill(mask, 0)
+        durations = torch.clamp(log_durations.exp() - self.clip_val, min=0)
+        durations = durations.masked_fill(mask, 0.0)
         return durations
 
 
