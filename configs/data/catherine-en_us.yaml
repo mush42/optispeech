@@ -6,7 +6,7 @@ defaults:
 _target_: optispeech.dataset.TextWavDataModule
 name: catherine-en_us
 train_filelist_path: /home/momer/datasets/processed/catherine-en_us/train.txt
-valid_filelist_path: /home/momer/datasets/processed/catherine-en_us/VAL.txt
+valid_filelist_path: /home/momer/datasets/processed/catherine-en_us/val.txt
 batch_size: 64 
 num_workers: 8
 feature_extractor:
