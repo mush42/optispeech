@@ -3,5 +3,5 @@ _partial_: true
 language: en-us
 tokenizer: default
 add_blank: false
-add_bos_eos: true
+add_bos_eos: false
 normalize_text: true
