@@ -8,6 +8,7 @@ from typing import Tuple
 import gradio as gr
 import numpy as np
 import torch
+import yaml
 
 from optispeech.model import OptiSpeech
 
@@ -32,9 +33,11 @@ try:
 except Exception as e:
     print(e)
     RANDOM_SENTENCES = ["Learning a new language not only facilitates communication across borders but also opens doors to understanding different cultures, broadening one's worldview, and forging connections with people from diverse linguistic backgrounds."]
+random.shuffle(RANDOM_SENTENCES)
 DEVICE = torch.device("cpu")
 CHECKPOINTS_DIR = None
 CKPT_PATH = CKPT_EPOCH = CKPT_GSTEP = None
+RUN_NAME = "Unknown"
 MODEL = None
 
 
@@ -55,6 +58,13 @@ def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -
         data = torch.load(CKPT_PATH, map_location="cpu")
         CKPT_EPOCH = data["epoch"]
         CKPT_GSTEP = data["global_step"]
+        # Run name
+        config_path = Path(CKPT_PATH).parent.parent.joinpath(".hydra").joinpath("config.yaml")
+        if config_path.is_file():
+            config = yaml.safe_load(config_path.read_text(encoding="utf-8", newline="\n"))
+            RUN_NAME = config["run_name"]
+        else:
+            RUN_NAME = "Unknown"
     # Avoid extremely long sentences
     text = text[:1024]
     x, x_lengths, normalized_text = MODEL.prepare_input(text)
@@ -78,6 +88,7 @@ with gui:
     gr.Markdown(APP_DESC)
     with gr.Row():
         with gr.Column():
+            gr.Markdown(f"Training run name: {RUN_NAME}")
             text = gr.Text(label="Enter sentence")
             random_sent_btn = gr.Button("Random sentence...")
         with gr.Column():
