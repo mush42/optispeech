@@ -10,15 +10,15 @@ valid_filelist_path: /home/momer/datasets/processed/catherine-en_us/val.txt
 batch_size: 64 
 num_workers: 8
 feature_extractor:
-  f_min: 55
+  f_min: 75
 data_statistics:  # Computed for this dataset with the params of the above feature extractor
-  pitch_min: 59.842995
-  pitch_max: 804.788574
-  pitch_mean: 218.29689
-  pitch_std: 63.631847
-  energy_min: 0.018844
-  energy_max: 168.350418
-  energy_mean: 15.994434
-  energy_std: 14.238611
-  mel_mean: -2.189079
-  mel_std: 2.348328
+  pitch_min: 56.891888
+  pitch_max: 853.330444
+  pitch_mean: 194.228088
+  pitch_std: 53.236904
+  energy_min: 0.000716
+  energy_max: 161.985641
+  energy_mean: 16.546963
+  energy_std: 13.663942
+  mel_mean: -2.002705
+  mel_std: 2.397388
