@@ -61,7 +61,7 @@ def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -
         # Run name
         config_path = Path(CKPT_PATH).parent.parent.joinpath(".hydra").joinpath("config.yaml")
         if config_path.is_file():
-            config = yaml.safe_load(config_path.read_text(encoding="utf-8", newline="\n"))
+            config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
             RUN_NAME = config["run_name"]
         else:
             RUN_NAME = "Unknown"
@@ -73,6 +73,7 @@ def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -
         f"Normalized text: {normalized_text}",
         f"Latency (ms): {outputs['latency']}",
         f"RTF: {outputs['rtf']}",
+        f"training run name: {RUN_NAME}",
         f"checkpoint epoch: {CKPT_EPOCH}",
         f"checkpoint steps: {CKPT_GSTEP}",
     ])
@@ -88,7 +89,6 @@ with gui:
     gr.Markdown(APP_DESC)
     with gr.Row():
         with gr.Column():
-            gr.Markdown(f"Training run name: {RUN_NAME}")
             text = gr.Text(label="Enter sentence")
             random_sent_btn = gr.Button("Random sentence...")
         with gr.Column():
