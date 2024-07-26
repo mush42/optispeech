@@ -106,7 +106,11 @@ def main():
         for (filestem, text) in tqdm(inrows, total=len(inrows), desc="processing", unit="utterance"):
             audio_path = wav_path.joinpath(filestem + ".wav")
             audio_path = audio_path.resolve()
-            data = dataset.preprocess_utterance(audio_path, text)
+            try:
+                data = dataset.preprocess_utterance(audio_path, text)
+            except:
+                log.exception(f"Failed to process file: {audio_path.name}", exc_info=True)
+                continue
             write_data(data_dir, audio_path.stem, data)
             out_filelist.append(data_dir.joinpath(filestem))
         out_txt = output_dir.joinpath(out_filename)
