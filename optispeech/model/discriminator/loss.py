@@ -90,13 +90,24 @@ class FeatureMatchingLoss(nn.Module):
 class MelSpecReconstructionLoss(nn.Module):
     """L1 distance of real/fake sample's mel-frequency log-magnitude spectrogram."""
 
-    def __init__(self, sample_rate, n_fft, hop_length, n_mels, center):
+    def __init__(
+        self,
+        sample_rate,
+        n_fft,
+        hop_length,
+        n_mels,
+        f_min,
+        f_max,
+        center
+    ):
         super().__init__()
         self.mel_spec = torchaudio.transforms.MelSpectrogram(
             sample_rate=sample_rate,
             n_fft=n_fft,
             hop_length=hop_length,
             n_mels=n_mels,
+            f_min=f_min,
+            f_max=f_max,
             center=center,
             power=1,
             window_fn=torch.hann_window,

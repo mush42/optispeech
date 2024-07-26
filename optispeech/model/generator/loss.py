@@ -15,16 +15,16 @@ class DurationPredictorLoss(torch.nn.Module):
     The loss value is Calculated in log domain to make it Gaussian.
     """
 
-    def __init__(self, offset=1e-8, reduction="mean"):
+    def __init__(self, clip_val=1e-8, reduction="mean"):
         """
         Args:
-            offset (float, optional): Offset value to avoid nan in log domain.
+            clip_val (float, optional): Offset value to avoid nan in log domain.
             reduction (str): Reduction type in loss calculation.
 
         """
         super(DurationPredictorLoss, self).__init__()
         self.criterion = torch.nn.MSELoss(reduction=reduction)
-        self.offset = offset
+        self.clip_val = clip_val
 
     def forward(self, outputs, targets):
         """Calculate forward propagation.
@@ -41,7 +41,7 @@ class DurationPredictorLoss(torch.nn.Module):
 
         """
         # NOTE: outputs is in log domain while targets in linear
-        targets = torch.log(targets.float() + self.offset)
+        targets = torch.log(targets.float() + self.clip_val)
         loss = self.criterion(outputs, targets)
 
         return loss
