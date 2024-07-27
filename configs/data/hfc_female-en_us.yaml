@@ -12,13 +12,13 @@ num_workers: 8
 feature_extractor:
   f_min: 75
 data_statistics:  # Computed for this dataset with the params of the above feature extractor
-  pitch_min: 59.842995
-  pitch_max: 804.788574
-  pitch_mean: 218.29689
-  pitch_std: 63.631847
-  energy_min: 0.018844
-  energy_max: 168.350418
-  energy_mean: 15.994434
-  energy_std: 14.238611
-  mel_mean: -2.189079
-  mel_std: 2.348328
+  pitch_min: 59.57048
+  pitch_max: 831.305847
+  pitch_mean: 218.471008
+  pitch_std: 63.283062
+  energy_min: 0.02251
+  energy_max: 167.734894
+  energy_mean: 16.017004
+  energy_std: 14.188716
+  mel_mean: -6.424251
+  mel_std: 2.563462
