@@ -4,12 +4,16 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from optispeech.utils import sequence_mask, denormalize
+from optispeech.utils import pylogger, sequence_mask, denormalize
 
 from .alignments import DifferentiableAlignmentModule, average_by_duration
 from .loss import FastSpeech2Loss
 from .modules import TextEmbedding, TransformerEncoder, TransformerDecoder, DurationPredictor, PitchPredictor, EnergyPredictor
 from .variance_adaptor import VarianceAdaptor
+
+
+
+log = pylogger.get_pylogger(__name__)
 
 
 class OptiSpeechGenerator(nn.Module):
@@ -167,7 +171,7 @@ class OptiSpeechGenerator(nn.Module):
             e_factor (float.Tensor): scaler to control energy.
 
         Returns:
-            wav (torch.Tensor): generated mel
+            mel (torch.Tensor): generated mel
                 shape: (batch_size, n_feats, T)
             durations: (torch.Tensor): predicted phoneme durations
                 shape: (batch_size, max_text_length)
@@ -194,6 +198,9 @@ class OptiSpeechGenerator(nn.Module):
 
         # Alignment
         durations = self.duration_predictor.infer(x, padding_mask, factor=d_factor)
+        if torch.sum(durations) / durations.squeeze().size(0) < 1:
+            dur = 4 * torch.ones_like(dur)
+            log.warn("Predicted durations are too short, used dummy ones")
         x_value, alpha = self.alignment_module.infer(x, durations)
 
         # variance adaptor

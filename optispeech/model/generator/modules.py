@@ -215,15 +215,12 @@ class DurationPredictor(torch.nn.Module):
             mask (ByteTensor, optional): Batch of masks indicating padded part (B, Tmax).
             factor (float, optional): durations scale to control speech rate.
         Returns:
-            LongTensor: Batch of predicted durations in linear domain (B, Tmax).
+            Tensor: Batch of predicted durations in linear domain (B, Tmax).
         """
         log_durations = self(x, mask)
         # linear domain
-        durations = (torch.exp(log_durations) - self.clip_val)
-        durations = torch.ceil(durations * factor)
-        # avoid negative values
-        durations = torch.clamp(durations.long(), min=0) 
-        durations = durations.masked_fill(mask, 0)
+        durations = torch.clamp(log_durations.exp() - self.clip_val, min=0)
+        durations = durations.masked_fill(mask, 0.0)
         return durations
 
 
