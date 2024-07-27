@@ -80,7 +80,6 @@ class VarianceAdaptor(nn.Module):
         x,
         x_mask,
         padding_mask,
-        d_factor=1.0,
         p_factor=1.0,
         e_factor=1.0,
     ):

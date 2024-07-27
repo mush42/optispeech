@@ -53,7 +53,7 @@ class FastSpeech2Loss(torch.nn.Module):
     Taken from ESPnet2
     """
 
-    def __init__(self, use_masking: bool = True, use_weighted_masking: bool = False):
+    def __init__(self, use_mse_for_mel: bool=True, use_masking: bool = True, use_weighted_masking: bool = False):
         """
         Initialize feed-forward Transformer loss module.
 
@@ -72,7 +72,10 @@ class FastSpeech2Loss(torch.nn.Module):
 
         # define criterions
         reduction = "none" if self.use_weighted_masking else "mean"
-        self.l1_criterion = torch.nn.L1Loss(reduction=reduction)
+        if use_mse_for_mel:
+            self.mel_criterion = torch.nn.MSELoss(reduction=reduction)
+        else:
+            self.mel_criterion = torch.nn.L1Loss(reduction=reduction)
         self.mse_criterion = torch.nn.MSELoss(reduction=reduction)
         self.duration_criterion = DurationPredictorLoss(reduction=reduction)
 
@@ -118,7 +121,7 @@ class FastSpeech2Loss(torch.nn.Module):
             mel = mel.masked_select(out_masks)
             d_outs = d_outs.masked_select(duration_masks)
             ds = ds.masked_select(duration_masks)
-            pitch_masks = make_non_pad_mask(ilens).unsqueeze(-1).to(ds.device)
+            pitch_masks = make_non_pad_mask(olens).unsqueeze(-1).to(ds.device)
             p_outs = p_outs.masked_select(pitch_masks)
             ps = ps.masked_select(pitch_masks)
             if e_outs is not None:
@@ -126,7 +129,7 @@ class FastSpeech2Loss(torch.nn.Module):
                 es = es.masked_select(pitch_masks)
 
         # calculate loss
-        mel_loss = self.l1_criterion(mel_hat, mel)
+        mel_loss = self.mel_criterion(mel_hat, mel)
         duration_loss = self.duration_criterion(d_outs, ds)
         pitch_loss = self.mse_criterion(p_outs, ps)
         energy_loss = torch.tensor(0.0)

@@ -6,14 +6,10 @@ from torch.nn import functional as F
 
 from optispeech.utils import pylogger, sequence_mask, denormalize
 
-from .alignments import DifferentiableAlignmentModule, average_by_duration
+from .alignments import DifferentiableAlignmentModule
 from .loss import FastSpeech2Loss
 from .modules import TextEmbedding, TransformerEncoder, TransformerDecoder, DurationPredictor, PitchPredictor, EnergyPredictor
 from .variance_adaptor import VarianceAdaptor
-
-
-
-log = pylogger.get_pylogger(__name__)
 
 
 class OptiSpeechGenerator(nn.Module):
@@ -40,8 +36,11 @@ class OptiSpeechGenerator(nn.Module):
 
         self.text_embedding = text_embedding(dim=dim)
         self.encoder = encoder(dim=dim)
-        self.duration_predictor = duration_predictor(dim=dim)
-        self.alignment_module = DifferentiableAlignmentModule(n_feats=self.n_feats, dim=dim)
+        self.alignment_module = DifferentiableAlignmentModule(
+            duration_predictor=duration_predictor(dim=dim),
+            n_feats=self.n_feats,
+            dim=dim
+        )
         self.variance_adaptor = variance_adaptor(
             dim=dim,
             pitch_min=data_statistics["pitch_min"],
@@ -95,29 +94,25 @@ class OptiSpeechGenerator(nn.Module):
         # Encoder
         x = self.encoder(x, padding_mask)
 
-        # alignment
-        x_value, durations, alpha, reconst_alpha = self.alignment_module(x, x_lengths, mel, mel_lengths, energy_weights)
-        durations = durations.masked_fill(padding_mask, 0.0)
-        durations = durations.detach()
-        pitches = average_by_duration(durations, pitches.unsqueeze(-1), x_lengths, mel_lengths)
-        energies = average_by_duration(durations, energies.unsqueeze(-1), x_lengths, mel_lengths)
-
-        duration_hat = self.duration_predictor(x_value, padding_mask)
-        duration_hat = duration_hat.unsqueeze(-1)
+        # align and expand
+        y, durations, durations_hat, alpha, reconst_alpha = self.alignment_module(
+            x=x,
+            x_lengths=x_lengths,
+            padding_mask=padding_mask,
+            mel=mel,
+            mel_lengths=mel_lengths,
+            mel_mask=mel_mask,
+            energy_weights=energy_weights
+        )
 
         # variance adapter
-        x, va_outputs = self.variance_adaptor(
-            x_value, x_mask, padding_mask, pitches, energies
+        y, va_outputs = self.variance_adaptor(
+            y, mel_mask, target_padding_mask, pitches, energies
         )
         pitch_hat = va_outputs["pitch_hat"].unsqueeze(-1)
         energy_hat = va_outputs.get("energy_hat")
         if energy_hat is not None:
             energy_hat = energy_hat.unsqueeze(-1)
-
-        # upsample to mel lengths
-        y = torch.bmm(x.transpose(1, 2), reconst_alpha)
-        y = y * mel_mask
-        y = y.transpose(1, 2).to(x.device)
 
         # Decoder
         y = self.decoder(y, target_padding_mask)
@@ -129,7 +124,7 @@ class OptiSpeechGenerator(nn.Module):
         loss_coeffs = self.loss_coeffs
         mel_loss, duration_loss, pitch_loss, energy_loss = self.loss_criterion(
             mel_hat=mel_hat,
-            d_outs=duration_hat,
+            d_outs=durations_hat.unsqueeze(-1),
             p_outs=pitch_hat,
             e_outs=energy_hat,
             mel=mel,
@@ -197,30 +192,23 @@ class OptiSpeechGenerator(nn.Module):
         x = self.encoder(x, padding_mask)
 
         # Alignment
-        durations = self.duration_predictor.infer(x, padding_mask, factor=d_factor)
-        if torch.sum(durations) / durations.squeeze().size(0) < 1:
-            dur = 4 * torch.ones_like(dur)
-            log.warn("Predicted durations are too short, used dummy ones")
-        x_value, alpha = self.alignment_module.infer(x, durations)
+        y, durations, alpha = self.alignment_module.infer(x, padding_mask, d_factor)
 
         # variance adaptor
-        x, va_outputs = self.variance_adaptor.infer(
-            x_value,
-            x_mask,
-            padding_mask,
-            d_factor=d_factor,
+        b, t, h = y.size()
+        y_mask = torch.ones(b, 1, t).type_as(y)
+        target_padding_mask = torch.zeros(b, t).bool().to(x.device)
+        y, va_outputs = self.variance_adaptor.infer(
+            y,
+            y_mask,
+            target_padding_mask,
             p_factor=p_factor,
             e_factor=e_factor
         )
         pitch = va_outputs["pitch"]
         energy = va_outputs.get("energy")
 
-        y  = torch.bmm(x.transpose(1, 2), alpha)
-        y = y.transpose(1, 2).to(x.device)
-
         # Decoder
-        b, t, h = y.size()
-        target_padding_mask = torch.zeros(b, t).bool().to(x.device)
         y = self.decoder(y, target_padding_mask)
 
         # project to mel

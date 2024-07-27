@@ -3,7 +3,11 @@ import torch
 from torch import nn
 from numba import jit
 
+from optispeech.utils import pylogger
 from optispeech.utils.model import make_pad_mask, get_padding
+
+
+log = pylogger.get_pylogger(__name__)
 
 
 def reconstruct_align_from_aligned_position(
@@ -114,8 +118,9 @@ def _average_by_duration(ds, xs, text_lengths, feats_lengths):
 
 
 class DifferentiableAlignmentModule(nn.Module):
-    def __init__(self, n_feats, dim, delta=0.2):
+    def __init__(self, duration_predictor, n_feats, dim, delta=0.2):
         super().__init__()
+        self.duration_predictor = duration_predictor
         self.delta = delta
         self.mel_encoder = MelEncoder(input_dim=n_feats, output_dim=dim)
         self.linear_key = nn.Linear(dim, dim)
@@ -125,9 +130,11 @@ class DifferentiableAlignmentModule(nn.Module):
         self,
         x,
         x_lengths,
+        padding_mask,
         mel,
         mel_lengths,
-        e_weight,
+        mel_mask,
+        energy_weights,
     ):
         x_key = self.linear_key(x)
         x_value = self.linear_value(x)
@@ -137,7 +144,7 @@ class DifferentiableAlignmentModule(nn.Module):
             key_lens=x_lengths,
             query=mel_h,
             query_lens=mel_lengths,
-            e_weight=e_weight,
+            e_weight=energy_weights,
         )
         durations = torch.sum(alpha, dim=-1)
         e = torch.cumsum(durations, dim=-1)
@@ -148,14 +155,25 @@ class DifferentiableAlignmentModule(nn.Module):
             text_lens=x_lengths,
             delta=self.delta
         )
-        return x_value, durations, alpha, reconst_alpha
+        durations_hat = self.duration_predictor(x_value, padding_mask)
+        durations = durations.masked_fill(padding_mask, 0.0).detach()
+        y = torch.bmm(x_value.transpose(1, 2), reconst_alpha)
+        y = y * mel_mask
+        y = y.transpose(1, 2).to(x.device)
+        return y, durations, durations_hat, alpha, reconst_alpha
 
     @torch.inference_mode()
-    def infer(self, x, durations):
+    def infer(self, x, padding_mask, d_factor):
         x_value = self.linear_value(x)
+        durations = self.duration_predictor.infer(x_value, padding_mask, factor=d_factor)
+        if torch.sum(durations) / durations.squeeze().size(0) < 1:
+            durations = 4 * torch.ones_like(durations)
+            log.warn("Predicted durations are too short, used dummy ones")
         e = torch.cumsum(durations, dim=1) - durations / 2
         alpha = reconstruct_align_from_aligned_position(e, mel_lens=None, text_lens=None, delta=self.delta)
-        return x_value, alpha
+        y  = torch.bmm(x_value.transpose(1, 2), alpha)
+        y = y.transpose(1, 2).to(x.device)
+        return y, durations, alpha
 
 
 class MelEncoder(torch.nn.Module):
