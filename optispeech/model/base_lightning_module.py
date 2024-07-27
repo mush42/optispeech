@@ -30,6 +30,7 @@ class BaseLightningModule(LightningModule, ABC):
             mel_lengths=batch["mel_lengths"].to("cpu").to(self.device),
             pitches=batch["pitches"].to(self.device),
             energies=batch["energies"].to(self.device),
+            energy_weights=batch["energy_weights"].to(self.device),
         )
         segment_size = gen_outputs["segment_size"]
         seg_gt_wav = get_segments(

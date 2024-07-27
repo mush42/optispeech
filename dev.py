@@ -18,7 +18,7 @@ print(f"Length of phoneme ids: {len(phids)}")
 
 # Config pipeline
 with initialize(version_base=None, config_path="./configs"):
-    dataset_cfg = compose(config_name="data/herald-en_gb.yaml")
+    dataset_cfg = compose(config_name="data/hfc_female-en_us.yaml")
     cfg = compose(config_name="model/optispeech.yaml")
     cfg.model.data_args = dict(
         name=dataset_cfg.data.name,

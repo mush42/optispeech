@@ -190,6 +190,7 @@ class TextWavBatchCollate:
 
         pitches = torch.zeros((B, mel_max_length), dtype=torch.float)
         energies = torch.zeros((B, mel_max_length), dtype=torch.float)
+        energy_weights = torch.zeros((B, x_max_length, mel_max_length), dtype=torch.float)
 
         x_lengths, wav_lengths, mel_lengths = [], [], []
         x_texts, filepaths = [], []
@@ -203,6 +204,7 @@ class TextWavBatchCollate:
             mel[i, :, :item["mel"].shape[-1]] = mel_
             energies[i, : item["energy"].shape[-1]] = item["energy"].float()
             pitches[i, : item["pitch"].shape[-1]] = item["pitch"].float()
+            energy_weights[i, :item["energy_weights"].shape[0], :item["energy_weights"].shape[1]] = item["energy_weights"].float()
             x_texts.append(item["text"])
             filepaths.append(item["filepath"])
 
@@ -225,6 +227,7 @@ class TextWavBatchCollate:
             mel_lengths=mel_lengths,
             energies=energies,
             pitches=pitches,
+            energy_weights=energy_weights,
             x_texts=x_texts,
             filepaths=filepaths,
         )
