@@ -52,7 +52,7 @@ class BaseLightningModule(LightningModule, ABC):
         opt_disc= self.hparams.optimizer(disc_params)
 
         # Max steps per optimizer
-        max_steps = self.trainer.max_steps
+        max_steps = self.trainer.max_steps // 2
         # Adjust by gradient accumulation batches
         if self.train_args.gradient_accumulate_batches is not None:
             max_epochs = self.trainer.max_epochs if self.trainer.max_epochs is not None else -1
