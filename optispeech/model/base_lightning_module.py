@@ -13,11 +13,12 @@ import torchaudio
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
 
-from optispeech.utils import get_pylogger, plot_attention, plot_tensor
-from optispeech.utils.segments import get_segments
+from optispeech.hifigan import load_hifigan
+from optispeech.utils import denormalize, get_pylogger, plot_attention, plot_tensor
 
 
 log = get_pylogger(__name__)
+HIFIGAN_MODEL = None
 
 
 class BaseLightningModule(LightningModule, ABC):
@@ -32,48 +33,26 @@ class BaseLightningModule(LightningModule, ABC):
             energies=batch["energies"].to(self.device),
             energy_weights=batch["energy_weights"].to(self.device),
         )
-        segment_size = gen_outputs["segment_size"]
-        seg_gt_wav = get_segments(
-            x=batch["wav"].unsqueeze(1),
-            start_idxs=gen_outputs["start_idx"] * self.hop_length,
-            segment_size=segment_size * self.hop_length,
-        )
-        seg_gt_wav = seg_gt_wav.squeeze(1).type_as(gen_outputs["wav_hat"])
-        gen_outputs["wav"] = seg_gt_wav
         return gen_outputs
 
     def configure_optimizers(self):
         gen_params = [
             {"params": self.generator.parameters()},
         ]
-        disc_params = [
-            {"params": self.discriminator.parameters()},
-        ]
         opt_gen = self.hparams.optimizer(gen_params)
-        opt_disc= self.hparams.optimizer(disc_params)
 
         # Max steps per optimizer
-        max_steps = self.trainer.max_steps // 2
-        # Adjust by gradient accumulation batches
-        if self.train_args.gradient_accumulate_batches is not None:
-            max_epochs = self.trainer.max_epochs if self.trainer.max_epochs is not None else -1
-            max_steps = math.ceil(max_steps / self.train_args.gradient_accumulate_batches) * max(max_epochs , 1)
-
+        max_steps = self.trainer.max_steps
         if "num_training_steps" in self.hparams.scheduler.keywords:
             self.hparams.scheduler.keywords["num_training_steps"] = max_steps
         scheduler_gen = self.hparams.scheduler(
             opt_gen,
             last_epoch=getattr("self", "ckpt_loaded_epoch", -1)
         )
-        scheduler_disc = self.hparams.scheduler(
-            opt_disc,
-            last_epoch=getattr("self", "ckpt_loaded_epoch", -1)
-        )
         return (
-            [opt_gen, opt_disc],
+            [opt_gen],
             [
                 {"scheduler": scheduler_gen, "interval": "step"},
-                {"scheduler": scheduler_disc, "interval": "step"}
             ],
         )
 
@@ -83,80 +62,18 @@ class BaseLightningModule(LightningModule, ABC):
             self.trainer.check_val_every_n_epoch = 1
 
     def training_step(self, batch, batch_idx, **kwargs):
-        # manual gradient accumulation
-        gradient_accumulate_batches = self.train_args.gradient_accumulate_batches
-        if gradient_accumulate_batches is not None:
-            loss_scaling_factor = float(gradient_accumulate_batches)
-            should_apply_gradients = (batch_idx + 1) % gradient_accumulate_batches == 0
-        else:
-            loss_scaling_factor = 1.0
-            should_apply_gradients = True
-        # Generator pretraining
-        train_discriminator = self.global_step  >= self.train_args.pretraining_steps
-        # Extract generator/discriminator optimizer/scheduler
-        opt_g, opt_d = self.optimizers()
-        sched_g, sched_d = self.lr_schedulers()
-        # train generator
-        self.toggle_optimizer(opt_g)
-        loss_g, wav_outputs = self.training_step_g(batch, train_discriminator=train_discriminator)
-        # Scale (grad accumulate)
-        loss_g /= loss_scaling_factor
-        self.manual_backward(loss_g)
-        if should_apply_gradients:
-            self.clip_gradients(opt_g, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm")
-            opt_g.step()
-            sched_g.step()
-            opt_g.zero_grad()
-        self.untoggle_optimizer(opt_g)
-        # train discriminator
-        if not train_discriminator:
-            # we're still in pretraining
-            return
-        self.toggle_optimizer(opt_d)
-        if not self.train_args.cache_generator_outputs:
-            wav_outputs = None
-        loss_d = self.training_step_d(batch, wav_outputs=wav_outputs)
-        # Scale (grad accumulate)
-        loss_d /= loss_scaling_factor
-        self.manual_backward(loss_d)
-        if should_apply_gradients:
-            self.clip_gradients(opt_d, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm")
-            opt_d.step()
-            sched_d.step()
-            opt_d.zero_grad()
-        self.untoggle_optimizer(opt_d)
-
-    def training_step_g(self, batch, train_discriminator):
         log_outputs = {}
         gen_outputs = self._process_batch(batch)
         gen_loss = gen_outputs["loss"]
         log_outputs.update({
-            "total_loss/train_am_loss": gen_loss.item(),
-            "gen_subloss/train_alighn_loss": gen_outputs["align_loss"].item(),
-            "gen_subloss/train_duration_loss": gen_outputs["duration_loss"].item(),
-            "gen_subloss/train_pitch_loss": gen_outputs["pitch_loss"].item(),
+            "total_loss/train": gen_loss.item(),
+            "subloss/train_mel": gen_outputs["mel_loss"].item(),
+            "subloss/train_alighn": gen_outputs["align_loss"].item(),
+            "subloss/train_duration": gen_outputs["duration_loss"].item(),
+            "subloss/train_pitch": gen_outputs["pitch_loss"].item(),
         })
         if  gen_outputs.get("energy_loss") != 0.0:
-            log_outputs["gen_subloss/train_energy_loss"] = gen_outputs["energy_loss"].item()
-        wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
-        if train_discriminator:
-            d_gen_loss, loss_gen_mp, loss_gen_mrd, loss_fm_mp, loss_fm_mrd = self.discriminator.forward_gen(wav, wav_hat)
-            log_outputs.update({
-                "discriminator/gen_loss": d_gen_loss.item(),
-                "discriminator/loss_gen_mp": loss_gen_mp.item(),
-                "discriminator/loss_gen_mrd": loss_gen_mrd.item(),
-                "discriminator/loss_fm_mp": loss_fm_mp.item(),
-                "discriminator/loss_fm_mrd": loss_fm_mrd.item(),
-            })
-        else:
-            d_gen_loss = 0.0
-        mel_loss = self.discriminator.forward_mel(wav, wav_hat)
-        mel_loss *= self.lambda_mel
-        log_outputs["gen_subloss/train_mel_loss"] = mel_loss.item()
-        mr_stft_loss = self.discriminator.forward_mr_stft(wav, wav_hat)
-        log_outputs["gen_subloss/train_mr_stft_loss"] = mr_stft_loss.item()
-        loss = gen_loss + mel_loss + mr_stft_loss + d_gen_loss
-        log_outputs["total_loss/generator"] = loss.item()
+            log_outputs["subloss/train_energy"] = gen_outputs["energy_loss"].item()
         self.log_dict(
             log_outputs,
             prog_bar=True,
@@ -165,50 +82,21 @@ class BaseLightningModule(LightningModule, ABC):
             sync_dist=True,
             batch_size=self.data_args.batch_size
         )
-        return loss, (wav.detach(), wav_hat.detach())
-
-    def training_step_d(self, batch, wav_outputs=None):
-        log_outputs = {}
-        if wav_outputs is None:
-            # Don't train generator in discriminator's turn
-            with torch.no_grad():
-                gen_outputs = self._process_batch(batch)
-            wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
-        else:
-            wav, wav_hat = wav_outputs
-        loss, loss_mp, loss_mrd = self.discriminator.forward_disc(wav, wav_hat)
-        log_outputs.update({
-            "total_loss/discriminator": loss,
-            "discriminator/multi_period": loss_mp,
-            "discriminator/multi_res": loss_mrd
-        })
-        self.log_dict(
-            log_outputs,
-            prog_bar=True,
-            on_step=True,
-            on_epoch=True,
-            sync_dist=True,
-            batch_size=self.data_args.batch_size
-        )
-        return loss
+        return gen_loss
 
     def validation_step(self, batch, batch_idx, **kwargs):
         log_outputs = {}
         gen_outputs = self._process_batch(batch)
+        gen_loss = gen_outputs["loss"]
         log_outputs.update({
-            "total_loss/val_am_loss": gen_outputs["loss"].item(),
-            "gen_subloss/val_alighn_loss": gen_outputs["align_loss"].item(),
-            "gen_subloss/val_duration_loss": gen_outputs["duration_loss"].item(),
-            "gen_subloss/val_pitch_loss": gen_outputs["pitch_loss"].item(),
+            "total_loss/val": gen_loss.item(),
+            "subloss/val_mel": gen_outputs["mel_loss"].item(),
+            "subloss/val_alighn": gen_outputs["align_loss"].item(),
+            "subloss/val_duration": gen_outputs["duration_loss"].item(),
+            "subloss/val_pitch": gen_outputs["pitch_loss"].item(),
         })
         if  gen_outputs.get("energy_loss") != 0.0:
-            log_outputs["gen_subloss/val_energy_loss"] = gen_outputs["energy_loss"].item()
-        wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
-        mel_loss = self.discriminator.forward_mel(wav, wav_hat)
-        mel_loss = mel_loss * self.lambda_mel
-        log_outputs["gen_subloss/val_mel_loss"] = mel_loss.item()
-        mr_stft_loss = self.discriminator.forward_mr_stft(wav, wav_hat)
-        log_outputs["gen_subloss/val_mr_stft_loss"] = mr_stft_loss.item()
+            log_outputs["subloss/val_energy"] = gen_outputs["energy_loss"].item()
         self.log_dict(
             log_outputs,
             prog_bar=True,
@@ -217,57 +105,70 @@ class BaseLightningModule(LightningModule, ABC):
             sync_dist=True,
             batch_size=self.data_args.batch_size
         )
+        return gen_loss
 
     def on_validation_end(self) -> None:
+        global HIFIGAN_MODEL
         if self.trainer.is_global_zero:
+            if self.hparams.train_args.hifigan_ckpt is not None:
+                if HIFIGAN_MODEL is None:
+                    HIFIGAN_MODEL = load_hifigan(self.hparams.train_args.hifigan_ckpt, "cpu")
+                HIFIGAN_MODEL.to(self.device)
             one_batch = next(iter(self.trainer.val_dataloaders))
             if self.current_epoch == 0:
                 log.debug("Plotting original samples")
                 for i in range(2):
-                    gt_wav = one_batch["wav"][i].squeeze()
-                    self.logger.experiment.add_audio(
-                        f"wav/original_{i}",
-                        gt_wav.float().data.cpu().numpy(),
-                        self.global_step,
-                        self.sample_rate
-                    )
-                    mel = one_batch["mel"][i].unsqueeze(0).to(self.device)
+                    mel_len = one_batch["mel_lengths"][i]
+                    mel = one_batch["mel"][i][:, :mel_len]
+                    mel = mel.unsqueeze(0).to(self.device)
                     self.logger.experiment.add_image(
-                        f"mel/original_{i}",
+                        f"mel/gt_{i}",
                         plot_tensor(mel.squeeze().float().cpu()),
                         self.current_epoch,
                         dataformats="HWC",
                     )
-            # Plot alignment
-            gen_outputs = self._process_batch(one_batch)
-            attns = gen_outputs["attn"]
+                    if HIFIGAN_MODEL is not None:
+                        denorm_mel = denormalize(
+                            mel,
+                            self.data_args.data_statistics.mel_mean,
+                            self.data_args.data_statistics.mel_std,
+                        )
+                        gt_wav = HIFIGAN_MODEL(denorm_mel).squeeze()
+                        self.logger.experiment.add_audio(
+                            f"wav/analysis_synth_{i}",
+                            gt_wav.float().data.cpu().numpy(),
+                            self.global_step,
+                            self.sample_rate
+                        )
+            log.debug("Synthesising...")
             for i in range(2):
-                attn = attns[i]
+                x = one_batch["x"][i].unsqueeze(0).to(self.device)
+                x_lengths = one_batch["x_lengths"][i].unsqueeze(0).to(self.device)
+                output = self.synthesise(x=x[:, :x_lengths], x_lengths=x_lengths)
+                attn = output["attn"].squeeze()
                 self.logger.experiment.add_image(
                     f"alignment/{i}",
                     plot_attention(attn.squeeze().float().cpu()),
                     self.current_epoch,
                     dataformats="HWC",
                 )
-            log.debug("Synthesising...")
-            for i in range(2):
-                x = one_batch["x"][i].unsqueeze(0).to(self.device)
-                x_lengths = one_batch["x_lengths"][i].unsqueeze(0).to(self.device)
-                synth_out = self.synthesise(x=x[:, :x_lengths], x_lengths=x_lengths)
-                wav_hat = synth_out["wav"].squeeze().float().detach().cpu().numpy()
-                mel_hat = self.data_args.feature_extractor.get_mel(wav_hat)
+                mel_hat = output["mel"]
                 self.logger.experiment.add_image(
-                    f"mel/generated_{i}",
-                    plot_tensor(mel_hat.squeeze()),
+                    f"mel/gen_{i}",
+                    plot_tensor(mel_hat.squeeze().float().cpu()),
                     self.current_epoch,
                     dataformats="HWC",
                 )
-                self.logger.experiment.add_audio(
-                    f"wav/generated_{i}",
-                    wav_hat,
-                    self.global_step,
-                    self.sample_rate
-                )
+                if HIFIGAN_MODEL is not None:
+                    gen_wav = HIFIGAN_MODEL(mel_hat).squeeze()
+                    self.logger.experiment.add_audio(
+                        f"wav/gen_{i}",
+                        gen_wav.float().data.cpu().numpy(),
+                        self.global_step,
+                        self.sample_rate
+                    )
+            if HIFIGAN_MODEL is not None:
+                HIFIGAN_MODEL.to("cpu")
 
     def on_train_batch_end(self, *args):
         def mel_loss_coeff_decay(current_step, num_cycles=0.5):
@@ -284,17 +185,6 @@ class BaseLightningModule(LightningModule, ABC):
 
     def on_before_optimizer_step(self, optimizer):
         self.log_dict({f"grad_norm/{k}": v for k, v in grad_norm(self, norm_type=2).items()})
-
-    @property
-    def global_step(self):
-        """
-        Override global_step so that it returns the total number of batches processed with respect to `gradient_accumulate_batches`
-        """
-        if self.train_args.gradient_accumulate_batches is not None:
-            global_step = self.trainer.fit_loop.total_batch_idx // self.train_args.gradient_accumulate_batches
-        else:
-            global_step = self.trainer.fit_loop.total_batch_idx
-        return int(global_step)
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         self.ckpt_loaded_epoch = checkpoint["epoch"]  # pylint: disable=attribute-defined-outside-init

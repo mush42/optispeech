@@ -18,7 +18,7 @@ print(f"Length of phoneme ids: {len(phids)}")
 
 # Config pipeline
 with initialize(version_base=None, config_path="./configs"):
-    dataset_cfg = compose(config_name="data/hfc_female-en_us.yaml")
+    dataset_cfg = compose(config_name="data/kareem-ar.yaml")
     cfg = compose(config_name="model/optispeech.yaml")
     cfg.model.data_args = dict(
         name=dataset_cfg.data.name,
@@ -56,11 +56,6 @@ print(summarize(model, 2))
 
 # Sanity check
 gen_out = model._process_batch(batch)
-wav, wav_hat = gen_out["wav"], gen_out["wav_hat"]
-disc_d_out = model.discriminator.forward_disc(wav, wav_hat)
-disc_g_out = model.discriminator.forward_gen(wav, wav_hat)
-disc_mel_out = model.discriminator.forward_mel(wav, wav_hat)
-
 
 # Inference
 x = batch["x"]

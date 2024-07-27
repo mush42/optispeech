@@ -159,7 +159,7 @@ class CommonFeatureExtractor(FeatureExtractor):
         )
         y = y.squeeze(1)
 
-        spec = torch.view_as_real(
+        spec = torch.abs(
             torch.stft(
                 y,
                 self.n_fft,
@@ -173,13 +173,8 @@ class CommonFeatureExtractor(FeatureExtractor):
                 return_complex=True,
             )
         )
-
-        magnitudes = torch.sqrt(spec.pow(2).sum(-1) + (1e-9))
-        energy = torch.norm(magnitudes, dim=1)
-
-        spec = torch.matmul(self.mel_basis[mel_basis_key], magnitudes)
+        spec = torch.matmul(self.mel_basis[mel_basis_key], spec)
         spec = spectral_normalize_torch(spec)
-
         return spec.squeeze().cpu().numpy()
 
 

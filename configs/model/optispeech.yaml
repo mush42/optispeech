@@ -1,18 +1,14 @@
 defaults:
   - _self_
   - generator: default
-  - discriminator: default
   - optimizer: adamw
   - scheduler: cosine_with_warmup
 
 _target_: optispeech.model.OptiSpeech
 dim: 256
 train_args:
-  cache_generator_outputs: true
+  hifigan_ckpt: g_02500000
   decay_mel_coeff: false
-  gradient_clip_val: 1.0
-  gradient_accumulate_batches: null
-  pretraining_steps: 1000
 data_args:
   name: ${data.name}
   text_processor: ${data.text_processor}

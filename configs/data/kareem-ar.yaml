@@ -1,0 +1,25 @@
+defaults:
+  - ljspeech
+  - _self_
+
+# Dataset URL: https://ast-astrec.nict.go.jp/en/release/hi-fi-captain/
+_target_: optispeech.dataset.TextWavDataModule
+name: kareem-ar
+train_filelist_path: data/kareem-ar/train.txt
+valid_filelist_path: data/kareem-ar/val.txt
+batch_size: 64 
+num_workers: 4
+text_processor:
+  language: ar
+  normalize_text: false
+data_statistics:  # Computed for this dataset with the params of the above feature extractor
+  pitch_min: 58.515129
+  pitch_max: 825.244446
+  pitch_mean: 117.509125
+  pitch_std: 31.974157
+  energy_min: 0.000716
+  energy_max: 110.09568
+  energy_mean: 21.615107
+  energy_std: 16.466137
+  mel_mean: -5.817915
+  mel_std: 2.57161

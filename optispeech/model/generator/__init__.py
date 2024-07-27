@@ -5,7 +5,6 @@ from torch import nn
 from torch.nn import functional as F
 
 from optispeech.utils import sequence_mask, denormalize
-from optispeech.utils.segments import get_random_segments
 
 from .alignments import DifferentiableAlignmentModule, average_by_duration
 from .loss import FastSpeech2Loss
@@ -17,20 +16,17 @@ class OptiSpeechGenerator(nn.Module):
     def __init__(
         self,
         dim: int,
-        segment_size,
         text_embedding,
         encoder,
         duration_predictor,
         variance_adaptor,
         decoder,
-        wav_generator,
         loss_coeffs,
         feature_extractor,
         data_statistics,
     ):
         super().__init__()
 
-        self.segment_size = segment_size
         self.loss_coeffs = loss_coeffs
         self.n_feats = feature_extractor.n_feats
         self.n_fft = feature_extractor.n_fft
@@ -50,11 +46,7 @@ class OptiSpeechGenerator(nn.Module):
             energy_max=data_statistics["energy_max"],
         )
         self.decoder = decoder(dim=dim)
-        self.wav_generator = wav_generator(
-            input_channels=dim,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length
-        )
+        self.mel_proj = nn.Conv1d(dim, self.n_feats, 1)
         self.loss_criterion = FastSpeech2Loss()
 
     def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies, energy_weights):
@@ -126,39 +118,37 @@ class OptiSpeechGenerator(nn.Module):
         # Decoder
         y = self.decoder(y, target_padding_mask)
 
-        # get random segments
-        segment_size = min(self.segment_size, y.shape[-2])
-        y_segment, y_start_idx = get_random_segments(
-            y.transpose(1, 2),
-            mel_lengths.type_as(x),
-            segment_size,
-        )
-
-        # Generate wav
-        wav_hat = self.wav_generator(y_segment)
+        # project to mel
+        mel_hat = self.mel_proj(y.transpose(1, 2))
 
         # Losses
         loss_coeffs = self.loss_coeffs
-        duration_loss, pitch_loss, energy_loss = self.loss_criterion(
+        mel_loss, duration_loss, pitch_loss, energy_loss = self.loss_criterion(
+            mel_hat=mel_hat,
             d_outs=duration_hat,
             p_outs=pitch_hat,
             e_outs=energy_hat,
+            mel=mel,
             ds=durations.unsqueeze(-1),
             ps=pitches.unsqueeze(-1),
             es=energies.unsqueeze(-1) if energies is not None else None,
             ilens=x_lengths,
+            olens=mel_lengths,
         )
         loss =  (
-            (duration_loss * loss_coeffs.lambda_duration)
+            (mel_loss * loss_coeffs.lambda_mel)
+            + (duration_loss * loss_coeffs.lambda_duration)
             + (pitch_loss * loss_coeffs.lambda_pitch)
             + (energy_loss * loss_coeffs.lambda_energy)
         )
 
+        # TBD
+        align_loss = torch.scalar_tensor(0.0)
+
         return {
-            "wav_hat": wav_hat,
-            "start_idx": y_start_idx,
-            "segment_size": segment_size,
             "loss": loss,
+            "align_loss": align_loss,
+            "mel_loss": mel_loss,
             "duration_loss": duration_loss,
             "pitch_loss": pitch_loss,
             "energy_loss": energy_loss,
@@ -225,29 +215,31 @@ class OptiSpeechGenerator(nn.Module):
         b, t, h = y.size()
         target_padding_mask = torch.zeros(b, t).bool().to(x.device)
         y = self.decoder(y, target_padding_mask)
+
+        # project to mel
+        mel = self.mel_proj(y.transpose(1, 2))
+        # Normalize
+        mel = denormalize(
+            mel,
+            self.data_statistics.mel_mean,
+            self.data_statistics.mel_std,
+        )
         am_infer = (perf_counter() - am_t0) * 1000
 
-        v_t0 = perf_counter()
-        # Generate wav
-        wav = self.wav_generator(y.transpose(1, 2), target_padding_mask)
-        wav_lengths = torch.Tensor([wav.shape[-1] * self.hop_length])
-        v_infer = (perf_counter() - v_t0) * 1000
+        mel_lengths = torch.Tensor([mel.shape[-1]])
+        wav_lengths = (mel_lengths * self.hop_length)  / (self.sample_rate * 1e-3)
 
-        wav_t = wav.shape[-1] / (self.sample_rate * 1e-3)
-        am_rtf = am_infer / wav_t
-        v_rtf = v_infer / wav_t
-        rtf = am_rtf + v_rtf
-        latency = am_infer  + v_infer
+        wav_t = sum(wav_lengths).item()
+        rtf = am_infer / wav_t
+        latency = am_infer 
 
         return {
-            "wav": wav,
-            "wav_lengths": wav_lengths,
+            "mel": mel,
+            "mel_lengths": mel_lengths,
             "durations": durations,
             "pitch": pitch,
             "energy": energy,
-            "alpha": alpha,
-            "am_rtf": am_rtf,
-            "v_rtf": v_rtf,
+            "attn": alpha.unsqueeze(0),
             "rtf": rtf,
             "latency": latency
         }

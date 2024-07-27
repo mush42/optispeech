@@ -1,7 +1,7 @@
 defaults:
   - _self_
-  - text_processor: en_us
-  - feature_extractor: vocos
+  - text_processor: default
+  - feature_extractor: common
 
 _target_: optispeech.dataset.TextWavDataModule
 name: ljspeech

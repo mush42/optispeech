@@ -13,7 +13,6 @@ class OptiSpeech(BaseLightningModule):
         self,
         dim,
         generator,
-        discriminator,
         data_args,
         train_args,
         optimizer=None,
@@ -22,26 +21,18 @@ class OptiSpeech(BaseLightningModule):
         super().__init__()
         self.save_hyperparameters(logger=False)
 
-        # Sanity checks
-        if (train_args.gradient_accumulate_batches is not None) and (train_args.gradient_accumulate_batches <= 0):
-            raise ValueError("gradient_accumulate_batches should be a positive number")
-
         self.data_args = data_args
         self.train_args = train_args
 
         self.sample_rate = data_args.feature_extractor.sample_rate
         self.hop_length = data_args.feature_extractor.hop_length
 
-        # GAN training requires this
-        self.automatic_optimization = False
-
         self.generator = generator(
             dim=dim,
             feature_extractor=data_args.feature_extractor,
             data_statistics=data_args.data_statistics,
         )
-        self.discriminator = discriminator(feature_extractor=data_args.feature_extractor)
-        self.base_lambda_mel = self.lambda_mel = self.discriminator.lambda_mel
+        self.base_lambda_mel = self.lambda_mel = self.generator.loss_coeffs.lambda_mel
 
     @torch.inference_mode()
     def synthesise(self, x, x_lengths, d_factor=1.0, p_factor=1.0, e_factor=1.0):
@@ -56,7 +47,7 @@ class OptiSpeech(BaseLightningModule):
             e_factor (float.Tensor): scaler to control energy.
 
         Returns:
-            wav (torch.Tensor): generated waveform
+            mel (torch.Tensor): generated mel spectogram
                 shape: (batch_size, T)
             durations: (torch.Tensor): predicted phoneme durations
                 shape: (batch_size, max_text_length)
@@ -65,8 +56,6 @@ class OptiSpeech(BaseLightningModule):
             energy: (torch.Tensor): predicted energy
                 shape: (batch_size, max_text_length)
             rtf: (float): total Realtime Factor (inference_t/audio_t)
-            am_rtf: (float): acoustic generator Realtime Factor
-            voc_rtf: (float): wave generator Realtime Factor
         """
         x = x.to(self.device)
         x_lengths = x_lengths.long().to("cpu")
