@@ -29,14 +29,14 @@ def export_as_onnx(model, out_filename, opset):
     scales = torch.Tensor([d_factor, p_factor])
 
     input_names = ["x", "x_lengths", "scales",]
-    output_names = ["wav", "wav_lengths", "durations"]
+    output_names = ["mel", "mel_lengths", "durations"]
 
     # Set dynamic shape for inputs/outputs
     dynamic_axes = {
         "x": {0: "batch_size", 1: "time"},
         "x_lengths": {0: "batch_size"},
-        "wav": {0: "batch_size", 2: "frames"},
-        "wav_lengths": {0: "batch_size", 2: "frames"},
+        "mel": {0: "batch_size", 2: "frames"},
+        "mel_lengths": {0: "batch_size", 2: "frames"},
         "durations": {0: "batch_size", 1: "time"},
     }
 
@@ -56,7 +56,7 @@ def export_as_onnx(model, out_filename, opset):
             p_factor=p_factor,
             # e_factor=e_factor
         )
-        return outputs["wav"], outputs["wav_lengths"], outputs["durations"]
+        return outputs["mel"], outputs["mel_lengths"], outputs["durations"]
 
     model.forward = _infer_forward
     model.to_onnx(
