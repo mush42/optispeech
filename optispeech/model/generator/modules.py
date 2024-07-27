@@ -184,14 +184,14 @@ class DurationPredictor(torch.nn.Module):
         self.padding = padding
         self.conv = torch.nn.ModuleList([
             torch.nn.Sequential(
-                nn.Conv1d(dim if idx == 0 else intermediate_dim, intermediate_dim, kernel_size),
+                ConvSeparable(dim if idx == 0 else intermediate_dim, intermediate_dim, kernel_size),
                 build_activation(activation),
                 LayerNorm(intermediate_dim, dim=1),
                 torch.nn.Dropout(dropout)
             )
             for idx in range(n_layers)
         ])
-        self.proj = torch.nn.Conv1d(intermediate_dim, 1, 1)
+        self.linear = torch.nn.Linear(intermediate_dim, 1)
 
     def forward(self, xs, x_masks):
         """NOTE: calculate in log domain"""
@@ -203,7 +203,7 @@ class DurationPredictor(torch.nn.Module):
                 xs = F.pad(xs, [self.kernel_size - 1, 0])
             xs = f(xs)  # (B, C, Tmax)
             xs = xs * (1 - x_masks.float())[:, None, :]
-        xs = self.proj(xs).squeeze(-2)  # (B, Tmax)
+        xs = self.linear(xs.transpose(1, -1)).squeeze(-1)  # (B, Tmax)
         return xs
 
     @torch.inference_mode()
