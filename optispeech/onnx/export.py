@@ -79,8 +79,8 @@ def add_inference_metadata(onnxfile, model):
         language=model.hparams.data_args.language,
         add_blank=model.hparams.data_args.add_blank,
         normalize_text=model.hparams.data_args.normalize_text,
-        sample_rate=model.hparams.feature_extractor.sample_rate,
-        hop_length=model.hparams.feature_extractor.hop_length,
+        sample_rate=model.feature_extractor.sample_rate,
+        hop_length=model.feature_extractor.hop_length,
     ))
     m1 = onnx_model.metadata_props.add()
     m1.key = 'inference'
