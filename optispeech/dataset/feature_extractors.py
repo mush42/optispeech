@@ -46,13 +46,14 @@ class FeatureExtractor:
         self.preemphasis_filter_coef = preemphasis_filter_coef
         self.trim_silence = trim_silence
         self.trim_silence_args = trim_silence_args
-        if self.trim_silence:
-            self._silence_detector = make_silence_detector()
+        self._silence_detector = None
 
     def __call__(self, audio_path):
         if not self.trim_silence:
             wav, __sr = librosa.load(audio_path, sr=self.sample_rate)
         else:
+            if self._silence_detector is None:
+                self._silence_detector = make_silence_detector()
             wav, __sr = trim_audio(
                 audio_path=audio_path,
                 detector=self._silence_detector,
