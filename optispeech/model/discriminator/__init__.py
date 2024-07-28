@@ -30,6 +30,7 @@ class OptiSpeechDiscriminator(nn.Module):
             sample_rate=self.feature_extractor.sample_rate,
             n_fft=self.feature_extractor.n_fft,
             hop_length=self.feature_extractor.hop_length,
+            win_length=self.feature_extractor.win_length,
             n_mels=self.feature_extractor.n_feats,
             f_min=self.feature_extractor.f_min,
             f_max=self.feature_extractor.f_max,
