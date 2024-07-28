@@ -73,7 +73,7 @@ def numpy_unpad_sequences(sequences, lengths):
   # Extract unpadded sequences
   unpadded_seqs = []
   for i in range(batch_size):
-    unpadded_seqs.append(sequences[i, :, :lengths[i]])
+    unpadded_seqs.append(sequences[i, :lengths[i]])
 
   return unpadded_seqs
 

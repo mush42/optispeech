@@ -52,7 +52,7 @@ def main():
 
     phids, norm_text = process_and_phonemize_text(
         args.text,
-        lang=lang,
+        language=lang,
         tokenizer=tokenizer,
         add_blank=add_blank,
         split_sentences=True
