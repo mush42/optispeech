@@ -14,13 +14,13 @@ text_processor:
 feature_extractor:
   trim_silence: true
 data_statistics:  # Computed for this dataset with the params of the above feature extractor
-  pitch_min: 56.891888
-  pitch_max: 853.330444
-  pitch_mean: 194.228088
-  pitch_std: 53.236904
-  energy_min: 0.000716
-  energy_max: 161.985641
-  energy_mean: 16.546963
-  energy_std: 13.663942
-  mel_mean: -2.002705
-  mel_std: 2.397388
+  pitch_min: 58.463032
+  pitch_max: 853.189575
+  pitch_mean: 188.755859
+  pitch_std: 34.018608
+  energy_min: 0.006529
+  energy_max: 170.64801
+  energy_mean: 31.949938
+  energy_std: 23.298676
+  mel_mean: -0.280954
+  mel_std: 1.789111
