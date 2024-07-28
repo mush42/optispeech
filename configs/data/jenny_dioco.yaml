@@ -1,0 +1,26 @@
+defaults:
+  - ljspeech
+  - _self_
+
+# Dataset URL: https://ast-astrec.nict.go.jp/en/release/hi-fi-captain/
+_target_: optispeech.dataset.TextWavDataModule
+name: jenny_dioco
+train_filelist_path: /home/momer/datasets/processed/jenny_dioco/train.txt
+valid_filelist_path: /home/momer/datasets/processed/jenny_dioco/val.txt
+batch_size: 64 
+num_workers: 8
+text_processor:
+  language: en-gb-x-rp
+feature_extractor:
+  trim_silence: true
+data_statistics:  # Computed for this dataset with the params of the above feature extractor
+  pitch_min: 56.891888
+  pitch_max: 853.330444
+  pitch_mean: 194.228088
+  pitch_std: 53.236904
+  energy_min: 0.000716
+  energy_max: 161.985641
+  energy_mean: 16.546963
+  energy_std: 13.663942
+  mel_mean: -2.002705
+  mel_std: 2.397388
