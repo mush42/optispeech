@@ -23,7 +23,6 @@ class FeatureExtractor:
 
     def __init__(
         self,
-        trim_silence: bool,
         sample_rate: int,
         n_feats: int,
         n_fft: int,
@@ -31,9 +30,11 @@ class FeatureExtractor:
         win_length: int,
         f_min: int,
         f_max: int,
-        center: bool=False
+        center: bool,
+        preemphasis_filter_coef: Optional[float]=None,
+        trim_silence: bool=False,
+        trim_silence_args: Optional[dict]=None
     ):
-        self.trim_silence = trim_silence
         self.sample_rate = sample_rate
         self.n_feats = n_feats
         self.n_fft = n_fft
@@ -42,6 +43,9 @@ class FeatureExtractor:
         self.f_min = f_min
         self.f_max = f_max
         self.center = center
+        self.preemphasis_filter_coef = preemphasis_filter_coef
+        self.trim_silence = trim_silence
+        self.trim_silence_args = trim_silence_args
         if self.trim_silence:
             self._silence_detector = make_silence_detector()
 
@@ -52,9 +56,13 @@ class FeatureExtractor:
             wav, __sr = trim_audio(
                 audio_path=audio_path,
                 detector=self._silence_detector,
-                sample_rate=self.sample_rate
+                sample_rate=self.sample_rate,
+                **self.trim_silence_args
             )
         assert __sr == self.sample_rate
+        # Enhance higher frequencies (useful with some datasets)
+        if self.preemphasis_filter_coef is not None:
+            wav = librosa.effects.preemphasis(wav, coef=self.preemphasis_filter_coef)
         mel = self.get_mel(wav)
         mel_length = mel.shape[-1]
         energy = self.get_energy(wav, mel_length)

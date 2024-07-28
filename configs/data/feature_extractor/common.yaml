@@ -1,5 +1,4 @@
 _target_: optispeech.dataset.CommonFeatureExtractor
-trim_silence: false
 sample_rate: 22050
 n_feats: 80
 n_fft: 1024
@@ -8,3 +7,10 @@ win_length: 1024
 f_min: 0
 f_max: 8000
 center: false
+preemphasis_filter_coef: null # apply preemphasis filter
+trim_silence: false
+trim_silence_args:
+  silence_threshold: 0.2
+  silence_samples_per_chunk: 480
+  silence_keep_chunks_before: 2
+  silence_keep_chunks_after: 2

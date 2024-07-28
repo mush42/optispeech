@@ -1,10 +1,16 @@
 _target_: optispeech.dataset.VocosFeatureExtractor
-trim_silence: false
 sample_rate: 24000
 n_feats: 100
 n_fft: 2048
-hop_length: 320
-win_length: 1280
+hop_length: 300
+win_length: 1200
 f_min: 0
 f_max: null
 center: true
+preemphasis_filter_coef: null # apply preemphasis filter
+trim_silence: false
+trim_silence_args:
+  silence_threshold: 0.2
+  silence_samples_per_chunk: 480
+  silence_keep_chunks_before: 2
+  silence_keep_chunks_after: 2
