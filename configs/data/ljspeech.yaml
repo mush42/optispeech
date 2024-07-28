@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - text_processor: en_us
+  - text_processor: default
   - feature_extractor: vocos
 
 _target_: optispeech.dataset.TextWavDataModule

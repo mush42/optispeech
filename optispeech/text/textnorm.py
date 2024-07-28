@@ -2,12 +2,13 @@ import re
 import unicodedata
 
 
+UNICODE_NORM_FORM = "NFKC"
 WHITESPACE_RE = re.compile(r"\s+")
 
 
 def preprocess_text(text: str, *, normalize: bool=False) -> str:
     if normalize:
-        text = unicodedata.normalize("NFKC", text)
+        text = unicodedata.normalize(UNICODE_NORM_FORM, text)
     text = collapse_whitespace(text)
     return text
 

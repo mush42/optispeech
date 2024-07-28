@@ -9,6 +9,7 @@ import onnx
 from lightning import seed_everything
 
 from optispeech.model import OptiSpeech
+from optispeech.text import UNICODE_NORM_FORM, get_input_symbols
 from optispeech.utils import get_script_logger
 
 
@@ -74,12 +75,15 @@ def export_as_onnx(model, out_filename, opset):
 
 def add_inference_metadata(onnxfile, model):
     onnx_model = onnx.load(onnxfile)
+    text_args = dict(model.hparams.data_args.text_processor.keywords)
+    text_args["unicode_norm_form"] = UNICODE_NORM_FORM if text_args["normalize_text"] else None
+    input_symbols, special_symbols = get_input_symbols()
     infer_dict = json.dumps(dict(
-        tokenizer=model.hparams.tokenizer,
-        language=model.hparams.language,
-        add_blank=model.hparams.add_blank,
-        sample_rate=model.hparams.sample_rate,
-        hop_length=model.hparams.hop_length,
+        name=model.hparams.data_args.name,
+        sample_rate=model.hparams.data_args.feature_extractor.sample_rate,
+        input_symbols=input_symbols,
+        special_symbols=special_symbols,
+        **text_args,
     ))
     m1 = onnx_model.metadata_props.add()
     m1.key = 'inference'

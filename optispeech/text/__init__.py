@@ -5,7 +5,16 @@ from piper_phonemize import phonemize_espeak
 from ..utils import intersperse
 from . import processors
 from . import symbols
-from .textnorm import collapse_whitespace, preprocess_text
+from .textnorm import UNICODE_NORM_FORM, collapse_whitespace, preprocess_text
+
+
+def get_input_symbols():
+    special_symbols = dict(
+        pad=symbols.PAD,
+        bos=symbols.BOS,
+        eos=symbols.EOS,
+    )
+    return symbols.SYMBOL_TO_ID, special_symbols
 
 
 def process_and_phonemize_text(
