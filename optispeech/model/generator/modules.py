@@ -6,7 +6,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from optispeech.utils.model import build_activation, pad_list
-from .layers import ConvSeparable, EncSepConvLayer, ScaledSinusoidalEmbedding
+from .layers import EncSepConvLayer, ScaledSinusoidalEmbedding
 
 
 DEFAULT_MAX_SOURCE_POSITIONS = 2000
@@ -164,6 +164,7 @@ class DurationPredictor(torch.nn.Module):
         n_layers,
         intermediate_dim,
         kernel_size,
+        conv_layer_class,
         activation='relu',
         dropout=0.0,
         clip_val=1e-8,
@@ -184,7 +185,7 @@ class DurationPredictor(torch.nn.Module):
         self.padding = padding
         self.conv = torch.nn.ModuleList([
             torch.nn.Sequential(
-                nn.Conv1d(dim if idx == 0 else intermediate_dim, intermediate_dim, kernel_size),
+                conv_layer_class(dim if idx == 0 else intermediate_dim, intermediate_dim, kernel_size),
                 build_activation(activation),
                 LayerNorm(intermediate_dim, dim=1),
                 torch.nn.Dropout(dropout)
@@ -234,8 +235,9 @@ class PitchPredictor(nn.Module):
         n_layers,
         intermediate_dim,
         kernel_size,
-        dropout=0.0,
+        conv_layer_class,
         activation='relu',
+        dropout=0.0,
         padding='SAME',
         max_source_positions=DEFAULT_MAX_SOURCE_POSITIONS,
     ):
@@ -253,7 +255,7 @@ class PitchPredictor(nn.Module):
         self.pos_emb = ScaledSinusoidalEmbedding(dim, theta=max_source_positions)
         self.conv = torch.nn.ModuleList([
             torch.nn.Sequential(
-                ConvSeparable(dim if idx == 0 else intermediate_dim, intermediate_dim, kernel_size),
+                conv_layer_class(dim if idx == 0 else intermediate_dim, intermediate_dim, kernel_size),
                 build_activation(activation),
                 LayerNorm(intermediate_dim, dim=1),
                 torch.nn.Dropout(dropout)
@@ -262,13 +264,13 @@ class PitchPredictor(nn.Module):
         ])
         self.conv.append(
             torch.nn.Sequential(
-                ConvSeparable(intermediate_dim, dim, kernel_size),
+                conv_layer_class(intermediate_dim, dim, kernel_size),
                 build_activation(activation),
                 LayerNorm(dim, dim=1),
                 torch.nn.Dropout(dropout)
             )
         )
-        self.proj = nn.Linear(dim, 1)
+        self.proj = nn.Conv1d(dim, 1, 1)
 
     def forward(self, xs, xs_mask):
         """
@@ -285,8 +287,8 @@ class PitchPredictor(nn.Module):
                 xs = F.pad(xs, [self.kernel_size - 1, 0])
             xs = f(xs)  # (B, C, Tmax)
             xs = xs * (1 - xs_mask.float())[:, None, :]
-        preds = self.proj(xs.transpose(1, 2)).squeeze(-1)
-        preds = preds.masked_fill(xs_mask, 0.0)
+        preds = self.proj(xs).squeeze(1)
+        preds = preds.transpose(1, -1).masked_fill(xs_mask, 0.0)
         return preds
 
 

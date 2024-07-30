@@ -4,7 +4,7 @@ n_layers: 5
 intermediate_dim: 384
 kernel_size: 5
 conv_layer_class:
-  _target_: torch.nn.Conv1d
+  _target_: optispeech.model.generator.layers.ConvSeparable
   _partial_: true
 activation: relu
 dropout: 0.1
