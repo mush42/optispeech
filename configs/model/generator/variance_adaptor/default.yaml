@@ -1,8 +1,0 @@
-defaults:
-  - _self_
-  - pitch_predictor: default
-
-_target_: optispeech.model.generator.VarianceAdaptor
-_partial_: true
-energy_predictor: null
-n_bins: 256

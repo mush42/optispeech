@@ -9,8 +9,8 @@ from optispeech.utils.segments import get_random_segments
 
 from .alignments import AlignmentModule, GaussianUpsampling, viterbi_decode, average_by_duration
 from .loss import FastSpeech2Loss, ForwardSumLoss
-from .modules import TextEmbedding, TransformerEncoder, TransformerDecoder, DurationPredictor, PitchPredictor, EnergyPredictor
-from .variance_adaptor import VarianceAdaptor
+from .modules import TextEmbedding, TransformerEncoder, TransformerDecoder
+from .variance_predictor import DurationPredictor, PitchPredictor, EnergyPredictor
 
 
 class OptiSpeechGenerator(nn.Module):
@@ -21,7 +21,8 @@ class OptiSpeechGenerator(nn.Module):
         text_embedding,
         encoder,
         duration_predictor,
-        variance_adaptor,
+        pitch_predictor,
+        energy_predictor,
         decoder,
         wav_generator,
         loss_coeffs,
@@ -42,13 +43,8 @@ class OptiSpeechGenerator(nn.Module):
         self.encoder = encoder(dim=dim)
         self.duration_predictor = duration_predictor(dim=dim)
         self.alignment_module = AlignmentModule(adim=dim, odim=self.n_feats)
-        self.variance_adaptor = variance_adaptor(
-            dim=dim,
-            pitch_min=data_statistics["pitch_min"],
-            pitch_max=data_statistics["pitch_max"],
-            energy_min=data_statistics["energy_min"],
-            energy_max=data_statistics["energy_max"],
-        )
+        self.pitch_predictor = pitch_predictor(dim=dim)
+        self.energy_predictor = energy_predictor(dim=dim) if energy_predictor is not None else energy_predictor
         self.feature_upsampler = GaussianUpsampling()
         self.decoder = decoder(dim=dim)
         self.wav_generator = wav_generator(
@@ -107,12 +103,12 @@ class OptiSpeechGenerator(nn.Module):
         pitches = average_by_duration(durations, pitches.unsqueeze(-1), x_lengths, mel_lengths)
         energies = average_by_duration(durations, energies.unsqueeze(-1), x_lengths, mel_lengths)
 
-        # variance adapter
-        x, va_outputs = self.variance_adaptor(
-            x, x_mask, padding_mask, pitches, energies
-        )
-        pitch_hat = va_outputs["pitch_hat"]
-        energy_hat = va_outputs.get("energy_hat")
+        # variance predictors
+        x, pitch_hat = self.pitch_predictor(x, padding_mask, pitches)
+        if self.energy_predictor is not None:
+            x, energy_hat = self.energy_predictor(x, padding_mask, energies)
+        else:
+            energy_hat = None
 
         # upsample to mel lengths
         y = self.feature_upsampler(
@@ -210,17 +206,12 @@ class OptiSpeechGenerator(nn.Module):
         # duration predictor
         durations = self.duration_predictor.infer(x, padding_mask, factor=d_factor)
 
-        # variance adaptor
-        x, va_outputs = self.variance_adaptor.infer(
-            x,
-            x_mask,
-            padding_mask,
-            d_factor=d_factor,
-            p_factor=p_factor,
-            e_factor=e_factor
-        )
-        pitch = va_outputs["pitch"]
-        energy = va_outputs.get("energy")
+        # variance predictors
+        x, pitch = self.pitch_predictor.infer(x, padding_mask, p_factor)
+        if self.energy_predictor is not None:
+            x, energy = self.energy_predictor.infer(x, padding_mask, e_factor)
+        else:
+            energy = None
 
         y_lengths = durations.sum(dim=1)
         y_max_length = y_lengths.max()

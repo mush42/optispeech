@@ -4,7 +4,7 @@ n_feats: 100
 n_fft: 2048
 hop_length: 300
 win_length: 1200
-f_min: 0
+f_min: 80
 f_max: null
 center: true
 preemphasis_filter_coef: null # apply preemphasis filter
