@@ -55,7 +55,7 @@ class OptiSpeechGenerator(nn.Module):
         self.loss_criterion = FastSpeech2Loss()
         self.forwardsum_loss = ForwardSumLoss()
 
-    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies, durations=None):
+    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
@@ -65,8 +65,6 @@ class OptiSpeechGenerator(nn.Module):
             pitches (torch.Tensor): phoneme-level pitch values.
                 shape: (batch_size, max_text_length)
             energies (torch.Tensor): phoneme-level energy values.
-                shape: (batch_size, max_text_length)
-            durations (Optional[torch.Tensor]): precalculated phoneme durations (TBD).
                 shape: (batch_size, max_text_length)
 
         Returns:
@@ -81,43 +79,44 @@ class OptiSpeechGenerator(nn.Module):
         mel_max_length = mel_lengths.max()
         mel_mask = torch.unsqueeze(sequence_mask(mel_lengths, mel_max_length), 1).type_as(x)
 
-        padding_mask = ~x_mask.squeeze(1).bool()
-        padding_mask = padding_mask.to(x.device)
+        input_padding_mask = ~x_mask.squeeze(1).bool().to(x.device)
+        target_padding_mask = ~mel_mask.squeeze(1).bool().to(x.device)
 
         # text embedding
         x, embed = self.text_embedding(x)
 
         # Encoder
-        x = self.encoder(x, padding_mask)
+        x = self.encoder(x, input_padding_mask)
 
         # alignment
         log_p_attn = self.alignment_module(
-            x,
-            mel.transpose(1, 2),
-            x_lengths,
-            mel_lengths,
-            padding_mask,
+            text=x,
+            feats=mel.transpose(1, 2),
+            text_lengths=x_lengths,
+            feats_lengths=mel_lengths,
+            x_masks=input_padding_mask,
         )
         durations, bin_loss = viterbi_decode(log_p_attn, x_lengths, mel_lengths)
-        duration_hat = self.duration_predictor(x, padding_mask)
+        duration_hat = self.duration_predictor(x, input_padding_mask)
+
+        # Average pitch and energy values based on durations
         pitches = average_by_duration(durations, pitches.unsqueeze(-1), x_lengths, mel_lengths)
         energies = average_by_duration(durations, energies.unsqueeze(-1), x_lengths, mel_lengths)
 
         # variance predictors
-        x, pitch_hat = self.pitch_predictor(x, padding_mask, pitches)
+        x, pitch_hat = self.pitch_predictor(x, input_padding_mask, pitches)
         if self.energy_predictor is not None:
-            x, energy_hat = self.energy_predictor(x, padding_mask, energies)
+            x, energy_hat = self.energy_predictor(x, input_padding_mask, energies)
         else:
             energy_hat = None
 
         # upsample to mel lengths
         y = self.feature_upsampler(
-            x,
-            durations,
-            mel_mask.squeeze(1).bool(),
-            x_mask.squeeze(1).bool()
+            hs=x,
+            ds=durations,
+            h_masks=mel_mask.squeeze(1).bool(),
+            d_masks=x_mask.squeeze(1).bool()
         )
-        target_padding_mask = ~mel_mask.squeeze(1).bool()
 
         # Decoder
         y = self.decoder(y, target_padding_mask)
@@ -193,23 +192,21 @@ class OptiSpeechGenerator(nn.Module):
         x_max_length = x_lengths.max()
         x_mask = torch.unsqueeze(sequence_mask(x_lengths, x_max_length), 1).to(x.dtype)
         x_mask = x_mask.to(x.device)
-
-        padding_mask = ~x_mask.squeeze(1).bool()
-        padding_mask = padding_mask.to(x.device)
+        input_padding_mask = ~x_mask.squeeze(1).bool().to(x.device)
 
         # text embedding
         x, __ = self.text_embedding(x)
 
         # Encoder
-        x = self.encoder(x, padding_mask)
+        x = self.encoder(x, input_padding_mask)
 
         # duration predictor
-        durations = self.duration_predictor.infer(x, padding_mask, factor=d_factor)
+        durations = self.duration_predictor.infer(x, input_padding_mask, factor=d_factor)
 
         # variance predictors
-        x, pitch = self.pitch_predictor.infer(x, padding_mask, p_factor)
+        x, pitch = self.pitch_predictor.infer(x, input_padding_mask, p_factor)
         if self.energy_predictor is not None:
-            x, energy = self.energy_predictor.infer(x, padding_mask, e_factor)
+            x, energy = self.energy_predictor.infer(x, input_padding_mask, e_factor)
         else:
             energy = None
 
@@ -219,10 +216,10 @@ class OptiSpeechGenerator(nn.Module):
         target_padding_mask = ~y_mask.squeeze(1).bool()
 
         y = self.feature_upsampler(
-            x,
-            durations,
-            y_mask.squeeze(1).bool(),
-            x_mask.squeeze(1).bool()
+            hs=x,
+            ds=durations,
+            h_masks=y_mask.squeeze(1).bool(),
+            d_masks=x_mask.squeeze(1).bool()
         )
 
         # Decoder

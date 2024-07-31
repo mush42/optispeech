@@ -16,18 +16,17 @@ class VariancePredictor(torch.nn.Module):
     def __init__(
         self,
         dim: int,
-        num_layers: int = 2,
-        intermediate_dim: int = 384,
-        kernel_size: int = 3,
-        dropout: float = 0.5,
+        num_layers: int,
+        intermediate_dim: int,
+        kernel_size: int,
+        dropout: float = 0.1,
         conv_layer_class: type=torch.nn.Conv1d,
-        bias: bool = True,
     ):
         """
         Args:
-            dim (int): Input dimension.
+            dim (int): Input/output dimension.
             num_layers (int): Number of convolutional layers.
-            intermediate_dim (int): Number of channels of convolutional layers.
+            intermediate_dim (int): Number of channels of inner convolutional layers.
             kernel_size (int): Kernel size of convolutional layers.
             dropout (float): Dropout rate.
             conv_layer_class: 1d convolution layer type
@@ -45,7 +44,6 @@ class VariancePredictor(torch.nn.Module):
                         intermediate_dim,
                         kernel_size,
                         padding=(kernel_size - 1) // 2,
-                        # bias=bias,
                     ),
                     torch.nn.ReLU(),
                     LayerNorm(intermediate_dim, dim=1),
@@ -135,17 +133,17 @@ class PitchPredictor(torch.nn.Module):
         """
         preds = self.predictor(x, padding_mask)
         # Teacher forceing during training
-        x = self.embed(target.unsqueeze(1))
-        x = x.transpose(1, 2)
-        x = x.masked_fill(padding_mask.unsqueeze(-1), 0.0)
+        emb = self.embed(target.unsqueeze(1))
+        x = x + emb.transpose(1, 2)
+        x = x * (1 - padding_mask.float())[..., None]
         return x, preds
 
     @torch.inference_mode()
     def infer(self, x, padding_mask, factor=1.0):
         preds = self.predictor(x, padding_mask)
-        x = self.embed(preds.unsqueeze(1))
-        x = x.transpose(1, 2)
-        x = x.masked_fill(padding_mask.unsqueeze(-1), 0.0)
+        emb = self.embed(preds.unsqueeze(1))
+        x = x + emb.transpose(1, 2)
+        x = x * (1 - padding_mask.float())[..., None]
         return x, preds
 
 

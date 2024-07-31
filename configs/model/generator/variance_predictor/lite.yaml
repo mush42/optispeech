@@ -2,6 +2,7 @@ defaults:
   - default
   - _self_
 
+num_layers: 5
 conv_layer_class:
   _target_: optispeech.model.generator.layers.ConvSeparable
   _partial_: true
