@@ -36,6 +36,7 @@ def main():
     parser.add_argument("--d-factor", type=float, default=1.0, help="Scale to control speech rate.")
     parser.add_argument("--p-factor", type=float, default=1.0, help="Scale to control pitch.")
     parser.add_argument("--e-factor", type=float, default=1.0, help="Scale to control energy.")
+    parser.add_argument("--no-split", action="store_true", help="Don't split input text into sentences.")
     parser.add_argument("--cuda", action="store_true", help="Use GPU for inference")
 
     args = parser.parse_args()
@@ -55,8 +56,10 @@ def main():
         language=lang,
         tokenizer=tokenizer,
         add_blank=add_blank,
-        split_sentences=True
+        split_sentences=not args.no_split
     )
+    if args.no_split:
+        phids = [phids]
     log.info(f"Normalized text: {norm_text}")
     x = []
     x_lengths = []
@@ -75,7 +78,7 @@ def main():
     t_infer = perf_counter() - t0
     t_audio = wav_lengths.sum() / sample_rate
     rtf = t_infer / t_audio
-    log.info(f"OptiSpeech RTF: {rtf}")
+    latency = t_infer * 1000
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -86,6 +89,9 @@ def main():
         wav = wav.squeeze()
         sf.write(out_wav, wav, sample_rate)
         log.info(f"Wrote wav to: `{out_wav}`")
+
+    log.info(f"OptiSpeech latency: {round(latency)} ms")
+    log.info(f"OptiSpeech RTF: {rtf}")
 
 
 if __name__ == "__main__":
