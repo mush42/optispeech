@@ -1,0 +1,5 @@
+_target_: optispeech.model.generator.lightspeech_transformer.LightSpeechTransformerEncoder
+_partial_: true
+kernel_sizes: [5, 25, 13, 9]
+activation: relu
+dropout: 0.2

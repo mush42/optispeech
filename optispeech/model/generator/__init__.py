@@ -95,7 +95,6 @@ class OptiSpeechGenerator(nn.Module):
             x_masks=input_padding_mask,
         )
         durations, bin_loss = viterbi_decode(log_p_attn, x_lengths, mel_lengths)
-        duration_hat = self.duration_predictor(x, input_padding_mask)
 
         # Average pitch and energy values based on durations
         pitches = average_by_duration(durations, pitches.unsqueeze(-1), x_lengths, mel_lengths)
@@ -107,6 +106,7 @@ class OptiSpeechGenerator(nn.Module):
             x, energy_hat = self.energy_predictor(x, input_padding_mask, energies)
         else:
             energy_hat = None
+        duration_hat = self.duration_predictor(x, input_padding_mask)
 
         # upsample to mel lengths
         y = self.feature_upsampler(

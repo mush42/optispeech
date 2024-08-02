@@ -26,8 +26,8 @@ def export_as_onnx(model, out_filename, opset):
     # Scales
     d_factor = 1.0
     p_factor = 1.0
-    # e_factor = 1.0
-    scales = torch.Tensor([d_factor, p_factor])
+    e_factor = 1.0
+    scales = torch.Tensor([d_factor, p_factor, e_factor])
 
     input_names = ["x", "x_lengths", "scales",]
     output_names = ["wav", "wav_lengths", "durations"]
@@ -46,23 +46,28 @@ def export_as_onnx(model, out_filename, opset):
 
     dummy_input = (x, x_lengths, scales)
 
+    model._jit_is_scripting = True
+    model_gen = model.generator
+    del model_gen.alignment_module
+
     def _infer_forward(x, x_lengths, scales):
         d_factor = scales[0]
         p_factor = scales[1]
-        # e_factor = scales[2]
-        outputs = model.synthesise(
+        e_factor = scales[2]
+        outputs = model_gen.synthesise(
             x,
             x_lengths,
             d_factor=d_factor,
             p_factor=p_factor,
-            # e_factor=e_factor
+            e_factor=e_factor
         )
         return outputs["wav"], outputs["wav_lengths"], outputs["durations"]
 
-    model.forward = _infer_forward
-    model.to_onnx(
-        out_filename,
-        dummy_input,
+    model_gen.forward = _infer_forward
+    torch.onnx.export(
+        model_gen,
+        f=out_filename,
+        args=dummy_input,
         input_names=input_names,
         output_names=output_names,
         dynamic_axes=dynamic_axes,

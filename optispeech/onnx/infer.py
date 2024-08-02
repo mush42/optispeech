@@ -46,7 +46,6 @@ def main():
     meta = model.get_modelmeta()
     infer_params = json.loads(meta.custom_metadata_map["inference"])
     sample_rate = infer_params["sample_rate"]
-    hop_length = infer_params["hop_length"]
     lang = infer_params["language"]
     add_blank = infer_params["add_blank"]
     tokenizer = infer_params["tokenizer"]
@@ -69,7 +68,7 @@ def main():
 
     x = numpy_pad_sequences(x).astype(np.int64)
     x_lengths = np.array(x_lengths, dtype=np.int64)
-    scales = np.array([args.d_factor, args.p_factor], dtype=np.float32)
+    scales = np.array([args.d_factor, args.p_factor, args.e_factor], dtype=np.float32)
 
     t0 = perf_counter()
     wavs, wav_lengths, durations = model.run(
