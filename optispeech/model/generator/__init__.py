@@ -9,8 +9,6 @@ from optispeech.utils.segments import get_random_segments
 
 from .alignments import AlignmentModule, GaussianUpsampling, viterbi_decode, average_by_duration
 from .loss import FastSpeech2Loss, ForwardSumLoss
-from .modules import TextEmbedding, TransformerEncoder, TransformerDecoder
-from .variance_predictor import DurationPredictor, PitchPredictor, EnergyPredictor
 
 
 class OptiSpeechGenerator(nn.Module):

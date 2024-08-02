@@ -1,4 +1,4 @@
-_target_: optispeech.model.generator.PitchPredictor
+_target_: optispeech.model.generator.modules.PitchPredictor
 _partial_: true
 num_layers: 2
 intermediate_dim: 384

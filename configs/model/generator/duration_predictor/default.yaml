@@ -1,4 +1,4 @@
-_target_: optispeech.model.generator.DurationPredictor
+_target_: optispeech.model.generator.modules.DurationPredictor
 _partial_: true
 num_layers: 2
 intermediate_dim: 384
