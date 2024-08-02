@@ -1,7 +1,7 @@
-_target_: optispeech.text.process_and_phonemize_text
-_partial_: true
-language: en-us
-tokenizer: default
+_target_: optispeech.dataset.text_processor.TextProcessor
+languages:
+  - code: en-us
+    tokenizer: default
+    normalize_text: true
 add_blank: false
 add_bos_eos: false
-normalize_text: true

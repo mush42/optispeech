@@ -7,10 +7,13 @@ _target_: optispeech.dataset.TextWavDataModule
 name: herald-en_gb
 train_filelist_path: data/herald-en_gb/train.txt
 valid_filelist_path: data/herald-en_gb/val.txt
+text_processor:
+  languages:
+    - code: en-gb-x-rp
+      tokenizer: default
+      normalize_text: true
 batch_size: 32
 num_workers: 4
-text_processor:
-  language: en-gb-x-rp
 data_statistics:  # Computed for this dataset
   pitch_min: 58.225437
   pitch_max: 453.219299

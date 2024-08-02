@@ -10,7 +10,10 @@ valid_filelist_path: /home/momer/datasets/processed/jenny_dioco/val.txt
 batch_size: 64 
 num_workers: 8
 text_processor:
-  language: en-gb-x-rp
+  languages:
+    - code: en-gb-x-rp
+      tokenizer: default
+      normalize_text: true
 feature_extractor:
   trim_silence: true
 data_statistics:  # Computed for this dataset with the params of the above feature extractor

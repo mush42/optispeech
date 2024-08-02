@@ -31,6 +31,7 @@ class TextWavDataModule(LightningDataModule):
     def __init__(  # pylint: disable=unused-argument
         self,
         name,
+        num_speakers,
         train_filelist_path,
         valid_filelist_path,
         batch_size,
@@ -47,6 +48,7 @@ class TextWavDataModule(LightningDataModule):
         # also ensures init params will be stored in ckpt
         self.save_hyperparameters(logger=False)
         self.feature_extractor = feature_extractor
+        self.num_speakers = num_speakers
         self.n_feats = feature_extractor.n_feats
 
     def setup(self, stage: Optional[str] = None):  # pylint: disable=unused-argument
@@ -58,12 +60,14 @@ class TextWavDataModule(LightningDataModule):
         # load and split datasets only if not loaded already
 
         self.trainset = TextWavDataset(  # pylint: disable=attribute-defined-outside-init
+            num_speakers=self.hparams.num_speakers,
             filelist_path=self.hparams.train_filelist_path,
             text_processor=self.hparams.text_processor,
             feature_extractor=self.feature_extractor,
             seed=self.hparams.seed,
         )
         self.validset = TextWavDataset(  # pylint: disable=attribute-defined-outside-init
+            num_speakers=self.hparams.num_speakers,
             filelist_path=self.hparams.valid_filelist_path,
             text_processor=self.hparams.text_processor,
             feature_extractor=self.feature_extractor,
@@ -106,15 +110,18 @@ class TextWavDataModule(LightningDataModule):
 class TextWavDataset(torch.utils.data.Dataset):
     def __init__(
         self,
+        num_speakers,
         filelist_path,
         text_processor,
         feature_extractor,
         seed=None,
     ):
+        self.num_speakers = num_speakers
         self.text_processor = text_processor
         self.feature_extractor = feature_extractor
         self.file_paths = parse_filelist(filelist_path)
         self.data_dir = Path(filelist_path).parent.joinpath("data")
+        self.is_multi_language = self.text_processor.is_multi_language
         random.seed(seed)
         random.shuffle(self.file_paths)
 
@@ -122,10 +129,13 @@ class TextWavDataset(torch.utils.data.Dataset):
         input_file = Path(filepath)
         json_filepath = input_file.with_suffix(".json")
         arrays_filepath = input_file.with_suffix(".npz")
+        sid = lid = None
         with open(json_filepath, "r", encoding="utf-8") as file:
             data = json.load(file)
             phoneme_ids = data["phoneme_ids"]
             text = data["text"]
+            sid = data.get("sid")
+            lid = data.get("lid")
             phoneme_ids = torch.LongTensor(phoneme_ids)
         data = np.load(arrays_filepath, allow_pickle=False)
         return dict(
@@ -134,12 +144,15 @@ class TextWavDataset(torch.utils.data.Dataset):
             mel=torch.from_numpy(data["mel"]),
             energy=torch.from_numpy(data["energy"]),
             pitch=torch.from_numpy(data["pitch"]),
+            sid=sid,
+            lid=lid,
             text=text,
             filepath=filepath,
         )
 
-    def preprocess_utterance(self, audio_filepath: str, text: str):
-        phoneme_ids, text = self.text_processor(text)
+    def preprocess_utterance(self, audio_filepath: str, text: str, lang: str):
+        lang = lang if not self.is_multi_language else DEFAULT_LANG
+        phoneme_ids, text = self.text_processor(text, lang=lang)
         wav, mel, energy, pitch = self.feature_extractor(audio_filepath)
         return dict(
             phoneme_ids=phoneme_ids,
@@ -181,6 +194,7 @@ class TextWavBatchCollate:
         energies = torch.zeros((B, mel_max_length), dtype=torch.float)
 
         x_lengths, wav_lengths, mel_lengths = [], [], []
+        sids, lids = [], []
         x_texts, filepaths = [], []
         for i, item in enumerate(batch):
             x_, wav_, mel_ = item["x"], item["wav"], item["mel"]
@@ -192,12 +206,23 @@ class TextWavBatchCollate:
             mel[i, :, :item["mel"].shape[-1]] = mel_
             energies[i, : item["energy"].shape[-1]] = item["energy"].float()
             pitches[i, : item["pitch"].shape[-1]] = item["pitch"].float()
+            if item.get("sid") is not None:
+                sids.append(item["sid"])
+            if item.get("lid") is not None:
+                lids.append(item["lid"])
             x_texts.append(item["text"])
             filepaths.append(item["filepath"])
 
         x_lengths = torch.tensor(x_lengths, dtype=torch.long)
         wav_lengths = torch.tensor(wav_lengths, dtype=torch.long)
         mel_lengths = torch.tensor(mel_lengths, dtype=torch.long)
+        sids = torch.LongTensor(sids) if sids else None
+        lids = torch.LongTensor(lids) if lids else None
+
+        if sids is not None:
+            assert sids.shape[0] == B, "Not all speaker IDs are provided"
+        if lids is not None:
+            assert lids.shape[0] == B, "Not all language IDs are provided"
 
         if self.do_normalize:
             wav = wav.clamp(-1, 1)
@@ -214,6 +239,8 @@ class TextWavBatchCollate:
             mel_lengths=mel_lengths,
             energies=energies,
             pitches=pitches,
+            sids=sids,
+            lids=lids,
             x_texts=x_texts,
             filepaths=filepaths,
         )

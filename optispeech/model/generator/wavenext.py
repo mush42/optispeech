@@ -3,7 +3,7 @@ from typing import Optional
 import torch
 from torch import nn
 
-from .convnext import ConvNeXtBackbone
+from .modules import ConvNeXtBackbone
 
 
 class WaveNeXtHead(nn.Module):

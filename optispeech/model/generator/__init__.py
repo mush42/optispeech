@@ -26,6 +26,8 @@ class OptiSpeechGenerator(nn.Module):
         use_energy_predictor,
         loss_coeffs,
         feature_extractor,
+        num_speakers,
+        num_languages,
         data_statistics,
     ):
         super().__init__()
@@ -37,6 +39,8 @@ class OptiSpeechGenerator(nn.Module):
         self.hop_length = feature_extractor.hop_length
         self.sample_rate = feature_extractor.sample_rate
         self.data_statistics = data_statistics
+        self.num_speakers = num_speakers
+        self.num_languages = num_languages
 
         self.text_embedding = text_embedding(dim=dim)
         self.encoder = encoder(dim=dim)
@@ -51,10 +55,14 @@ class OptiSpeechGenerator(nn.Module):
             n_fft=self.n_fft,
             hop_length=self.hop_length
         )
+        if self.num_speakers > 1:
+            self.sid_embed= torch.nn.Embedding(self.num_speakers, dim)
+        if self.num_languages > 1:
+            self.lid_embed = torch.nn.Embedding(self.num_languages, dim)
         self.loss_criterion = FastSpeech2Loss()
         self.forwardsum_loss = ForwardSumLoss()
 
-    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies):
+    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies, sids, lids):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
@@ -65,6 +73,10 @@ class OptiSpeechGenerator(nn.Module):
                 shape: (batch_size, max_text_length)
             energies (torch.Tensor): phoneme-level energy values.
                 shape: (batch_size, max_text_length)
+            sids (torch.LongTensor): list of speaker IDs for each input sentence.
+                shape: (batch_size,)
+            lids (torch.LongTensor): list of language IDs for each input sentence.
+                shape: (batch_size,)
 
         Returns:
             loss: (torch.Tensor): scaler representing total loss
@@ -86,6 +98,14 @@ class OptiSpeechGenerator(nn.Module):
 
         # Encoder
         x = self.encoder(x, input_padding_mask)
+
+        # Speaker and language embedding
+        if sids is not None:
+            sid_emb = self.sid_embed(sids.view(-1))
+            x = x + sid_emb.unsqueeze(1)
+        if lids is not None:
+            lid_embs = self.lid_embed(lids.view(-1))
+            x = x + lid_embs.unsqueeze(1)
 
         # alignment
         log_p_attn = self.alignment_module(
@@ -164,16 +184,28 @@ class OptiSpeechGenerator(nn.Module):
         }
 
     @torch.inference_mode()
-    def synthesise(self, x, x_lengths, d_factor=1.0, p_factor=1.0, e_factor=1.0):
+    def synthesise(self,
+        x,
+        x_lengths,
+        sids=None,
+        lids=None,
+        d_factor=1.0,
+        p_factor=1.0,
+        e_factor=1.0
+    ):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
                 shape: (batch_size, max_text_length)
             x_lengths (torch.Tensor): lengths of texts in batch.
                 shape: (batch_size,)
-            d_factor (float): scaler to control phoneme durations.
-            p_factor (float.Tensor): scaler to control pitch.
-            e_factor (float.Tensor): scaler to control energy.
+            sids (Optional[torch.LongTensor]): list of speaker IDs for each input sentence.
+                shape: (batch_size,)
+            lids (Optional[torch.LongTensor]): list of language IDs for each input sentence.
+                shape: (batch_size,)
+            d_factor (Optional[float]): scaler to control phoneme durations.
+            p_factor (Optional[float]): scaler to control pitch.
+            e_factor (Optional[float]): scaler to control energy.
 
         Returns:
             wav (torch.Tensor): generated waveform
@@ -198,6 +230,20 @@ class OptiSpeechGenerator(nn.Module):
 
         # Encoder
         x = self.encoder(x, input_padding_mask)
+
+        # Set default speaker/language during inference when not specified
+        if (self.num_speakers > 1) and sids is None:
+            sids = torch.zeros(x.shape[0]).long().to(x.device)
+        if (self.num_languages > 1) and lids is None:
+            lids = torch.zeros(x.shape[0]).long().to(x.device)
+
+        # Speaker and language embedding
+        if sids is not None:
+            sid_emb = self.sid_embed(sids.view(-1))
+            x = x + sid_emb.unsqueeze(1)
+        if lids is not None:
+            lid_embs = self.lid_embed(lids.view(-1))
+            x = x + lid_embs.unsqueeze(1)
 
         # duration predictor
         durations = self.duration_predictor.infer(x, input_padding_mask, factor=d_factor)

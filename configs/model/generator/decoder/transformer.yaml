@@ -1,4 +1,4 @@
-_target_: optispeech.model.generator.transformer.Transformer
+_target_: optispeech.model.generator.modules.Transformer
 _partial_: true
 attention_heads: 2
 linear_units: 1024

@@ -26,8 +26,12 @@ class OptiSpeech(BaseLightningModule):
         if (train_args.gradient_accumulate_batches is not None) and (train_args.gradient_accumulate_batches <= 0):
             raise ValueError("gradient_accumulate_batches should be a positive number")
 
+        if data_args.num_speakers < 1:
+            raise ValueError("num_speakers should be a positive integer >= 1")
+
         self.data_args = data_args
         self.train_args = train_args
+        self.text_processor = self.data_args.text_processor
 
         self.sample_rate = data_args.feature_extractor.sample_rate
         self.hop_length = data_args.feature_extractor.hop_length
@@ -39,35 +43,14 @@ class OptiSpeech(BaseLightningModule):
             dim=dim,
             feature_extractor=data_args.feature_extractor,
             data_statistics=data_args.data_statistics,
+            num_speakers=self.data_args.num_speakers,
+            num_languages=self.text_processor.num_languages
         )
         self.discriminator = discriminator(feature_extractor=data_args.feature_extractor)
         self.base_lambda_mel = self.lambda_mel = self.discriminator.lambda_mel
 
     @torch.inference_mode()
-    def synthesise(self, x, x_lengths, d_factor=1.0, p_factor=1.0, e_factor=1.0):
-        """
-        Args:
-            x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
-                shape: (batch_size, max_text_length)
-            x_lengths (torch.Tensor): lengths of texts in batch.
-                shape: (batch_size,)
-            d_factor (float): scaler to control phoneme durations.
-            p_factor (float.Tensor): scaler to control pitch.
-            e_factor (float.Tensor): scaler to control energy.
-
-        Returns:
-            wav (torch.Tensor): generated waveform
-                shape: (batch_size, T)
-            durations: (torch.Tensor): predicted phoneme durations
-                shape: (batch_size, max_text_length)
-            pitch: (torch.Tensor): predicted pitch
-                shape: (batch_size, max_text_length)
-            energy: (torch.Tensor): predicted energy
-                shape: (batch_size, max_text_length)
-            rtf: (float): total Realtime Factor (inference_t/audio_t)
-            am_rtf: (float): acoustic generator Realtime Factor
-            voc_rtf: (float): wave generator Realtime Factor
-        """
+    def synthesise(self, x, x_lengths, sids=None, lids=None, d_factor=1.0, p_factor=1.0, e_factor=1.0):
         x = x.to(self.device)
         x_lengths = x_lengths.long().to("cpu")
         return self.generator.synthesise(x=x, x_lengths=x_lengths, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor)
@@ -87,7 +70,7 @@ class OptiSpeech(BaseLightningModule):
                 shape: [B]
             clean_text (str): cleaned an normalized text
         """
-        phoneme_ids, clean_text = self.data_args.text_processor(
+        phoneme_ids, clean_text = self.text_processor(
             text,
             split_sentences=split_sentences
         )

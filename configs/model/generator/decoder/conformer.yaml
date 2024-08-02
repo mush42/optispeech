@@ -1,4 +1,4 @@
-_target_: optispeech.model.generator.conformer.Conformer
+_target_: optispeech.model.generator.modules.Conformer
 _partial_: true
 attention_dim: 256
 attention_heads: 2

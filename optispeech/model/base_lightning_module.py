@@ -23,6 +23,8 @@ log = get_pylogger(__name__)
 class BaseLightningModule(LightningModule, ABC):
 
     def _process_batch(self, batch):
+        sids = batch["sids"]
+        lids = batch["lids"]
         gen_outputs = self.generator(
             x=batch["x"].to(self.device),
             x_lengths=batch["x_lengths"].to("cpu"),
@@ -30,6 +32,8 @@ class BaseLightningModule(LightningModule, ABC):
             mel_lengths=batch["mel_lengths"].to("cpu").to(self.device),
             pitches=batch["pitches"].to(self.device),
             energies=batch["energies"].to(self.device),
+            sids=sids.to(self.device) if sids is not None else None,
+            lids=lids.to(self.device) if lids is not None else None,
         )
         segment_size = gen_outputs["segment_size"]
         seg_gt_wav = get_segments(

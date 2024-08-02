@@ -15,6 +15,7 @@ train_args:
   pretraining_steps: 1000
 data_args:
   name: ${data.name}
+  num_speakers: ${data.num_speakers}
   text_processor: ${data.text_processor}
   feature_extractor: ${data.feature_extractor}
   batch_size: ${data.batch_size}

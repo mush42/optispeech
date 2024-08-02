@@ -2,6 +2,7 @@ import argparse
 import csv
 import json
 import os
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -17,7 +18,7 @@ from optispeech.utils import get_script_logger
 log = get_script_logger(__name__)
 
 
-def write_data(data_dir, file_stem, data):
+def write_data(data_dir, file_stem, data, sid, lid):
     output_file = data_dir.joinpath(file_stem)
     out_arrays = output_file.with_suffix(".npz")
     out_json = output_file.with_suffix(".json")
@@ -26,6 +27,10 @@ def write_data(data_dir, file_stem, data):
             "phoneme_ids": data["phoneme_ids"],
             "text": data["text"],
         }
+        if sid is not None:
+            ph_text_data["sid"] = sid
+        if lid is not None:
+            ph_text_data["lid"] = lid
         json.dump(ph_text_data, file, ensure_ascii=False)
     np.savez(
         out_arrays,
@@ -36,6 +41,30 @@ def write_data(data_dir, file_stem, data):
         pitch=data["pitch"],
     )
 
+
+def get_sids_and_lids(dataset, all_utterances):
+    assert dataset.num_speakers >= 1, "Illogical number of speakers in the dataset"
+    sids = lids = None
+    if dataset.num_speakers > 1:
+        sids = [
+            sid.strip().lower()
+            for sid in [ut[1] for ut in all_utterances]
+        ]
+        assert all(sids), "Invalid input. Some utterances lack speaker identifier."
+        sids = sort_by_most_common(sids)
+    if dataset.text_encoder.is_multi_language:
+        lids = [
+            lid.strip().lower()
+            for lid in [ut[2] for ut in all_utterances]
+        ]
+        assert all(lids), "Invalid input. Some utterances lack language identifier."
+        lids = sort_by_most_common(lids)
+    return sids, lids
+
+
+def sort_by_most_common(iterable)    :
+    counter = Counter(iterable)
+    return [j for j, k in counter.most_common()]
 
 def main():
     root_path = rootutils.find_root(search_from=__file__, indicator=".project-root")
@@ -81,6 +110,16 @@ def main():
 
     train_root = Path(args.input_dir).joinpath("train")
     val_root = Path(args.input_dir).joinpath("val")
+    # get all utterances to calculate number of speakers/languages
+    all_utterances = []
+    with open(train_root.joinpath("metadata.csv"), "r", encoding="utf-8") as cfile:
+        reader = csv.reader(cfile, delimiter="|")
+        all_utterances.extend(reader)
+    with open(val_root.joinpath("metadata.csv"), "r", encoding="utf-8") as cfile:
+        reader = csv.reader(cfile, delimiter="|")
+        all_utterances.extend(reader)
+    sids, lids = get_sids_and_lids(dataset, all_utterances)
+    # Start
     outputs = (
         ("train.txt", train_root),
         ("val.txt", val_root),
@@ -103,15 +142,17 @@ def main():
         log.info(f"Found {len(inrows)} utterances in file.")
         wav_path = root.joinpath("wav")
         out_filelist = []
-        for (filestem, text) in tqdm(inrows, total=len(inrows), desc="processing", unit="utterance"):
+        for (filestem, speaker, lang, text) in tqdm(inrows, total=len(inrows), desc="processing", unit="utterance"):
             audio_path = wav_path.joinpath(filestem + ".wav")
             audio_path = audio_path.resolve()
+            sid = sids.index(speaker.strip().lower()) if sid else None
+            lid = lids.index(lang.strip().lower()) if lang else None
             try:
-                data = dataset.preprocess_utterance(audio_path, text)
+                data = dataset.preprocess_utterance(audio_path, text, lang)
             except:
                 log.exception(f"Failed to process file: {audio_path.name}", exc_info=True)
                 continue
-            write_data(data_dir, audio_path.stem, data)
+            write_data(data_dir, audio_path.stem, data, sid, lid)
             out_filelist.append(data_dir.joinpath(filestem))
         out_txt = output_dir.joinpath(out_filename)
         with open(out_txt, "w", encoding="utf-8", newline="\n") as file:

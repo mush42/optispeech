@@ -3,9 +3,8 @@ import math
 import torch
 from torch import nn
 
-from .lightspeech_transformer import DEFAULT_MAX_SOURCE_POSITIONS, LayerNorm, ScaledSinusoidalEmbedding
-
-
+from .layers import LayerNorm, ScaledSinusoidalEmbedding
+from .lightspeech_transformer import DEFAULT_MAX_SOURCE_POSITIONS
 
 
 class TextEmbedding(nn.Module):

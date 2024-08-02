@@ -22,6 +22,7 @@ with initialize(version_base=None, config_path="./configs"):
     cfg = compose(config_name="model/optispeech.yaml")
     cfg.model.data_args = dict(
         name=dataset_cfg.data.name,
+        num_speakers=dataset_cfg.data.num_speakers,
         text_processor=dataset_cfg.data.text_processor,
         feature_extractor=dataset_cfg.data.feature_extractor,
         batch_size=dataset_cfg.data.batch_size,
@@ -37,7 +38,7 @@ dataset = hydra.utils.instantiate(dataset_cfg.data)
 dataset.setup()
 # Feature extraction
 audio_path = "data/audio.wav"
-feats = dataset.trainset.preprocess_utterance(audio_path, "Audio file.")
+feats = dataset.trainset.preprocess_utterance(audio_path, "Audio file.", "en-gb-x-rp")
 td = dataset.train_dataloader()
 vd = dataset.val_dataloader()
 batch = next(iter(vd))
