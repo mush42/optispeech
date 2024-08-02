@@ -1,0 +1,11 @@
+_target_: optispeech.model.generator.modules.PitchPredictor
+_partial_: true
+num_layers: 5
+intermediate_dim: 256
+kernel_size: 5
+dropout: 0.5
+embed_kernel_size: 9
+embed_dropout: 0.2
+conv_layer_class:
+  _target_: torch.nn.Conv1d
+  _partial_: true

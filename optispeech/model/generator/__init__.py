@@ -19,7 +19,8 @@ class OptiSpeechGenerator(nn.Module):
         text_embedding,
         encoder,
         duration_predictor,
-        variance_predictor,
+        pitch_predictor,
+        energy_predictor,
         decoder,
         wav_generator,
         use_energy_predictor,
@@ -41,8 +42,8 @@ class OptiSpeechGenerator(nn.Module):
         self.encoder = encoder(dim=dim)
         self.duration_predictor = duration_predictor(dim=dim)
         self.alignment_module = AlignmentModule(adim=dim, odim=self.n_feats)
-        self.pitch_predictor = variance_predictor(dim=dim)
-        self.energy_predictor = variance_predictor(dim=dim) if use_energy_predictor else None
+        self.pitch_predictor = pitch_predictor(dim=dim)
+        self.energy_predictor = energy_predictor(dim=dim) if use_energy_predictor else None
         self.feature_upsampler = GaussianUpsampling()
         self.decoder = decoder(dim=dim)
         self.wav_generator = wav_generator(

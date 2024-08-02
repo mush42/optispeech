@@ -3,7 +3,8 @@ defaults:
   - text_embedding: default
   - encoder: transformer
   - duration_predictor: default
-  - variance_predictor: default
+  - pitch_predictor: default
+  - energy_predictor: default
   - decoder: transformer
   - wav_generator: wavenext
 
