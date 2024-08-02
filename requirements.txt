@@ -4,6 +4,12 @@ torchvision>=0.15.0
 lightning>=2.0.0
 torchmetrics>=0.11.4
 
+# --------- TTS specific --------- #
+espnet==202402
+piper-phonemize      # phonemization of text
+pyworld
+pesq
+
 # --------- hydra --------- #
 hydra-core==1.3.2
 hydra-colorlog==1.2.0
@@ -22,8 +28,6 @@ pre-commit      # hooks for applying linters on commit
 rich            # beautiful text formatting in terminal
 pytest          # tests
 # sh            # for running bash commands in some tests (linux/macos only)
-phonemizer      # phonemization of text
-piper_phonemize      # phonemization of text
 tensorboard
 librosa
 Cython
@@ -47,7 +51,4 @@ tqdm
 more_itertools
 onnx
 onnxruntime
-
-pyworld
 requests
-pesq
