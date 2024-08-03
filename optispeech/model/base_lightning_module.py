@@ -206,12 +206,11 @@ class BaseLightningModule(LightningModule, ABC):
         if  gen_outputs.get("energy_loss") != 0.0:
             log_outputs["gen_subloss/val_energy_loss"] = gen_outputs["energy_loss"].item()
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
-        # mel loss
-        mel_loss = self.discriminator.forward_mel(wav, wav_hat)
-        log_outputs["gen_subloss/val_mel_loss"] = mel_loss.item()
-        # multi-res-stft loss
-        mr_stft_loss = self.discriminator.forward_mr_stft(wav, wav_hat)
-        log_outputs["gen_subloss/val_mr_stft_loss"] = mr_stft_loss.item()
+        adv_loss, log_dict = self.discriminator.get_val_loss(wav, wav_hat)
+        log_outputs.update({
+            f"gen_subloss/val_{key}": value
+            for key, value in log_dict.items()
+        })
         # perceptual eval
         audio_16_khz = torchaudio.functional.resample(wav, orig_freq=self.sample_rate, new_freq=16000)
         audio_hat_16khz = torchaudio.functional.resample(wav_hat, orig_freq=self.sample_rate, new_freq=16000)
@@ -236,7 +235,7 @@ class BaseLightningModule(LightningModule, ABC):
             pesq_score = torch.tensor(pesq_score)
         else:
             pesq_score = torch.zeros(1, device=self.device)
-        total_loss = mel_loss + mr_stft_loss + (5 - utmos_score) + (5 - pesq_score)
+        total_loss = adv_loss + (5 - utmos_score) + (5 - pesq_score)
         log_outputs["total_loss/val_total"] = total_loss
         self.log_dict(
             log_outputs,

@@ -91,6 +91,16 @@ class VocosDiscriminator(nn.Module):
         )
         return loss, log_dict
 
+    def get_val_loss(self, wav, wav_hat):
+        mel_loss = self.forward_mel(wav, wav_hat)
+        mr_stft_loss = self.forward_mr_stft(wav, wav_hat)
+        loss = mel_loss + mr_stft_loss
+        log_dict = dict(
+            mel_loss=mel_loss.item(),
+            mr_stft_loss=mr_stft_loss.item()
+        )
+        return loss, log_dict
+
     def forward_mel(self, wav, wav_hat):
         mel_loss = self.melspec_loss(wav_hat, wav)
         return mel_loss * self.lambda_mel
