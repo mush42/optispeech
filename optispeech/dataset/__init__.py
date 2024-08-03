@@ -1,2 +1,2 @@
 from .text_wav_datamodule import TextWavDataset, TextWavDataModule
-from .feature_extractors import CommonFeatureExtractor, VocosFeatureExtractor
+from .feature_extractors import CommonFeatureExtractor

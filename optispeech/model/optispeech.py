@@ -47,7 +47,6 @@ class OptiSpeech(BaseLightningModule):
             num_languages=self.text_processor.num_languages
         )
         self.discriminator = discriminator(feature_extractor=data_args.feature_extractor)
-        self.base_lambda_mel = self.lambda_mel = self.discriminator.lambda_mel
 
     @torch.inference_mode()
     def synthesise(self, x, x_lengths, sids=None, lids=None, d_factor=1.0, p_factor=1.0, e_factor=1.0):

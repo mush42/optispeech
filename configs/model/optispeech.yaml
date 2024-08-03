@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - generator: default
-  - discriminator: default
+  - discriminator: vocos_disc
   - optimizer: adamw
   - scheduler: cosine_with_warmup
 
@@ -9,10 +9,12 @@ _target_: optispeech.model.OptiSpeech
 dim: 256
 train_args:
   cache_generator_outputs: true
-  decay_mel_coeff: false
   gradient_clip_val: 1.0
   gradient_accumulate_batches: null
   pretraining_steps: 1000
+  evaluate_periodicity: true
+  evaluate_utmos: true
+  evaluate_pesq: true
 data_args:
   name: ${data.name}
   num_speakers: ${data.num_speakers}

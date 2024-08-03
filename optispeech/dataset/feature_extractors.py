@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional
 import librosa
 import numpy as np
 import torch
-import torchaudio
 import pyworld as pw
 from torch import nn
 from librosa.filters import mel as librosa_mel_fn
@@ -192,23 +191,3 @@ class CommonFeatureExtractor(FeatureExtractor):
         return spec.squeeze().cpu().numpy()
 
 
-class VocosFeatureExtractor(FeatureExtractor):
-    """Compatible with vocos vocoder."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.mel_spec = torchaudio.transforms.MelSpectrogram(
-            sample_rate=self.sample_rate,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            n_mels=self.n_feats,
-            center=self.center,
-            power=1,
-            window_fn=torch.hann_window,
-        )
-
-    def get_mel(self, wav):
-        wav = torch.from_numpy(wav).unsqueeze(0)
-        mel = self.mel_spec(wav)
-        mel_freq_log_amp_spec = safe_log(mel)
-        return mel_freq_log_amp_spec.squeeze().cpu().numpy()

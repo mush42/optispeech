@@ -121,7 +121,6 @@ class TextWavDataset(torch.utils.data.Dataset):
         self.feature_extractor = feature_extractor
         self.file_paths = parse_filelist(filelist_path)
         self.data_dir = Path(filelist_path).parent.joinpath("data")
-        self.is_multi_language = self.text_processor.is_multi_language
         random.seed(seed)
         random.shuffle(self.file_paths)
 
@@ -150,9 +149,9 @@ class TextWavDataset(torch.utils.data.Dataset):
         )
 
     def preprocess_utterance(self, audio_filepath: str, text: str, lang: str):
-        if self.is_multi_language:
+        if self.text_processor.is_multi_language:
             assert  lang is not None, "Language not provided for multi-language model"
-        lang = lang if not self.is_multi_language else None
+        lang = lang if not self.text_processor.is_multi_language else None
         phoneme_ids, text = self.text_processor(text, lang=lang)
         wav, mel, energy, pitch = self.feature_extractor(audio_filepath)
         return dict(

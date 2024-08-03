@@ -82,13 +82,16 @@ def calculate_data_statistics(dataset: torch.utils.data.Dataset, output_dir: Pat
                 "mel_std": round(mel_std.item(), 6),
     }
 
-    print(stats)
+    print("\n".join([
+        f"  {k}: {v}" for k, v in stats.items()
+    ]))
+
     if save_stats:
         with open(output_dir / "stats.json", "w") as f:
             json.dump(stats,f, indent=4) 
-        print("[+] Done! features saved to: ", output_dir)
+        log.info("[+] Done! features saved to: ", output_dir)
     else:
-        print("Stats not saved!")
+        log.info("Stats not saved!")
     
 
 
@@ -100,7 +103,6 @@ def main():
         type=str,
         help="The name of the yaml config file under configs/data",
     )
-
     parser.add_argument(
         "-b",
         "--batch-size",
@@ -108,7 +110,13 @@ def main():
         default="32",
         help="Can have increased batch size for faster computation",
     )
-
+    parser.add_argument(
+        "-w",
+        "--num-workers",
+        type=int,
+        default=os.cpu_count(),
+        help="Can have more workers for faster computation",
+    )
     parser.add_argument(
         "-f",
         "--force",
@@ -117,7 +125,6 @@ def main():
         required=False,
         help="force overwrite the file",
     )
-
     parser.add_argument(
         "-o",
         "--output-dir",
@@ -139,8 +146,7 @@ def main():
         cfg["batch_size"] = args.batch_size
         cfg["train_filelist_path"] = str(os.path.join(root_path, cfg["train_filelist_path"]))
         cfg["valid_filelist_path"] = str(os.path.join(root_path, cfg["valid_filelist_path"]))
-        # Remove this after testing let the multiprocessing do its job 
-        # cfg['num_workers'] = 0
+        cfg['num_workers'] = args.num_workers
 
     if args.output_dir is not None:
         output_dir = Path(args.output_dir)
@@ -149,14 +155,14 @@ def main():
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Preprocessing: {cfg['name']} from training filelist: {cfg['train_filelist_path']}")
+    log.info(f"Preprocessing: {cfg['name']} from training filelist: {cfg['train_filelist_path']}")
     text_wav_datamodule = TextWavDataModule(**cfg)
     text_wav_datamodule.setup()
-    print("Computing stats for training set if exists...")
+    log.info("Computing stats for training set if exists...")
     train_dataloader = text_wav_datamodule.train_dataloader(do_normalize=False)
     calculate_data_statistics(train_dataloader, output_dir, cfg, save_stats=True)
 
-    print(f"[+] Done! features saved to: {output_dir}")
+    log.info(f"[+] Done! features saved to: {output_dir}")
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ print(f"Length of phoneme ids: {len(phids)}")
 
 # Config pipeline
 with initialize(version_base=None, config_path="./configs"):
-    dataset_cfg = compose(config_name="data/herald-en_gb.yaml")
+    dataset_cfg = compose(config_name="data/ryan.yaml")
     cfg = compose(config_name="model/optispeech.yaml")
     cfg.model.data_args = dict(
         name=dataset_cfg.data.name,
@@ -38,7 +38,7 @@ dataset = hydra.utils.instantiate(dataset_cfg.data)
 dataset.setup()
 # Feature extraction
 audio_path = "data/audio.wav"
-feats = dataset.trainset.preprocess_utterance(audio_path, "Audio file.", "en-gb-x-rp")
+feats = dataset.trainset.preprocess_utterance(audio_path, "Audio file.", "en-us")
 td = dataset.train_dataloader()
 vd = dataset.val_dataloader()
 batch = next(iter(vd))

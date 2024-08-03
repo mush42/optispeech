@@ -54,7 +54,7 @@ def get_sids_and_lids(dataset, all_utterances):
         ]
         assert all(sids), "Invalid input. Some utterances lack speaker identifier."
         sids = sort_by_most_common(sids)
-    if dataset.text_encoder.is_multi_language:
+    if dataset.text_processor.is_multi_language:
         row_len = len(all_utterances[0])
         assert row_len > 3, f"Language column not included. Invalid number of data items in dataset rows: {row_len}"
         lids = [
@@ -104,6 +104,7 @@ def main():
     text_processor = hydra.utils.instantiate(cfg.text_processor)
     feature_extractor = hydra.utils.instantiate(cfg.feature_extractor)
     dataset = TextWavDataset(
+        num_speakers=cfg.num_speakers,
         filelist_path=os.devnull,
         text_processor=text_processor,
         feature_extractor=    feature_extractor,
@@ -185,10 +186,10 @@ def main():
         with open(sids_json, "w", encoding="utf-8") as jfile:
             json.dump(sids, jfile, ensure_ascii=False, indent=2)
         log.info(f"Wrote speaker IDs to file: {sids_json}")
-    if llids is not None:
+    if lids is not None:
         lids_json = output_dir.joinpath("language_ids.json")
         with open(lids_json, "w", encoding="utf-8") as jfile:
-            json.dump(llids, jfile, ensure_ascii=False, indent=2)
+            json.dump(lids, jfile, ensure_ascii=False, indent=2)
         log.info(f"Wrote language IDs to file: {lids_json}")
     log.info("Process done!")
 

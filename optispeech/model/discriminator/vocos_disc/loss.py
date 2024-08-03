@@ -99,9 +99,10 @@ class MelSpecReconstructionLoss(nn.Module):
         n_mels,
         f_min,
         f_max,
-        center
+        clip_val=1e-7
     ):
         super().__init__()
+        self.clip_val = clip_val
         self.mel_spec = torchaudio.transforms.MelSpectrogram(
             sample_rate=sample_rate,
             n_fft=n_fft,
@@ -110,9 +111,11 @@ class MelSpecReconstructionLoss(nn.Module):
             n_mels=n_mels,
             f_min=f_min,
             f_max=f_max,
-            center=center,
+            center=True,
             power=1,
             window_fn=torch.hann_window,
+            norm=None,
+            mel_scale="htk",
         )
 
     def forward(self, y_hat: Tensor, y: Tensor) -> Tensor:
@@ -123,8 +126,10 @@ class MelSpecReconstructionLoss(nn.Module):
         Returns:
                   - The mel loss
         """
-        # :: (B, T) -> (B, Freq, Frame) -> (1,)
-        return F.l1_loss(safe_log(self.mel_spec(y_hat)), safe_log(self.mel_spec(y)))
+        mel_hat = safe_log(self.mel_spec(y_hat), clip_val=self.clip_val)
+        mel = safe_log(self.mel_spec(y), clip_val=self.clip_val)
+        loss = torch.nn.functional.l1_loss(mel, mel_hat)
+        return loss
 
 
 def stft(x, fft_size, hop_size, win_length, window):
@@ -157,7 +162,7 @@ class MultiResolutionSTFTLoss(torch.nn.Module):
     def __init__(
         self,
         fft_sizes=[1024, 2048, 512],
-        hop_sizes=[120, 240, 60],
+        hop_sizes=[120, 240, 50],
         win_lengths=[600, 1200, 240],
         window="hann_window",
     ):
@@ -201,7 +206,6 @@ class MultiResolutionSTFTLoss(torch.nn.Module):
         mag_loss /= len(self.stft_losses)
 
         return sc_loss, mag_loss
-
 
 
 class STFTLoss(torch.nn.Module):
