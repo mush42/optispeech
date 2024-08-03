@@ -46,6 +46,8 @@ def get_sids_and_lids(dataset, all_utterances):
     assert dataset.num_speakers >= 1, "Illogical number of speakers in the dataset"
     sids = lids = None
     if dataset.num_speakers > 1:
+        row_len = len(all_utterances[0])
+        assert row_len > 2, f"Speaker ID column not included. Invalid number of data items in dataset rows: {row_len}"
         sids = [
             sid.strip().lower()
             for sid in [ut[1] for ut in all_utterances]
@@ -53,6 +55,8 @@ def get_sids_and_lids(dataset, all_utterances):
         assert all(sids), "Invalid input. Some utterances lack speaker identifier."
         sids = sort_by_most_common(sids)
     if dataset.text_encoder.is_multi_language:
+        row_len = len(all_utterances[0])
+        assert row_len > 3, f"Language column not included. Invalid number of data items in dataset rows: {row_len}"
         lids = [
             lid.strip().lower()
             for lid in [ut[2] for ut in all_utterances]
@@ -65,6 +69,7 @@ def get_sids_and_lids(dataset, all_utterances):
 def sort_by_most_common(iterable)    :
     counter = Counter(iterable)
     return [j for j, k in counter.most_common()]
+
 
 def main():
     root_path = rootutils.find_root(search_from=__file__, indicator=".project-root")
@@ -134,7 +139,7 @@ def main():
     for (out_filename, root) in outputs:
         if not root.is_dir():
             log.warning(f"Datasplit `{root.name}` not found. Skipping...")
-            continue
+            exit(1)
         log.info(f"Extracting datasplit `{root.name}`")
         with open(root.joinpath("metadata.csv"), "r", encoding="utf-8") as file:
             reader = csv.reader(file, delimiter="|")
@@ -142,10 +147,21 @@ def main():
         log.info(f"Found {len(inrows)} utterances in file.")
         wav_path = root.joinpath("wav")
         out_filelist = []
-        for (filestem, speaker, lang, text) in tqdm(inrows, total=len(inrows), desc="processing", unit="utterance"):
+        for row in tqdm(inrows, total=len(inrows), desc="processing", unit="utterance"):
+            if len(row) == 2:
+                filestem, text = row
+                speaker = lang = None
+            elif len(row) == 3:
+                filestem, speaker, text = row
+                lang = None
+            elif len(row) == 4:
+                filestem, speaker, lang, text = row
+            else:
+                log.error(f"Invalid number of data items in dataset row: {len(row)}")
+                exit(1)
             audio_path = wav_path.joinpath(filestem + ".wav")
             audio_path = audio_path.resolve()
-            sid = sids.index(speaker.strip().lower()) if sid else None
+            sid = sids.index(speaker.strip().lower()) if speaker else None
             lid = lids.index(lang.strip().lower()) if lang else None
             try:
                 data = dataset.preprocess_utterance(audio_path, text, lang)
@@ -163,6 +179,17 @@ def main():
             file.write("\n".join(filelist))
         log.info(f"Wrote file: {out_txt}")
 
+    # write speaker-ids and language-ids
+    if sids is not None:
+        sids_json = output_dir.joinpath("speaker_ids.json")
+        with open(sids_json, "w", encoding="utf-8") as jfile:
+            json.dump(sids, jfile, ensure_ascii=False, indent=2)
+        log.info(f"Wrote speaker IDs to file: {sids_json}")
+    if llids is not None:
+        lids_json = output_dir.joinpath("language_ids.json")
+        with open(lids_json, "w", encoding="utf-8") as jfile:
+            json.dump(llids, jfile, ensure_ascii=False, indent=2)
+        log.info(f"Wrote language IDs to file: {lids_json}")
     log.info("Process done!")
 
 

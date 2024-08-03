@@ -105,6 +105,12 @@ Given a dataset that is organized as follows:
         └── ...
 ```
 
+The `metadata.csv` file can contain 2, 3 or 4 columns delimited by **|** (bar character) in one of the following formats:
+
+- 2 columns: file_id|text
+- 3 columns: file_id|speaker_id|text
+- 4 columns: file_id|speaker_id|language_id|text
+
 Use the `preprocess_dataset` script to prepare the dataset for training:
 
 ```bash

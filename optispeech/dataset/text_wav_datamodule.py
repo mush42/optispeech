@@ -129,7 +129,6 @@ class TextWavDataset(torch.utils.data.Dataset):
         input_file = Path(filepath)
         json_filepath = input_file.with_suffix(".json")
         arrays_filepath = input_file.with_suffix(".npz")
-        sid = lid = None
         with open(json_filepath, "r", encoding="utf-8") as file:
             data = json.load(file)
             phoneme_ids = data["phoneme_ids"]
@@ -151,7 +150,9 @@ class TextWavDataset(torch.utils.data.Dataset):
         )
 
     def preprocess_utterance(self, audio_filepath: str, text: str, lang: str):
-        lang = lang if not self.is_multi_language else DEFAULT_LANG
+        if self.is_multi_language:
+            assert  lang is not None, "Language not provided for multi-language model"
+        lang = lang if not self.is_multi_language else None
         phoneme_ids, text = self.text_processor(text, lang=lang)
         wav, mel, energy, pitch = self.feature_extractor(audio_filepath)
         return dict(
@@ -206,9 +207,9 @@ class TextWavBatchCollate:
             mel[i, :, :item["mel"].shape[-1]] = mel_
             energies[i, : item["energy"].shape[-1]] = item["energy"].float()
             pitches[i, : item["pitch"].shape[-1]] = item["pitch"].float()
-            if item.get("sid") is not None:
+            if item["sid"] is not None:
                 sids.append(item["sid"])
-            if item.get("lid") is not None:
+            if item["lid"] is not None:
                 lids.append(item["lid"])
             x_texts.append(item["text"])
             filepaths.append(item["filepath"])

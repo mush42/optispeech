@@ -53,14 +53,15 @@ class OptiSpeech(BaseLightningModule):
     def synthesise(self, x, x_lengths, sids=None, lids=None, d_factor=1.0, p_factor=1.0, e_factor=1.0):
         x = x.to(self.device)
         x_lengths = x_lengths.long().to("cpu")
-        return self.generator.synthesise(x=x, x_lengths=x_lengths, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor)
+        return self.generator.synthesise(x=x, x_lengths=x_lengths, sids=sids, lids=lids, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor)
 
-    def prepare_input(self, text: str, split_sentences: bool=False) -> List[int]:
+    def prepare_input(self, text: str, language: str=None, split_sentences: bool=False) -> List[int]:
         """
         Convenient helper.
         
         Args:
             text (str): input text
+            language (str): language of input text
             split_sentences (bool): split text into sentences (each sentence is an element in the batch)
 
         Returns:
@@ -72,6 +73,7 @@ class OptiSpeech(BaseLightningModule):
         """
         phoneme_ids, clean_text = self.text_processor(
             text,
+            lang=language,
             split_sentences=split_sentences
         )
         if split_sentences:

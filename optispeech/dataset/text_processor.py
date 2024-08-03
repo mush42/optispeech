@@ -2,9 +2,6 @@ from functools import partial
 from optispeech.text import process_and_phonemize_text
 
 
-DEFAULT_LANG = 'default'
-
-
 class TextProcessor:
     def __init__(self, languages, add_blank, add_bos_eos):
         self.num_languages = len(languages)
@@ -24,7 +21,7 @@ class TextProcessor:
 
     def __call__(self, text, lang, **kwargs):
         # handle special value
-        if lang == DEFAULT_LANG:
+        if lang is None:
             lang = self.default_language 
         try:
             func = self.funcs[lang.strip().lower()]
