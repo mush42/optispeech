@@ -91,7 +91,7 @@ def calculate_periodicity_metrics(y: torch.Tensor, y_hat: torch.Tensor):
     # Update pitch rmse
     voiced = true_voiced & pred_voiced
     difference_cents = 1200 * (np.log2(true_pitch[voiced]) - np.log2(pred_pitch[voiced]))
-    pitch_loss = np.sqrt((difference_cents ** 2).mean())
+    pitch_loss = np.sqrt((difference_cents**2).mean())
 
     # voiced/unvoiced precision and recall
     true_positives = (true_voiced & pred_voiced).sum()

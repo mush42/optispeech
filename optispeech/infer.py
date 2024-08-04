@@ -4,13 +4,12 @@ from pathlib import Path
 from time import perf_counter
 
 import numpy as np
-import torch
 import soundfile as sf
+import torch
 from torch.nn.utils.rnn import pad_sequence, unpad_sequence
 
 from optispeech.model import OptiSpeech
 from optispeech.utils import pylogger
-
 
 log = pylogger.get_pylogger(__name__)
 
@@ -59,7 +58,7 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for (i, wav) in enumerate(unpad_sequence(wavs, wav_lengths, batch_first=True)):
+    for i, wav in enumerate(unpad_sequence(wavs, wav_lengths, batch_first=True)):
         outfile = output_dir.joinpath(f"gen-{i + 1}")
         out_wav = outfile.with_suffix(".wav")
         wav = wav.squeeze().float().detach().cpu().numpy()

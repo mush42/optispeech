@@ -1,4 +1,5 @@
 from functools import partial
+
 from optispeech.text import process_and_phonemize_text
 
 
@@ -11,7 +12,7 @@ class TextProcessor:
             lang.code.strip().lower(): partial(
                 process_and_phonemize_text,
                 language=lang.code,
-                tokenizer=lang.get("tokenizer", 'default'),
+                tokenizer=lang.get("tokenizer", "default"),
                 normalize_text=lang.get("normalize_text", True),
                 add_blank=add_blank,
                 add_bos_eos=add_bos_eos,
@@ -22,7 +23,7 @@ class TextProcessor:
     def __call__(self, text, lang, **kwargs):
         # handle special value
         if lang is None:
-            lang = self.default_language 
+            lang = self.default_language
         try:
             func = self.funcs[lang.strip().lower()]
         except KeyError:

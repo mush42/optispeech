@@ -4,8 +4,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .layers import LayerNorm, EncSepConvLayer, ScaledSinusoidalEmbedding
-
+from .layers import EncSepConvLayer, LayerNorm, ScaledSinusoidalEmbedding
 
 DEFAULT_MAX_SOURCE_POSITIONS = 2000
 DEFAULT_MAX_TARGET_POSITIONS = 2000
@@ -16,21 +15,20 @@ class LightSpeechTransformerEncoder(nn.Module):
         self,
         dim,
         kernel_sizes,
-        activation='relu',
+        activation="relu",
         dropout=0.0,
     ):
         super().__init__()
-        self.layers = nn.ModuleList([
-            EncSepConvLayer(dim, kernel_size, dropout, activation)
-            for kernel_size in kernel_sizes
-        ])
+        self.layers = nn.ModuleList(
+            [EncSepConvLayer(dim, kernel_size, dropout, activation) for kernel_size in kernel_sizes]
+        )
         self.layer_norm = LayerNorm(dim)
 
     def forward(self, x, padding_mask):
         """
         :param x: [B, T, H]
         :param padding_mask: [B, T]
-        :return: 
+        :return:
             x: [T x B x C]
         """
         # B x T x C -> T x B x C
@@ -54,16 +52,15 @@ class LightSpeechTransformerDecoder(nn.Module):
         self,
         dim,
         kernel_sizes,
-        activation='relu',
+        activation="relu",
         dropout=0.2,
-        max_source_positions = DEFAULT_MAX_TARGET_POSITIONS,
+        max_source_positions=DEFAULT_MAX_TARGET_POSITIONS,
     ):
         super().__init__()
         self.pos_emb = ScaledSinusoidalEmbedding(dim, theta=max_source_positions)
-        self.layers = nn.ModuleList([
-            EncSepConvLayer(dim, kernel_size, dropout, activation)
-            for kernel_size in kernel_sizes
-        ])
+        self.layers = nn.ModuleList(
+            [EncSepConvLayer(dim, kernel_size, dropout, activation) for kernel_size in kernel_sizes]
+        )
         self.dropout = nn.Dropout(dropout)
         self.layer_norm = nn.LayerNorm(dim)
 
@@ -97,4 +94,3 @@ class LightSpeechTransformerDecoder(nn.Module):
         x = x.transpose(0, 1)
 
         return (x, attn_w) if require_w else x
-

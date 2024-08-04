@@ -1,10 +1,8 @@
 import logging
+
 from lightning.pytorch.utilities import rank_zero_only
 
-
-MESSAGE_FORMAT = (
-    "%(levelname)s %(asctime)s:  %(message)s"
-)
+MESSAGE_FORMAT = "%(levelname)s %(asctime)s:  %(message)s"
 DATE_FORMAT = "%Y/%m/%d %H:%M:%S"
 LG_FORMATTER = logging.Formatter(MESSAGE_FORMAT, datefmt=DATE_FORMAT)
 
@@ -36,4 +34,3 @@ def get_pylogger(name: str = __name__) -> logging.Logger:
         setattr(logger, level, rank_zero_only(getattr(logger, level)))
 
     return logger
-

@@ -4,10 +4,10 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from optispeech.utils import sequence_mask, denormalize
+from optispeech.utils import denormalize, sequence_mask
 from optispeech.utils.segments import get_random_segments
 
-from .alignments import AlignmentModule, GaussianUpsampling, viterbi_decode, average_by_duration
+from .alignments import AlignmentModule, GaussianUpsampling, average_by_duration, viterbi_decode
 from .loss import FastSpeech2Loss, ForwardSumLoss
 
 
@@ -50,13 +50,9 @@ class OptiSpeechGenerator(nn.Module):
         self.energy_predictor = energy_predictor(dim=dim) if use_energy_predictor else None
         self.feature_upsampler = GaussianUpsampling()
         self.decoder = decoder(dim=dim)
-        self.wav_generator = wav_generator(
-            input_channels=dim,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length
-        )
+        self.wav_generator = wav_generator(input_channels=dim, n_fft=self.n_fft, hop_length=self.hop_length)
         if self.num_speakers > 1:
-            self.sid_embed= torch.nn.Embedding(self.num_speakers, dim)
+            self.sid_embed = torch.nn.Embedding(self.num_speakers, dim)
         if self.num_languages > 1:
             self.lid_embed = torch.nn.Embedding(self.num_languages, dim)
         self.loss_criterion = FastSpeech2Loss()
@@ -132,10 +128,7 @@ class OptiSpeechGenerator(nn.Module):
 
         # upsample to mel lengths
         y = self.feature_upsampler(
-            hs=x,
-            ds=durations,
-            h_masks=mel_mask.squeeze(1).bool(),
-            d_masks=x_mask.squeeze(1).bool()
+            hs=x, ds=durations, h_masks=mel_mask.squeeze(1).bool(), d_masks=x_mask.squeeze(1).bool()
         )
 
         # Decoder
@@ -165,7 +158,7 @@ class OptiSpeechGenerator(nn.Module):
         )
         forwardsum_loss = self.forwardsum_loss(log_p_attn, x_lengths, mel_lengths)
         align_loss = forwardsum_loss + bin_loss
-        loss =  (
+        loss = (
             (align_loss * loss_coeffs.lambda_align)
             + (duration_loss * loss_coeffs.lambda_duration)
             + (pitch_loss * loss_coeffs.lambda_pitch)
@@ -185,15 +178,7 @@ class OptiSpeechGenerator(nn.Module):
         }
 
     @torch.inference_mode()
-    def synthesise(self,
-        x,
-        x_lengths,
-        sids=None,
-        lids=None,
-        d_factor=1.0,
-        p_factor=1.0,
-        e_factor=1.0
-    ):
+    def synthesise(self, x, x_lengths, sids=None, lids=None, d_factor=1.0, p_factor=1.0, e_factor=1.0):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
@@ -262,10 +247,7 @@ class OptiSpeechGenerator(nn.Module):
         target_padding_mask = ~y_mask.squeeze(1).bool()
 
         y = self.feature_upsampler(
-            hs=x,
-            ds=durations,
-            h_masks=y_mask.squeeze(1).bool(),
-            d_masks=x_mask.squeeze(1).bool()
+            hs=x, ds=durations, h_masks=y_mask.squeeze(1).bool(), d_masks=x_mask.squeeze(1).bool()
         )
 
         # Decoder
@@ -282,7 +264,7 @@ class OptiSpeechGenerator(nn.Module):
         am_rtf = am_infer / wav_t
         v_rtf = v_infer / wav_t
         rtf = am_rtf + v_rtf
-        latency = am_infer  + v_infer
+        latency = am_infer + v_infer
 
         return {
             "wav": wav,
@@ -293,6 +275,5 @@ class OptiSpeechGenerator(nn.Module):
             "am_rtf": am_rtf,
             "v_rtf": v_rtf,
             "rtf": rtf,
-            "latency": latency
+            "latency": latency,
         }
-

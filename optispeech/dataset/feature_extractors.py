@@ -2,17 +2,16 @@ from typing import Any, Dict, Optional
 
 import librosa
 import numpy as np
-import torch
 import pyworld as pw
-from torch import nn
+import torch
 from librosa.filters import mel as librosa_mel_fn
 from scipy.interpolate import interp1d
+from torch import nn
 
 from optispeech.utils import pylogger, safe_log, trim_or_pad_to_target_length
 from optispeech.utils.audio import spectral_normalize_torch
 
-from .norm_audio import make_silence_detector, trim_audio 
-
+from .norm_audio import make_silence_detector, trim_audio
 
 log = pylogger.get_pylogger(__name__)
 
@@ -30,9 +29,9 @@ class FeatureExtractor:
         f_min: int,
         f_max: int,
         center: bool,
-        preemphasis_filter_coef: Optional[float]=None,
-        trim_silence: bool=False,
-        trim_silence_args: Optional[dict]=None
+        preemphasis_filter_coef: Optional[float] = None,
+        trim_silence: bool = False,
+        trim_silence_args: Optional[dict] = None,
     ):
         self.sample_rate = sample_rate
         self.n_feats = n_feats
@@ -57,7 +56,7 @@ class FeatureExtractor:
                 audio_path=audio_path,
                 detector=self._silence_detector,
                 sample_rate=self.sample_rate,
-                **self.trim_silence_args
+                **self.trim_silence_args,
             )
         assert __sr == self.sample_rate
         # Enhance higher frequencies (useful with some datasets)
@@ -67,12 +66,7 @@ class FeatureExtractor:
         mel_length = mel.shape[-1]
         energy = self.get_energy(wav, mel_length)
         pitch = self.get_pitch(wav, mel_length)
-        return (
-            wav.squeeze(),
-            mel.squeeze(),
-            energy.squeeze(),
-            pitch.squeeze()
-        )
+        return (wav.squeeze(), mel.squeeze(), energy.squeeze(), pitch.squeeze())
 
     def get_mel(self, wav: np.ndarray) -> np.ndarray:
         raise NotImplementedError
@@ -81,11 +75,13 @@ class FeatureExtractor:
         y = torch.from_numpy(wav).unsqueeze(0)
 
         hann_win_key = str(y.device)
-        if  hann_win_key not in self.hann_window:
+        if hann_win_key not in self.hann_window:
             self.hann_window[hann_win_key] = torch.hann_window(self.win_length).to(y.device)
 
         y = torch.nn.functional.pad(
-            y.unsqueeze(1), (int((self.n_fft - self.hop_length) / 2), int((self.n_fft - self.hop_length) / 2)), mode="reflect"
+            y.unsqueeze(1),
+            (int((self.n_fft - self.hop_length) / 2), int((self.n_fft - self.hop_length) / 2)),
+            mode="reflect",
         )
         y = y.squeeze(1)
 
@@ -112,24 +108,22 @@ class FeatureExtractor:
 
     def get_pitch(self, wav, mel_length) -> np.ndarray:
         wav = wav.astype(np.double)
-        
-        pitch, t = pw.dio(
-            wav, self.sample_rate, frame_period=self.hop_length / self.sample_rate * 1000
-        )
+
+        pitch, t = pw.dio(wav, self.sample_rate, frame_period=self.hop_length / self.sample_rate * 1000)
         pitch = pw.stonemask(wav, pitch, t, self.sample_rate)
 
-        # A cool function taken from fairseq 
+        # A cool function taken from fairseq
         # https://github.com/facebookresearch/fairseq/blob/3f0f20f2d12403629224347664b3e75c13b2c8e0/examples/speech_synthesis/data_utils.py#L99
         pitch = trim_or_pad_to_target_length(pitch, mel_length)
-    
-        # Interpolate to cover the unvoiced segments as well 
+
+        # Interpolate to cover the unvoiced segments as well
         nonzero_ids = np.where(pitch != 0)[0]
         interp_fn = interp1d(
-                nonzero_ids,
-                pitch[nonzero_ids],
-                fill_value=(pitch[nonzero_ids[0]], pitch[nonzero_ids[-1]]),
-                bounds_error=False,
-            )
+            nonzero_ids,
+            pitch[nonzero_ids],
+            fill_value=(pitch[nonzero_ids[0]], pitch[nonzero_ids[-1]]),
+            bounds_error=False,
+        )
         pitch = interp_fn(np.arange(0, len(pitch)))
 
         return pitch
@@ -151,19 +145,17 @@ class CommonFeatureExtractor(FeatureExtractor):
         mel_basis_key = str(self.f_max) + "_" + str(y.device)
         hann_win_key = str(y.device)
 
-        if  mel_basis_key not in self.mel_basis:
+        if mel_basis_key not in self.mel_basis:
             mel = librosa_mel_fn(
-                sr=self.sample_rate,
-                n_fft=self.n_fft,
-                n_mels=self.n_feats,
-                fmin=self.f_min,
-                fmax=self.f_max
+                sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_feats, fmin=self.f_min, fmax=self.f_max
             )
             self.mel_basis[mel_basis_key] = torch.from_numpy(mel).float().to(y.device)
             self.hann_window[hann_win_key] = torch.hann_window(self.win_length).to(y.device)
 
         y = torch.nn.functional.pad(
-            y.unsqueeze(1), (int((self.n_fft - self.hop_length) / 2), int((self.n_fft - self.hop_length) / 2)), mode="reflect"
+            y.unsqueeze(1),
+            (int((self.n_fft - self.hop_length) / 2), int((self.n_fft - self.hop_length) / 2)),
+            mode="reflect",
         )
         y = y.squeeze(1)
 
@@ -189,5 +181,3 @@ class CommonFeatureExtractor(FeatureExtractor):
         spec = spectral_normalize_torch(spec)
 
         return spec.squeeze().cpu().numpy()
-
-

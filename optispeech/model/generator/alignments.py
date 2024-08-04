@@ -150,10 +150,7 @@ class GaussianUpsampling(torch.nn.Module):
         device = ds.device
 
         if ds.sum() == 0:
-            logging.warning(
-                "predicted durations includes all 0 sequences. "
-                "fill the first element with 1."
-            )
+            logging.warning("predicted durations includes all 0 sequences. " "fill the first element with 1.")
             # NOTE(kan-bayashi): This case must not be happened in teacher forcing.
             #   It will be happened in inference with a bad duration predictor.
             #   So we do not need to care the padded sequence case here.
@@ -170,9 +167,7 @@ class GaussianUpsampling(torch.nn.Module):
         c = ds.cumsum(dim=-1) - ds / 2
         energy = -1 * self.delta * (t.unsqueeze(-1) - c.unsqueeze(1)) ** 2
         if d_masks is not None:
-            energy = energy.masked_fill(
-                ~(d_masks.unsqueeze(1).repeat(1, T_feats, 1)), -float("inf")
-            )
+            energy = energy.masked_fill(~(d_masks.unsqueeze(1).repeat(1, T_feats, 1)), -float("inf"))
 
         p_attn = torch.softmax(energy, dim=2)  # (B, T_feats, T_text)
         hs = torch.matmul(p_attn, hs)

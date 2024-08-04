@@ -35,4 +35,3 @@ def spectral_normalize_torch(magnitudes):
 def spectral_de_normalize_torch(magnitudes):
     output = dynamic_range_decompression_torch(magnitudes)
     return output
-

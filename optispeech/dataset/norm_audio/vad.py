@@ -31,9 +31,7 @@ class SileroVoiceActivityDetector:
             audio_array = np.expand_dims(audio_array, 0)
 
         if len(audio_array.shape) > 2:
-            raise ValueError(
-                f"Too many dimensions for input audio chunk {audio_array.shape}"
-            )
+            raise ValueError(f"Too many dimensions for input audio chunk {audio_array.shape}")
 
         if audio_array.shape[0] > 1:
             raise ValueError("Onnx model does not support batching")

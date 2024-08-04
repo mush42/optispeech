@@ -2,15 +2,17 @@ import torch
 from torch import nn
 
 from ._discriminators import MultiPeriodDiscriminator, MultiResolutionDiscriminator
-from .loss import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss, MelSpecReconstructionLoss, MultiResolutionSTFTLoss
+from .loss import (
+    DiscriminatorLoss,
+    FeatureMatchingLoss,
+    GeneratorLoss,
+    MelSpecReconstructionLoss,
+    MultiResolutionSTFTLoss,
+)
 
 
 class VocosDiscriminator(nn.Module):
-    def __init__(
-        self,
-        feature_extractor,
-        loss_coeffs
-    ):
+    def __init__(self, feature_extractor, loss_coeffs):
         super().__init__()
         self.feature_extractor = feature_extractor
 
@@ -19,8 +21,8 @@ class VocosDiscriminator(nn.Module):
         self.lambda_mr_stft = self.loss_coeffs.lambda_mr_stft
 
         # sub-discriminators
-        self.multiperioddisc   = MultiPeriodDiscriminator()
-        self.multiresddisc     = MultiResolutionDiscriminator()
+        self.multiperioddisc = MultiPeriodDiscriminator()
+        self.multiresddisc = MultiResolutionDiscriminator()
 
         # Losses
         self.gen_loss = GeneratorLoss()
@@ -39,31 +41,28 @@ class VocosDiscriminator(nn.Module):
 
     def forward_disc(self, wav, wav_hat):
         real_score_mp, gen_score_mp, _, _ = self.multiperioddisc(y=wav, y_hat=wav_hat)
-        real_score_mrd, gen_score_mrd, _, _ = self.multiresddisc(y=wav, y_hat=wav_hat,)
-        loss_mp, loss_mp_real, _ = self.disc_loss(
-            disc_real_outputs=real_score_mp, disc_generated_outputs=gen_score_mp
+        real_score_mrd, gen_score_mrd, _, _ = self.multiresddisc(
+            y=wav,
+            y_hat=wav_hat,
         )
+        loss_mp, loss_mp_real, _ = self.disc_loss(disc_real_outputs=real_score_mp, disc_generated_outputs=gen_score_mp)
         loss_mrd, loss_mrd_real, _ = self.disc_loss(
             disc_real_outputs=real_score_mrd, disc_generated_outputs=gen_score_mrd
         )
         loss_mp /= len(loss_mp_real)
         loss_mrd /= len(loss_mrd_real)
-        loss = (
-            loss_mp
-            + (loss_mrd * self.loss_coeffs.lambda_mrd)
-        )
-        log_dict = dict(
-            loss_mp=loss_mp.item(),
-            loss_mrd=loss_mrd.item()
-        )
+        loss = loss_mp + (loss_mrd * self.loss_coeffs.lambda_mrd)
+        log_dict = dict(loss_mp=loss_mp.item(), loss_mrd=loss_mrd.item())
         return loss, log_dict
 
     def forward_gen(self, wav, wav_hat):
         _, gen_score_mp, fmap_rs_mp, fmap_gs_mp = self.multiperioddisc(
-            y=wav, y_hat=wav_hat,
+            y=wav,
+            y_hat=wav_hat,
         )
         _, gen_score_mrd, fmap_rs_mrd, fmap_gs_mrd = self.multiresddisc(
-            y=wav, y_hat=wav_hat,
+            y=wav,
+            y_hat=wav_hat,
         )
         loss_gen_mp, list_loss_gen_mp = self.gen_loss(disc_outputs=gen_score_mp)
         loss_gen_mrd, list_loss_gen_mrd = self.gen_loss(disc_outputs=gen_score_mrd)
@@ -95,10 +94,7 @@ class VocosDiscriminator(nn.Module):
         mel_loss = self.forward_mel(wav, wav_hat)
         mr_stft_loss = self.forward_mr_stft(wav, wav_hat)
         loss = mel_loss + mr_stft_loss
-        log_dict = dict(
-            mel_loss=mel_loss.item(),
-            mr_stft_loss=mr_stft_loss.item()
-        )
+        log_dict = dict(mel_loss=mel_loss.item(), mr_stft_loss=mr_stft_loss.item())
         return loss, log_dict
 
     def forward_mel(self, wav, wav_hat):

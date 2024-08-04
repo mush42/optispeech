@@ -39,11 +39,11 @@ class WaveNeXtHead(nn.Module):
         Returns:
             Tensor: Reconstructed time-domain audio signal of shape (B, T), where T is the length of the output signal.
         """
-        B, C , T = x.shape
+        B, C, T = x.shape
         x = self.linear_1(x)
         x = self.linear_2(x)
-        audio = x.view(B,-1) # / 100
-        #print("max amplitude: ", audio.max().item())
+        audio = x.view(B, -1)  # / 100
+        # print("max amplitude: ", audio.max().item())
         audio = torch.clip(audio, min=-1.0, max=1.0)
         return audio
 
@@ -56,10 +56,10 @@ class WaveNeXt(nn.Module):
         # backbone
         intermediate_dim: int,
         num_layers: int,
-        #head
+        # head
         n_fft: int,
         hop_length: int,
-        drop_path: float=0.0,
+        drop_path: float = 0.0,
         layer_scale_init_value: Optional[float] = None,
     ):
         super().__init__()

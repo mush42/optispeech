@@ -10,13 +10,11 @@ import soundfile as sf
 from optispeech.text import process_and_phonemize_text
 from optispeech.utils import get_script_logger, numpy_pad_sequences, numpy_unpad_sequences
 
-
 log = get_script_logger(__name__)
-ONNX_CUDA_PROVIDERS = [
-    ("CUDAExecutionProvider", {"cudnn_conv_algo_search": "DEFAULT"}),
-    "CPUExecutionProvider"
+ONNX_CUDA_PROVIDERS = [("CUDAExecutionProvider", {"cudnn_conv_algo_search": "DEFAULT"}), "CPUExecutionProvider"]
+ONNX_CPU_PROVIDERS = [
+    "CPUExecutionProvider",
 ]
-ONNX_CPU_PROVIDERS = ["CPUExecutionProvider",]
 
 
 def main():
@@ -51,11 +49,7 @@ def main():
     tokenizer = infer_params["tokenizer"]
 
     phids, norm_text = process_and_phonemize_text(
-        args.text,
-        language=lang,
-        tokenizer=tokenizer,
-        add_blank=add_blank,
-        split_sentences=not args.no_split
+        args.text, language=lang, tokenizer=tokenizer, add_blank=add_blank, split_sentences=not args.no_split
     )
     if args.no_split:
         phids = [phids]
@@ -71,9 +65,7 @@ def main():
     scales = np.array([args.d_factor, args.p_factor, args.e_factor], dtype=np.float32)
 
     t0 = perf_counter()
-    wavs, wav_lengths, durations = model.run(
-        None, {"x": x, "x_lengths": x_lengths, "scales": scales}
-    )
+    wavs, wav_lengths, durations = model.run(None, {"x": x, "x_lengths": x_lengths, "scales": scales})
     t_infer = perf_counter() - t0
     t_audio = wav_lengths.sum() / sample_rate
     rtf = t_infer / t_audio
@@ -82,7 +74,7 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for (i, wav) in enumerate(numpy_unpad_sequences(wavs, wav_lengths)):
+    for i, wav in enumerate(numpy_unpad_sequences(wavs, wav_lengths)):
         outfile = output_dir.joinpath(f"gen-{i + 1}")
         out_wav = outfile.with_suffix(".wav")
         wav = wav.squeeze()

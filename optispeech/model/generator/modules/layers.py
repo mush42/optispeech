@@ -2,18 +2,24 @@ import math
 
 import torch
 import torch.nn.functional as F
-from torch import nn
+from torch import einsum, nn
 from torch.nn import Parameter
-from torch import einsum
 
-from optispeech.utils.model import build_activation, get_incremental_state, set_incremental_state, softmax, make_positions, pad_list
+from optispeech.utils.model import (
+    build_activation,
+    get_incremental_state,
+    make_positions,
+    pad_list,
+    set_incremental_state,
+    softmax,
+)
 
 
 def Linear(in_features, out_features, bias=True):
     m = nn.Linear(in_features, out_features, bias)
     nn.init.xavier_uniform_(m.weight)
     if bias:
-        nn.init.constant_(m.bias, 0.)
+        nn.init.constant_(m.bias, 0.0)
     return m
 
 
@@ -66,9 +72,19 @@ class ScaledSinusoidalEmbedding(nn.Module):
 
 
 class MultiheadAttention(nn.Module):
-    def __init__(self, embed_dim, num_heads, kdim=None, vdim=None, dropout=0., bias=True,
-                 add_bias_kv=False, add_zero_attn=False, self_attention=False,
-                 encoder_decoder_attention=False):
+    def __init__(
+        self,
+        embed_dim,
+        num_heads,
+        kdim=None,
+        vdim=None,
+        dropout=0.0,
+        bias=True,
+        add_bias_kv=False,
+        add_zero_attn=False,
+        self_attention=False,
+        encoder_decoder_attention=False,
+    ):
         super().__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -79,13 +95,14 @@ class MultiheadAttention(nn.Module):
         self.dropout = dropout
         self.head_dim = embed_dim // num_heads
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
-        self.scaling = self.head_dim ** -0.5
+        self.scaling = self.head_dim**-0.5
 
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
 
-        assert not self.self_attention or self.qkv_same_dim, 'Self-attention requires query, key and ' \
-                                                             'value to be of the same size'
+        assert not self.self_attention or self.qkv_same_dim, (
+            "Self-attention requires query, key and " "value to be of the same size"
+        )
 
         if self.qkv_same_dim:
             self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
@@ -97,7 +114,7 @@ class MultiheadAttention(nn.Module):
         if bias:
             self.in_proj_bias = Parameter(torch.Tensor(3 * embed_dim))
         else:
-            self.register_parameter('in_proj_bias', None)
+            self.register_parameter("in_proj_bias", None)
 
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
@@ -127,24 +144,26 @@ class MultiheadAttention(nn.Module):
 
         nn.init.xavier_uniform_(self.out_proj.weight)
         if self.in_proj_bias is not None:
-            nn.init.constant_(self.in_proj_bias, 0.)
-            nn.init.constant_(self.out_proj.bias, 0.)
+            nn.init.constant_(self.in_proj_bias, 0.0)
+            nn.init.constant_(self.out_proj.bias, 0.0)
         if self.bias_k is not None:
             nn.init.xavier_normal_(self.bias_k)
         if self.bias_v is not None:
             nn.init.xavier_normal_(self.bias_v)
 
     def forward(
-            self,
-            query, key, value,
-            key_padding_mask=None,
-            incremental_state=None,
-            need_weights=True,
-            static_kv=False,
-            attn_mask=None,
-            before_softmax=False,
-            need_head_weights=False,
-            enc_dec_attn_constraint_mask=None
+        self,
+        query,
+        key,
+        value,
+        key_padding_mask=None,
+        incremental_state=None,
+        need_weights=True,
+        static_kv=False,
+        attn_mask=None,
+        before_softmax=False,
+        need_head_weights=False,
+        enc_dec_attn_constraint_mask=None,
     ):
         """Input shape: Time x Batch x Channel
 
@@ -172,30 +191,53 @@ class MultiheadAttention(nn.Module):
 
         if self.enable_torch_version and incremental_state is None and not static_kv:
             if self.qkv_same_dim:
-                return F.multi_head_attention_forward(query, key, value,
-                                                      self.embed_dim, self.num_heads,
-                                                      self.in_proj_weight,
-                                                      self.in_proj_bias, self.bias_k, self.bias_v,
-                                                      self.add_zero_attn, self.dropout,
-                                                      self.out_proj.weight, self.out_proj.bias,
-                                                      self.training, key_padding_mask, need_weights,
-                                                      attn_mask)
+                return F.multi_head_attention_forward(
+                    query,
+                    key,
+                    value,
+                    self.embed_dim,
+                    self.num_heads,
+                    self.in_proj_weight,
+                    self.in_proj_bias,
+                    self.bias_k,
+                    self.bias_v,
+                    self.add_zero_attn,
+                    self.dropout,
+                    self.out_proj.weight,
+                    self.out_proj.bias,
+                    self.training,
+                    key_padding_mask,
+                    need_weights,
+                    attn_mask,
+                )
             else:
-                return F.multi_head_attention_forward(query, key, value,
-                                                      self.embed_dim, self.num_heads,
-                                                      torch.empty([0]),
-                                                      self.in_proj_bias, self.bias_k, self.bias_v,
-                                                      self.add_zero_attn, self.dropout,
-                                                      self.out_proj.weight, self.out_proj.bias,
-                                                      self.training, key_padding_mask, need_weights,
-                                                      attn_mask, use_separate_proj_weight=True,
-                                                      q_proj_weight=self.q_proj_weight,
-                                                      k_proj_weight=self.k_proj_weight,
-                                                      v_proj_weight=self.v_proj_weight)
+                return F.multi_head_attention_forward(
+                    query,
+                    key,
+                    value,
+                    self.embed_dim,
+                    self.num_heads,
+                    torch.empty([0]),
+                    self.in_proj_bias,
+                    self.bias_k,
+                    self.bias_v,
+                    self.add_zero_attn,
+                    self.dropout,
+                    self.out_proj.weight,
+                    self.out_proj.bias,
+                    self.training,
+                    key_padding_mask,
+                    need_weights,
+                    attn_mask,
+                    use_separate_proj_weight=True,
+                    q_proj_weight=self.q_proj_weight,
+                    k_proj_weight=self.k_proj_weight,
+                    v_proj_weight=self.v_proj_weight,
+                )
 
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
-            if 'prev_key' in saved_state:
+            if "prev_key" in saved_state:
                 # previous time steps are cached - no need to recompute
                 # key and value if they are static
                 if static_kv:
@@ -231,7 +273,8 @@ class MultiheadAttention(nn.Module):
                 attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1)
             if key_padding_mask is not None:
                 key_padding_mask = torch.cat(
-                    [key_padding_mask, key_padding_mask.new_zeros(key_padding_mask.size(0), 1)], dim=1)
+                    [key_padding_mask, key_padding_mask.new_zeros(key_padding_mask.size(0), 1)], dim=1
+                )
 
         q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
         if k is not None:
@@ -241,28 +284,28 @@ class MultiheadAttention(nn.Module):
 
         if saved_state is not None:
             # saved states are stored with shape (bsz, num_heads, seq_len, head_dim)
-            if 'prev_key' in saved_state:
-                prev_key = saved_state['prev_key'].view(bsz * self.num_heads, -1, self.head_dim)
+            if "prev_key" in saved_state:
+                prev_key = saved_state["prev_key"].view(bsz * self.num_heads, -1, self.head_dim)
                 if static_kv:
                     k = prev_key
                 else:
                     k = torch.cat((prev_key, k), dim=1)
-            if 'prev_value' in saved_state:
-                prev_value = saved_state['prev_value'].view(bsz * self.num_heads, -1, self.head_dim)
+            if "prev_value" in saved_state:
+                prev_value = saved_state["prev_value"].view(bsz * self.num_heads, -1, self.head_dim)
                 if static_kv:
                     v = prev_value
                 else:
                     v = torch.cat((prev_value, v), dim=1)
-            if 'prev_key_padding_mask' in saved_state and saved_state['prev_key_padding_mask'] is not None:
-                prev_key_padding_mask = saved_state['prev_key_padding_mask']
+            if "prev_key_padding_mask" in saved_state and saved_state["prev_key_padding_mask"] is not None:
+                prev_key_padding_mask = saved_state["prev_key_padding_mask"]
                 if static_kv:
                     key_padding_mask = prev_key_padding_mask
                 else:
                     key_padding_mask = torch.cat((prev_key_padding_mask, key_padding_mask), dim=1)
 
-            saved_state['prev_key'] = k.view(bsz, self.num_heads, -1, self.head_dim)
-            saved_state['prev_value'] = v.view(bsz, self.num_heads, -1, self.head_dim)
-            saved_state['prev_key_padding_mask'] = key_padding_mask
+            saved_state["prev_key"] = k.view(bsz, self.num_heads, -1, self.head_dim)
+            saved_state["prev_value"] = v.view(bsz, self.num_heads, -1, self.head_dim)
+            saved_state["prev_key_padding_mask"] = key_padding_mask
 
             self._set_input_buffer(incremental_state, saved_state)
 
@@ -285,7 +328,8 @@ class MultiheadAttention(nn.Module):
                 attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1)
             if key_padding_mask is not None:
                 key_padding_mask = torch.cat(
-                    [key_padding_mask, torch.zeros(key_padding_mask.size(0), 1).type_as(key_padding_mask)], dim=1)
+                    [key_padding_mask, torch.zeros(key_padding_mask.size(0), 1).type_as(key_padding_mask)], dim=1
+                )
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
@@ -300,7 +344,7 @@ class MultiheadAttention(nn.Module):
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             attn_weights = attn_weights.masked_fill(
                 enc_dec_attn_constraint_mask.unsqueeze(2).bool(),
-                float('-inf'),
+                float("-inf"),
             )
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
@@ -309,7 +353,7 @@ class MultiheadAttention(nn.Module):
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             attn_weights = attn_weights.masked_fill(
                 key_padding_mask.unsqueeze(1).unsqueeze(2),
-                float('-inf'),
+                float("-inf"),
             )
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
@@ -346,7 +390,7 @@ class MultiheadAttention(nn.Module):
         else:
             bias = self.in_proj_bias
             if bias is not None:
-                bias = bias[:self.embed_dim]
+                bias = bias[: self.embed_dim]
             return F.linear(query, self.q_proj_weight, bias)
 
     def in_proj_k(self, key):
@@ -356,7 +400,7 @@ class MultiheadAttention(nn.Module):
             weight = self.k_proj_weight
             bias = self.in_proj_bias
             if bias is not None:
-                bias = bias[self.embed_dim:2 * self.embed_dim]
+                bias = bias[self.embed_dim : 2 * self.embed_dim]
             return F.linear(key, weight, bias)
 
     def in_proj_v(self, value):
@@ -366,7 +410,7 @@ class MultiheadAttention(nn.Module):
             weight = self.v_proj_weight
             bias = self.in_proj_bias
             if bias is not None:
-                bias = bias[2 * self.embed_dim:]
+                bias = bias[2 * self.embed_dim :]
             return F.linear(value, weight, bias)
 
     def _in_proj(self, input, start=0, end=None):
@@ -378,17 +422,20 @@ class MultiheadAttention(nn.Module):
         return F.linear(input, weight, bias)
 
     def _get_input_buffer(self, incremental_state):
-        return get_incremental_state(
-            self,
-            incremental_state,
-            'attn_state',
-        ) or {}
+        return (
+            get_incremental_state(
+                self,
+                incremental_state,
+                "attn_state",
+            )
+            or {}
+        )
 
     def _set_input_buffer(self, incremental_state, buffer):
         set_incremental_state(
             self,
             incremental_state,
-            'attn_state',
+            "attn_state",
             buffer,
         )
 
@@ -398,10 +445,10 @@ class MultiheadAttention(nn.Module):
     def clear_buffer(self, incremental_state=None):
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
-            if 'prev_key' in saved_state:
-                del saved_state['prev_key']
-            if 'prev_value' in saved_state:
-                del saved_state['prev_value']
+            if "prev_key" in saved_state:
+                del saved_state["prev_key"]
+            if "prev_value" in saved_state:
+                del saved_state["prev_value"]
             self._set_input_buffer(incremental_state, saved_state)
 
 
@@ -412,7 +459,9 @@ class ConvSeparable(nn.Module):
         self.out_channels = out_channels
         self.kernel_size = kernel_size
         self.padding = padding
-        self.depthwise_conv = nn.Conv1d(in_channels, in_channels, self.kernel_size, padding=padding, groups=in_channels, bias=False)
+        self.depthwise_conv = nn.Conv1d(
+            in_channels, in_channels, self.kernel_size, padding=padding, groups=in_channels, bias=False
+        )
         self.pointwise_conv = nn.Conv1d(in_channels, out_channels, 1)
         std = math.sqrt((4 * (1.0 - dropout)) / (kernel_size * out_channels))
         nn.init.normal_(self.depthwise_conv.weight, mean=0, std=std)
@@ -435,7 +484,7 @@ class EncSepConvLayer(nn.Module):
         self.activation_fn = build_activation(activation)
         self.conv1 = ConvSeparable(c, c, kernel_size, padding=kernel_size // 2, dropout=dropout)
         self.conv2 = ConvSeparable(c, c, kernel_size, padding=kernel_size // 2, dropout=dropout)
-    
+
     def forward(self, x, encoder_padding_mask=None):
         residual = x
         x = self.layer_norm(x)
@@ -445,7 +494,7 @@ class EncSepConvLayer(nn.Module):
         x = self.conv1(x)
         x = self.activation_fn(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
-        
+
         x = self.activation_fn(self.conv2(x))
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = x.permute(2, 0, 1)
@@ -466,7 +515,7 @@ class EncTransformerAttnLayer(nn.Module):
         LayerNorm is applied either before or after the self-attention/ffn
         modules similar to the original Transformer imlementation.
         """
-        layer_norm_training = kwargs.get('layer_norm_training', None)
+        layer_norm_training = kwargs.get("layer_norm_training", None)
         if layer_norm_training is not None:
             self.self_attn_layer_norm.training = layer_norm_training
         residual = x
@@ -491,12 +540,11 @@ class EncTransformerFFNLayer(nn.Module):
         self.dropout = dropout
         self.activation_fn = build_activation(activation)
         self.layer_norm = nn.LayerNorm(hidden_size, eps=1e-6, elementwise_affine=True)
-        if padding == 'SAME':
+        if padding == "SAME":
             self.ffn_1 = nn.Conv1d(hidden_size, filter_size, kernel_size, padding=kernel_size // 2)
-        elif padding == 'LEFT':
+        elif padding == "LEFT":
             self.ffn_1 = nn.Sequential(
-                nn.ConstantPad1d((kernel_size - 1, 0), 0.0),
-                nn.Conv1d(hidden_size, filter_size, kernel_size)
+                nn.ConstantPad1d((kernel_size - 1, 0), 0.0), nn.Conv1d(hidden_size, filter_size, kernel_size)
             )
         self.ffn_2 = Linear(filter_size, hidden_size)
 
@@ -516,9 +564,11 @@ class EncTransformerFFNLayer(nn.Module):
 
 class IdentityLayer(nn.Module):
 
-    def __init__(self,):
+    def __init__(
+        self,
+    ):
         super().__init__()
-    
+
     def forward(self, x, *args, **kwargs):
         return x
 

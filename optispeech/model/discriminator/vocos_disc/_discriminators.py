@@ -1,9 +1,9 @@
-from typing import Tuple, List
+from typing import List, Tuple
 
 import torch
-from torch import nn, Tensor
-from torch.nn import Conv2d
 import torch.nn.functional as F
+from torch import Tensor, nn
+from torch.nn import Conv2d
 from torch.nn.utils import weight_norm
 
 
@@ -18,10 +18,7 @@ class MultiPeriodDiscriminator(nn.Module):
 
     def __init__(self, periods: Tuple[int] = (2, 3, 5, 7, 11)):
         super().__init__()
-        self.discriminators = nn.ModuleList([
-            DiscriminatorP(period=p)
-            for p in periods
-        ])
+        self.discriminators = nn.ModuleList([DiscriminatorP(period=p) for p in periods])
 
     def forward(
         self, y: torch.Tensor, y_hat: torch.Tensor
@@ -51,13 +48,15 @@ class DiscriminatorP(nn.Module):
     ):
         super().__init__()
         self.period = period
-        self.convs = nn.ModuleList([
-            weight_norm(Conv2d(   1,   32, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
-            weight_norm(Conv2d(  32,  128, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
-            weight_norm(Conv2d( 128,  512, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
-            weight_norm(Conv2d( 512, 1024, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
-            weight_norm(Conv2d(1024, 1024, (kernel_size, 1), (1,      1), padding=(kernel_size // 2, 0))),
-        ])
+        self.convs = nn.ModuleList(
+            [
+                weight_norm(Conv2d(1, 32, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
+                weight_norm(Conv2d(32, 128, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
+                weight_norm(Conv2d(128, 512, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
+                weight_norm(Conv2d(512, 1024, (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
+                weight_norm(Conv2d(1024, 1024, (kernel_size, 1), (1, 1), padding=(kernel_size // 2, 0))),
+            ]
+        )
         self.conv_post = weight_norm(Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
         self.lrelu_slope = lrelu_slope
 
@@ -111,12 +110,11 @@ class MultiResolutionDiscriminator(nn.Module):
         """
         super().__init__()
 
-        self.discriminators = nn.ModuleList([
-            DiscriminatorR(resolution=r)
-            for r in resolutions
-        ])
+        self.discriminators = nn.ModuleList([DiscriminatorR(resolution=r) for r in resolutions])
 
-    def forward(self, y: Tensor, y_hat: Tensor) -> tuple[list[Tensor], list[Tensor], list[list[Tensor]], list[list[Tensor]]]:
+    def forward(
+        self, y: Tensor, y_hat: Tensor
+    ) -> tuple[list[Tensor], list[Tensor], list[list[Tensor]], list[list[Tensor]]]:
         """
         Args:
             y     :: (B, T)
@@ -142,8 +140,8 @@ class DiscriminatorR(nn.Module):
     def __init__(
         self,
         resolution: Tuple[int, int, int],
-        channels:       int        = 64,
-        lrelu_slope:    float      = 0.1,
+        channels: int = 64,
+        lrelu_slope: float = 0.1,
     ):
         """
         Args:
@@ -153,18 +151,20 @@ class DiscriminatorR(nn.Module):
         self.resolution = resolution
         self.lrelu_slope = lrelu_slope
 
-        self.convs = nn.ModuleList([
-            weight_norm(nn.Conv2d(       1,    channels, kernel_size=(7, 5), stride=(2, 2), padding=(3, 2))),
-            weight_norm(nn.Conv2d(channels,    channels, kernel_size=(5, 3), stride=(2, 1), padding=(2, 1))),
-            weight_norm(nn.Conv2d(channels,    channels, kernel_size=(5, 3), stride=(2, 2), padding=(2, 1))),
-            weight_norm(nn.Conv2d(channels,    channels, kernel_size=3,      stride=(2, 1), padding=1)),
-            weight_norm(nn.Conv2d(channels,    channels, kernel_size=3,      stride=(2, 2), padding=1)),
-        ])
+        self.convs = nn.ModuleList(
+            [
+                weight_norm(nn.Conv2d(1, channels, kernel_size=(7, 5), stride=(2, 2), padding=(3, 2))),
+                weight_norm(nn.Conv2d(channels, channels, kernel_size=(5, 3), stride=(2, 1), padding=(2, 1))),
+                weight_norm(nn.Conv2d(channels, channels, kernel_size=(5, 3), stride=(2, 2), padding=(2, 1))),
+                weight_norm(nn.Conv2d(channels, channels, kernel_size=3, stride=(2, 1), padding=1)),
+                weight_norm(nn.Conv2d(channels, channels, kernel_size=3, stride=(2, 2), padding=1)),
+            ]
+        )
         self.conv_post = weight_norm(nn.Conv2d(channels, 1, (3, 3), padding=(1, 1)))
 
     def forward(self, x: Tensor) -> tuple[Tensor, list[Tensor]]:
         """wave -> (STFT) -> spec -> (Nx[conv2d-LReLU]) -> feat -> (conv2d) -> (cond) -> o_disc.
-        
+
         Args:
             x :: (B, T)
         Returns:
@@ -210,7 +210,7 @@ class DiscriminatorR(nn.Module):
             win_length=win_length,
             window=torch.ones(n_fft, device=x.device),
             center=True,
-            return_complex=True
+            return_complex=True,
         ).abs()
 
         return mag_spec

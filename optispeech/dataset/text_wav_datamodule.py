@@ -6,17 +6,15 @@ from typing import Any, Dict, Optional
 
 import librosa
 import numpy as np
+import pyworld as pw
 import torch
 import torchaudio as ta
-import pyworld as pw
-
 from lightning import LightningDataModule
 from scipy.interpolate import interp1d
 from torch.utils.data.dataloader import DataLoader
 
-from optispeech.utils import pylogger, normalize
 from optispeech.dataset.feature_extractors import FeatureExtractor
-
+from optispeech.utils import normalize, pylogger
 
 log = pylogger.get_pylogger(__name__)
 
@@ -150,7 +148,7 @@ class TextWavDataset(torch.utils.data.Dataset):
 
     def preprocess_utterance(self, audio_filepath: str, text: str, lang: str):
         if self.text_processor.is_multi_language:
-            assert  lang is not None, "Language not provided for multi-language model"
+            assert lang is not None, "Language not provided for multi-language model"
         lang = lang if not self.text_processor.is_multi_language else None
         phoneme_ids, text = self.text_processor(text, lang=lang)
         wav, mel, energy, pitch = self.feature_extractor(audio_filepath)
@@ -174,7 +172,7 @@ class TextWavDataset(torch.utils.data.Dataset):
 
 class TextWavBatchCollate:
 
-    def __init__(self, n_feats:float, data_statistics: Dict[str, float], do_normalize: bool=True):
+    def __init__(self, n_feats: float, data_statistics: Dict[str, float], do_normalize: bool = True):
         self.n_feats = n_feats
         self.data_statistics = data_statistics
         self.do_normalize = do_normalize
@@ -201,9 +199,9 @@ class TextWavBatchCollate:
             x_lengths.append(x_.shape[-1])
             wav_lengths.append(wav_.shape[-1])
             mel_lengths.append(mel_.shape[-1])
-            x[i, :x_.shape[-1]] = x_
-            wav[i, :wav_.shape[-1]] = wav_
-            mel[i, :, :item["mel"].shape[-1]] = mel_
+            x[i, : x_.shape[-1]] = x_
+            wav[i, : wav_.shape[-1]] = wav_
+            mel[i, :, : item["mel"].shape[-1]] = mel_
             energies[i, : item["energy"].shape[-1]] = item["energy"].float()
             pitches[i, : item["pitch"].shape[-1]] = item["pitch"].float()
             if item["sid"] is not None:
@@ -226,9 +224,9 @@ class TextWavBatchCollate:
 
         if self.do_normalize:
             wav = wav.clamp(-1, 1)
-            mel = normalize(mel, self.data_statistics['mel_mean'], self.data_statistics['mel_std'])
-            energies = normalize(energies, self.data_statistics['energy_mean'], self.data_statistics['energy_std'])
-            pitches = normalize(pitches, self.data_statistics['pitch_mean'], self.data_statistics['pitch_std'])
+            mel = normalize(mel, self.data_statistics["mel_mean"], self.data_statistics["mel_std"])
+            energies = normalize(energies, self.data_statistics["energy_mean"], self.data_statistics["energy_std"])
+            pitches = normalize(pitches, self.data_statistics["pitch_mean"], self.data_statistics["pitch_std"])
 
         return dict(
             x=x,

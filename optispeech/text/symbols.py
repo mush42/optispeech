@@ -7,7 +7,7 @@ SYMBOLS = [
     "$",
     " ",
     "!",
-    "\"",
+    '"',
     "#",
     "'",
     "(",
@@ -160,7 +160,7 @@ SYMBOLS = [
     "ᵻ",
     "↑",
     "↓",
-    "ⱱ"
+    "ⱱ",
 ]
 
 
@@ -178,4 +178,3 @@ SPACE_ID = SYMBOLS.index(" ")
 # Mappings from symbol to numeric ID and vice versa:
 SYMBOL_TO_ID = {s: i for i, s in enumerate(SYMBOLS)}
 ID_TO_SYMBOL = {i: s for i, s in enumerate(SYMBOLS)}  # pylint: disable=unnecessary-comprehension
-

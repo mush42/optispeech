@@ -6,7 +6,6 @@ import torchaudio
 from torch import nn
 from torch.nn import functional as F
 
-
 from optispeech.utils.model import make_non_pad_mask
 
 
@@ -45,7 +44,6 @@ class DurationPredictorLoss(torch.nn.Module):
         loss = self.criterion(outputs, targets)
 
         return loss
-
 
 
 class FastSpeech2Loss(torch.nn.Module):
@@ -125,21 +123,15 @@ class FastSpeech2Loss(torch.nn.Module):
         # make weighted mask and apply it
         if self.use_weighted_masking:
             duration_masks = make_non_pad_mask(ilens).to(ds.device)
-            duration_weights = (
-                duration_masks.float() / duration_masks.sum(dim=1, keepdim=True).float()
-            )
+            duration_weights = duration_masks.float() / duration_masks.sum(dim=1, keepdim=True).float()
             duration_weights /= ds.size(0)
 
             # apply weight
-            duration_loss = (
-                duration_loss.mul(duration_weights).masked_select(duration_masks).sum()
-            )
+            duration_loss = duration_loss.mul(duration_weights).masked_select(duration_masks).sum()
             pitch_masks = duration_masks.unsqueeze(-1)
             pitch_weights = duration_weights.unsqueeze(-1)
             pitch_loss = pitch_loss.mul(pitch_weights).masked_select(pitch_masks).sum()
-            energy_loss = (
-                energy_loss.mul(pitch_weights).masked_select(pitch_masks).sum()
-            )
+            energy_loss = energy_loss.mul(pitch_weights).masked_select(pitch_masks).sum()
 
         return duration_loss, pitch_loss, energy_loss
 
@@ -183,9 +175,7 @@ class ForwardSumLoss(torch.nn.Module):
             # construct target sequnece.
             # Every text token is mapped to a unique sequnece number.
             target_seq = torch.arange(1, ilens[bidx] + 1).unsqueeze(0)
-            cur_log_p_attn_pd = log_p_attn_pd[
-                bidx, : olens[bidx], : ilens[bidx] + 1
-            ].unsqueeze(
+            cur_log_p_attn_pd = log_p_attn_pd[bidx, : olens[bidx], : ilens[bidx] + 1].unsqueeze(
                 1
             )  # (T_feats,1,T_text+1)
             cur_log_p_attn_pd = F.log_softmax(cur_log_p_attn_pd, dim=-1)

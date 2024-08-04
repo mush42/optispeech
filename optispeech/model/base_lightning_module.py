@@ -16,7 +16,6 @@ from lightning.pytorch.utilities import grad_norm
 from optispeech.utils import get_pylogger, plot_attention, plot_tensor
 from optispeech.utils.segments import get_segments
 
-
 log = get_pylogger(__name__)
 
 
@@ -53,31 +52,22 @@ class BaseLightningModule(LightningModule, ABC):
             {"params": self.discriminator.parameters()},
         ]
         opt_gen = self.hparams.optimizer(gen_params)
-        opt_disc= self.hparams.optimizer(disc_params)
+        opt_disc = self.hparams.optimizer(disc_params)
 
         # Max steps per optimizer
         max_steps = self.trainer.max_steps // 2
         # Adjust by gradient accumulation batches
         if self.train_args.gradient_accumulate_batches is not None:
             max_epochs = self.trainer.max_epochs if self.trainer.max_epochs is not None else -1
-            max_steps = math.ceil(max_steps / self.train_args.gradient_accumulate_batches) * max(max_epochs , 1)
+            max_steps = math.ceil(max_steps / self.train_args.gradient_accumulate_batches) * max(max_epochs, 1)
 
         if "num_training_steps" in self.hparams.scheduler.keywords:
             self.hparams.scheduler.keywords["num_training_steps"] = max_steps
-        scheduler_gen = self.hparams.scheduler(
-            opt_gen,
-            last_epoch=getattr("self", "ckpt_loaded_epoch", -1)
-        )
-        scheduler_disc = self.hparams.scheduler(
-            opt_disc,
-            last_epoch=getattr("self", "ckpt_loaded_epoch", -1)
-        )
+        scheduler_gen = self.hparams.scheduler(opt_gen, last_epoch=getattr("self", "ckpt_loaded_epoch", -1))
+        scheduler_disc = self.hparams.scheduler(opt_disc, last_epoch=getattr("self", "ckpt_loaded_epoch", -1))
         return (
             [opt_gen, opt_disc],
-            [
-                {"scheduler": scheduler_gen, "interval": "step"},
-                {"scheduler": scheduler_disc, "interval": "step"}
-            ],
+            [{"scheduler": scheduler_gen, "interval": "step"}, {"scheduler": scheduler_disc, "interval": "step"}],
         )
 
     def on_train_epoch_start(self) -> None:
@@ -95,7 +85,7 @@ class BaseLightningModule(LightningModule, ABC):
             loss_scaling_factor = 1.0
             should_apply_gradients = True
         # Generator pretraining
-        train_discriminator = self.global_step  >= self.train_args.pretraining_steps
+        train_discriminator = self.global_step >= self.train_args.pretraining_steps
         # Extract generator/discriminator optimizer/scheduler
         opt_g, opt_d = self.optimizers()
         sched_g, sched_d = self.lr_schedulers()
@@ -106,7 +96,9 @@ class BaseLightningModule(LightningModule, ABC):
         loss_g /= loss_scaling_factor
         self.manual_backward(loss_g)
         if should_apply_gradients:
-            self.clip_gradients(opt_g, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm")
+            self.clip_gradients(
+                opt_g, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm"
+            )
             opt_g.step()
             sched_g.step()
             opt_g.zero_grad()
@@ -123,7 +115,9 @@ class BaseLightningModule(LightningModule, ABC):
         loss_d /= loss_scaling_factor
         self.manual_backward(loss_d)
         if should_apply_gradients:
-            self.clip_gradients(opt_d, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm")
+            self.clip_gradients(
+                opt_d, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm"
+            )
             opt_d.step()
             sched_d.step()
             opt_d.zero_grad()
@@ -133,22 +127,21 @@ class BaseLightningModule(LightningModule, ABC):
         log_outputs = {}
         gen_outputs = self._process_batch(batch)
         gen_am_loss = gen_outputs["loss"]
-        log_outputs.update({
-            "total_loss/train_am_loss": gen_am_loss.item(),
-            "gen_subloss/train_alighn_loss": gen_outputs["align_loss"].item(),
-            "gen_subloss/train_duration_loss": gen_outputs["duration_loss"].item(),
-            "gen_subloss/train_pitch_loss": gen_outputs["pitch_loss"].item(),
-        })
-        if  gen_outputs.get("energy_loss") != 0.0:
+        log_outputs.update(
+            {
+                "total_loss/train_am_loss": gen_am_loss.item(),
+                "gen_subloss/train_alighn_loss": gen_outputs["align_loss"].item(),
+                "gen_subloss/train_duration_loss": gen_outputs["duration_loss"].item(),
+                "gen_subloss/train_pitch_loss": gen_outputs["pitch_loss"].item(),
+            }
+        )
+        if gen_outputs.get("energy_loss") != 0.0:
             log_outputs["gen_subloss/train_energy_loss"] = gen_outputs["energy_loss"].item()
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         if train_discriminator:
             gen_adv_loss, log_dict = self.discriminator.forward_gen(wav, wav_hat)
             log_outputs["total_loss/gen_adv_loss"] = gen_adv_loss
-            log_outputs.update({
-                f"gen_subloss/adv_{key}": val
-                for (key, val) in log_dict.items()
-            })
+            log_outputs.update({f"gen_subloss/adv_{key}": val for (key, val) in log_dict.items()})
         else:
             gen_adv_loss = 0.0
         loss = gen_am_loss + gen_adv_loss
@@ -159,7 +152,7 @@ class BaseLightningModule(LightningModule, ABC):
             on_step=True,
             on_epoch=True,
             sync_dist=True,
-            batch_size=self.data_args.batch_size
+            batch_size=self.data_args.batch_size,
         )
         return loss, (wav.detach(), wav_hat.detach())
 
@@ -172,62 +165,63 @@ class BaseLightningModule(LightningModule, ABC):
             wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         else:
             wav, wav_hat = wav_outputs
-        loss, log_dict  = self.discriminator.forward_disc(wav, wav_hat)
+        loss, log_dict = self.discriminator.forward_disc(wav, wav_hat)
         log_outputs["total_loss/discriminator"] = disc_loss
-        log_outputs.update({
-            f"discriminator/{key}": val
-            for key, val in log_dict.items()
-        })
+        log_outputs.update({f"discriminator/{key}": val for key, val in log_dict.items()})
         self.log_dict(
             log_outputs,
             prog_bar=True,
             on_step=True,
             on_epoch=True,
             sync_dist=True,
-            batch_size=self.data_args.batch_size
+            batch_size=self.data_args.batch_size,
         )
         return loss
 
     def on_validation_epoch_start(self):
         if self.train_args.evaluate_utmos:
             from optispeech.metrics.UTMOS import UTMOSScore
+
             if not hasattr(self, "utmos_model"):
                 self.utmos_model = UTMOSScore(device=self.device)
 
     def validation_step(self, batch, batch_idx, **kwargs):
         log_outputs = {}
         gen_outputs = self._process_batch(batch)
-        log_outputs.update({
-            "total_loss/val_am_loss": gen_outputs["loss"].item(),
-            "gen_subloss/val_alighn_loss": gen_outputs["align_loss"].item(),
-            "gen_subloss/val_duration_loss": gen_outputs["duration_loss"].item(),
-            "gen_subloss/val_pitch_loss": gen_outputs["pitch_loss"].item(),
-        })
-        if  gen_outputs.get("energy_loss") != 0.0:
+        log_outputs.update(
+            {
+                "total_loss/val_am_loss": gen_outputs["loss"].item(),
+                "gen_subloss/val_alighn_loss": gen_outputs["align_loss"].item(),
+                "gen_subloss/val_duration_loss": gen_outputs["duration_loss"].item(),
+                "gen_subloss/val_pitch_loss": gen_outputs["pitch_loss"].item(),
+            }
+        )
+        if gen_outputs.get("energy_loss") != 0.0:
             log_outputs["gen_subloss/val_energy_loss"] = gen_outputs["energy_loss"].item()
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         adv_loss, log_dict = self.discriminator.get_val_loss(wav, wav_hat)
-        log_outputs.update({
-            f"gen_subloss/val_{key}": value
-            for key, value in log_dict.items()
-        })
+        log_outputs.update({f"gen_subloss/val_{key}": value for key, value in log_dict.items()})
         # perceptual eval
         audio_16_khz = torchaudio.functional.resample(wav, orig_freq=self.sample_rate, new_freq=16000)
         audio_hat_16khz = torchaudio.functional.resample(wav_hat, orig_freq=self.sample_rate, new_freq=16000)
         if self.train_args.evaluate_periodicity:
             from optispeech.metrics.periodicity import calculate_periodicity_metrics
+
             periodicity_loss, perio_pitch_loss, f1_score = calculate_periodicity_metrics(audio_16_khz, audio_hat_16khz)
-            log_outputs.update({
-                "val/periodicity_loss": periodicity_loss,
-                "val/perio_pitch_loss": perio_pitch_loss,
-                "val/f1_score": f1_score
-            })
+            log_outputs.update(
+                {
+                    "val/periodicity_loss": periodicity_loss,
+                    "val/perio_pitch_loss": perio_pitch_loss,
+                    "val/f1_score": f1_score,
+                }
+            )
         if self.train_args.evaluate_utmos:
             utmos_score = self.utmos_model.score(audio_hat_16khz.unsqueeze(1)).mean()
         else:
             utmos_score = torch.zeros(1, device=self.device)
         if self.train_args.evaluate_pesq:
             from pesq import pesq
+
             pesq_score = 0
             for ref, deg in zip(audio_16_khz.cpu().numpy(), audio_hat_16khz.cpu().numpy()):
                 pesq_score += pesq(16000, ref, deg, "wb", on_error=1)
@@ -243,7 +237,7 @@ class BaseLightningModule(LightningModule, ABC):
             on_step=True,
             on_epoch=True,
             sync_dist=True,
-            batch_size=self.data_args.batch_size
+            batch_size=self.data_args.batch_size,
         )
 
     def on_validation_end(self) -> None:
@@ -254,10 +248,7 @@ class BaseLightningModule(LightningModule, ABC):
                 for i in range(2):
                     gt_wav = one_batch["wav"][i].squeeze()
                     self.logger.experiment.add_audio(
-                        f"wav/original_{i}",
-                        gt_wav.float().data.cpu().numpy(),
-                        self.global_step,
-                        self.sample_rate
+                        f"wav/original_{i}", gt_wav.float().data.cpu().numpy(), self.global_step, self.sample_rate
                     )
                     mel = one_batch["mel"][i].unsqueeze(0).to(self.device)
                     self.logger.experiment.add_image(
@@ -290,12 +281,7 @@ class BaseLightningModule(LightningModule, ABC):
                     self.current_epoch,
                     dataformats="HWC",
                 )
-                self.logger.experiment.add_audio(
-                    f"wav/generated_{i}",
-                    wav_hat,
-                    self.global_step,
-                    self.sample_rate
-                )
+                self.logger.experiment.add_audio(f"wav/generated_{i}", wav_hat, self.global_step, self.sample_rate)
 
     def test_step(self, batch, batch_idx):
         pass

@@ -96,7 +96,10 @@ class BaselineLightningModule(pl.LightningModule):
 
     def construct_model(self):
         self.feature_extractors = nn.ModuleList(
-            [load_ssl_model(ckpt_path="wav2vec_small.pt"), DomainEmbedding(3, 128),]
+            [
+                load_ssl_model(ckpt_path="wav2vec_small.pt"),
+                DomainEmbedding(3, 128),
+            ]
         )
         output_dim = sum([feature_extractor.get_output_dim() for feature_extractor in self.feature_extractors])
         output_layers = [LDConditioner(judge_dim=128, num_judges=3000, input_dim=output_dim)]
@@ -182,7 +185,10 @@ class LDConditioner(nn.Module):
             concatenated_feature = x["ssl-feature"]
         if "domain-feature" in x.keys():
             concatenated_feature = torch.cat(
-                (concatenated_feature, x["domain-feature"].unsqueeze(1).expand(-1, concatenated_feature.size(1), -1),),
+                (
+                    concatenated_feature,
+                    x["domain-feature"].unsqueeze(1).expand(-1, concatenated_feature.size(1), -1),
+                ),
                 dim=2,
             )
         if judge_ids != None:
@@ -206,7 +212,10 @@ class Projection(nn.Module):
             self.proj = nn.Tanh()
 
         self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim), activation, nn.Dropout(0.3), nn.Linear(hidden_dim, output_dim),
+            nn.Linear(input_dim, hidden_dim),
+            activation,
+            nn.Dropout(0.3),
+            nn.Linear(hidden_dim, output_dim),
         )
         self.output_dim = output_dim
 

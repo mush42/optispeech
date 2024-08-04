@@ -3,9 +3,8 @@ from collections import defaultdict
 
 import numpy as np
 import torch
-from torch import nn
 import torch.nn.functional as F
-
+from torch import nn
 
 INCREMENTAL_STATE_INSTANCE_ID = defaultdict(lambda: 0)
 
@@ -116,7 +115,7 @@ def denormalize(data, mu, std):
     return data * std + mu
 
 
-def expand_lengths(enc_out, durations , pace: float = 1.0):
+def expand_lengths(enc_out, durations, pace: float = 1.0):
     """If target=None, then predicted durations are applied"""
     dtype = enc_out.dtype
     reps = durations.float() / pace
@@ -124,13 +123,11 @@ def expand_lengths(enc_out, durations , pace: float = 1.0):
     dec_lens = reps.sum(dim=1)
 
     max_len = dec_lens.max()
-    reps_cumsum = torch.cumsum(F.pad(reps, (1, 0, 0, 0), value=0.0),
-                               dim=1)[:, None, :]
+    reps_cumsum = torch.cumsum(F.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
     reps_cumsum = reps_cumsum.to(dtype)
 
     range_ = torch.arange(max_len, device=enc_out.device)[None, :, None]
-    mult = ((reps_cumsum[:, :, :-1] <= range_) &
-            (reps_cumsum[:, :, 1:] > range_))
+    mult = (reps_cumsum[:, :, :-1] <= range_) & (reps_cumsum[:, :, 1:] > range_)
     mult = mult.to(dtype)
     enc_rep = torch.matmul(mult, enc_out)
 
@@ -155,23 +152,16 @@ def expand_lengths_slow(x, durations):
     return out, out_lens
 
 
-def trim_or_pad_to_target_length(
-        data_1d_or_2d: np.ndarray, target_length: int
-) -> np.ndarray:
+def trim_or_pad_to_target_length(data_1d_or_2d: np.ndarray, target_length: int) -> np.ndarray:
     assert len(data_1d_or_2d.shape) in {1, 2}
     delta = data_1d_or_2d.shape[0] - target_length
     if delta >= 0:  # trim if being longer
-        data_1d_or_2d = data_1d_or_2d[: target_length]
+        data_1d_or_2d = data_1d_or_2d[:target_length]
     else:  # pad if being shorter
         if len(data_1d_or_2d.shape) == 1:
-            data_1d_or_2d = np.concatenate(
-                [data_1d_or_2d, np.zeros(-delta)], axis=0
-            )
+            data_1d_or_2d = np.concatenate([data_1d_or_2d, np.zeros(-delta)], axis=0)
         else:
-            data_1d_or_2d = np.concatenate(
-                [data_1d_or_2d, np.zeros((-delta, data_1d_or_2d.shape[1]))],
-                axis=0
-            )
+            data_1d_or_2d = np.concatenate([data_1d_or_2d, np.zeros((-delta, data_1d_or_2d.shape[1]))], axis=0)
     return data_1d_or_2d
 
 
@@ -219,29 +209,29 @@ def pad_list(xs, pad_value, max_len=None):
     pad = xs[0].new(n_batch, max_len, *xs[0].size()[1:]).fill_(pad_value)
 
     for i in range(n_batch):
-        pad[i, :min(xs[i].size(0), max_len)] = xs[i][:max_len]
+        pad[i, : min(xs[i].size(0), max_len)] = xs[i][:max_len]
 
     return pad
 
 
-
 def build_activation(act_func, inplace=True):
-    if act_func == 'relu':
+    if act_func == "relu":
         return nn.ReLU(inplace=inplace)
-    elif act_func == 'relu6':
+    elif act_func == "relu6":
         return nn.ReLU6(inplace=inplace)
-    elif act_func == 'gelu':
+    elif act_func == "gelu":
         return GeLU()
-    elif act_func == 'gelu_accurate':
+    elif act_func == "gelu_accurate":
         return GeLUAcc()
-    elif act_func == 'tanh':
+    elif act_func == "tanh":
         return nn.Tanh()
-    elif act_func == 'sigmoid':
+    elif act_func == "sigmoid":
         return nn.Sigmoid()
     elif act_func is None:
         return None
     else:
-        raise ValueError('do not support: %s' % act_func)
+        raise ValueError("do not support: %s" % act_func)
+
 
 def make_positions(tensor, padding_idx):
     """Replace non-padding symbols with their position numbers.
@@ -253,9 +243,7 @@ def make_positions(tensor, padding_idx):
     # prefers ints, cumsum defaults to output longs, and ONNX doesn't know
     # how to handle the dtype kwarg in cumsum.
     mask = tensor.ne(padding_idx).int()
-    return (
-                   torch.cumsum(mask, dim=1).type_as(mask) * mask
-           ).long() + padding_idx
+    return (torch.cumsum(mask, dim=1).type_as(mask) * mask).long() + padding_idx
 
 
 def softmax(x, dim):
@@ -267,11 +255,11 @@ def _get_full_incremental_state_key(module_instance, key):
 
     # assign a unique ID to each module instance, so that incremental state is
     # not shared across module instances
-    if not hasattr(module_instance, '_instance_id'):
+    if not hasattr(module_instance, "_instance_id"):
         INCREMENTAL_STATE_INSTANCE_ID[module_name] += 1
         module_instance._instance_id = INCREMENTAL_STATE_INSTANCE_ID[module_name]
 
-    return '{}.{}.{}'.format(module_name, module_instance._instance_id, key)
+    return "{}.{}.{}".format(module_name, module_instance._instance_id, key)
 
 
 def get_incremental_state(module, incremental_state, key):
@@ -287,5 +275,3 @@ def set_incremental_state(module, incremental_state, key, value):
     if incremental_state is not None:
         full_key = _get_full_incremental_state_key(module, key)
         incremental_state[full_key] = value
-
-

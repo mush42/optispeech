@@ -12,9 +12,9 @@ class TextEmbedding(nn.Module):
         self,
         dim: int,
         n_vocab: int,
-        dropout: float=0.0,
-        padding_idx: int=0,
-        max_source_positions: int=DEFAULT_MAX_SOURCE_POSITIONS,
+        dropout: float = 0.0,
+        padding_idx: int = 0,
+        max_source_positions: int = DEFAULT_MAX_SOURCE_POSITIONS,
     ):
         super().__init__()
         self.embed_scale = math.sqrt(dim)
@@ -48,7 +48,7 @@ class VariancePredictor(torch.nn.Module):
         intermediate_dim: int,
         kernel_size: int,
         dropout: float = 0.1,
-        conv_layer_class: type=torch.nn.Conv1d,
+        conv_layer_class: type = torch.nn.Conv1d,
     ):
         """
         Args:
@@ -125,10 +125,10 @@ class DurationPredictor(VariancePredictor):
         """
         log_durations = self(x, mask)
         # linear domain
-        durations = (torch.exp(log_durations) - self.clip_val)
+        durations = torch.exp(log_durations) - self.clip_val
         durations = torch.ceil(durations * factor)
         # avoid negative values
-        durations = torch.clamp(durations.long(), min=0) 
+        durations = torch.clamp(durations.long(), min=0)
         durations = durations.masked_fill(mask, 0)
         return durations
 

@@ -1,6 +1,6 @@
 # coding: utf-8
 
-from .symbols import SYMBOL_TO_ID, ID_TO_SYMBOL, PAD_ID, BOS_ID, EOS_ID
+from .symbols import BOS_ID, EOS_ID, ID_TO_SYMBOL, PAD_ID, SYMBOL_TO_ID
 
 
 def phonemes_to_ids(text):
@@ -37,7 +37,4 @@ def phonemes_to_ids_piper(phonemes):
 
 
 def ids_to_phonemes_piper(ids):
-    return "".join([
-        ID_TO_SYMBOL[id]
-        for id in ids
-    ])
+    return "".join([ID_TO_SYMBOL[id] for id in ids])

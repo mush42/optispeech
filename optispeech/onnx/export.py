@@ -4,14 +4,13 @@ import random
 from pathlib import Path
 
 import numpy as np
-import torch
 import onnx
+import torch
 from lightning import seed_everything
 
 from optispeech.model import OptiSpeech
 from optispeech.text import UNICODE_NORM_FORM, get_input_symbols
 from optispeech.utils import get_script_logger
-
 
 log = get_script_logger(__name__)
 DEFAULT_OPSET = 16
@@ -29,7 +28,11 @@ def export_as_onnx(model, out_filename, opset):
     e_factor = 1.0
     scales = torch.Tensor([d_factor, p_factor, e_factor])
 
-    input_names = ["x", "x_lengths", "scales",]
+    input_names = [
+        "x",
+        "x_lengths",
+        "scales",
+    ]
     output_names = ["wav", "wav_lengths", "durations"]
 
     # Set dynamic shape for inputs/outputs
@@ -54,13 +57,7 @@ def export_as_onnx(model, out_filename, opset):
         d_factor = scales[0]
         p_factor = scales[1]
         e_factor = scales[2]
-        outputs = model_gen.synthesise(
-            x,
-            x_lengths,
-            d_factor=d_factor,
-            p_factor=p_factor,
-            e_factor=e_factor
-        )
+        outputs = model_gen.synthesise(x, x_lengths, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor)
         return outputs["wav"], outputs["wav_lengths"], outputs["durations"]
 
     model_gen.forward = _infer_forward
@@ -83,15 +80,17 @@ def add_inference_metadata(onnxfile, model):
     text_args = dict(model.hparams.data_args.text_processor.keywords)
     text_args["unicode_norm_form"] = UNICODE_NORM_FORM if text_args["normalize_text"] else None
     input_symbols, special_symbols = get_input_symbols()
-    infer_dict = json.dumps(dict(
-        name=model.hparams.data_args.name,
-        sample_rate=model.hparams.data_args.feature_extractor.sample_rate,
-        input_symbols=input_symbols,
-        special_symbols=special_symbols,
-        **text_args,
-    ))
+    infer_dict = json.dumps(
+        dict(
+            name=model.hparams.data_args.name,
+            sample_rate=model.hparams.data_args.feature_extractor.sample_rate,
+            input_symbols=input_symbols,
+            special_symbols=special_symbols,
+            **text_args,
+        )
+    )
     m1 = onnx_model.metadata_props.add()
-    m1.key = 'inference'
+    m1.key = "inference"
     m1.value = infer_dict
     onnx.checker.check_model(onnx_model)
     onnx.save(onnx_model, onnxfile)

@@ -1,12 +1,11 @@
 from typing import List, Tuple
 
 import torch
-import torchaudio
-from torch import nn, Tensor
 import torch.nn.functional as F
+import torchaudio
+from torch import Tensor, nn
 
 from optispeech.utils import safe_log
-
 
 
 class GeneratorLoss(nn.Module):
@@ -67,8 +66,7 @@ class DiscriminatorLoss(nn.Module):
 
 
 class FeatureMatchingLoss(nn.Module):
-    """Feature Matching Loss module. Calculates the feature matching loss between feature maps of the sub-discriminators.
-    """
+    """Feature Matching Loss module. Calculates the feature matching loss between feature maps of the sub-discriminators."""
 
     def forward(self, fmap_r: list[list[Tensor]], fmap_g: list[list[Tensor]]) -> Tensor:
         """
@@ -90,17 +88,7 @@ class FeatureMatchingLoss(nn.Module):
 class MelSpecReconstructionLoss(nn.Module):
     """L1 distance of real/fake sample's mel-frequency log-magnitude spectrogram."""
 
-    def __init__(
-        self,
-        sample_rate,
-        n_fft,
-        hop_length,
-        win_length,
-        n_mels,
-        f_min,
-        f_max,
-        clip_val=1e-7
-    ):
+    def __init__(self, sample_rate, n_fft, hop_length, win_length, n_mels, f_min, f_max, clip_val=1e-7):
         super().__init__()
         self.clip_val = clip_val
         self.mel_spec = torchaudio.transforms.MelSpectrogram(
@@ -146,9 +134,7 @@ def stft(x, fft_size, hop_size, win_length, window):
         Tensor: Magnitude spectrogram (B, #frames, fft_size // 2 + 1).
 
     """
-    x_stft = torch.stft(
-        x, fft_size, hop_size, win_length, window, return_complex=False
-    )
+    x_stft = torch.stft(x, fft_size, hop_size, win_length, window, return_complex=False)
     real = x_stft[..., 0]
     imag = x_stft[..., 1]
 
@@ -211,9 +197,7 @@ class MultiResolutionSTFTLoss(torch.nn.Module):
 class STFTLoss(torch.nn.Module):
     """STFT loss module."""
 
-    def __init__(
-        self, fft_size=1024, shift_size=120, win_length=600, window="hann_window"
-    ):
+    def __init__(self, fft_size=1024, shift_size=120, win_length=600, window="hann_window"):
         """Initialize STFT loss module."""
         super(STFTLoss, self).__init__()
         self.fft_size = fft_size
@@ -284,4 +268,3 @@ class LogSTFTMagnitudeLoss(torch.nn.Module):
 
         """
         return F.l1_loss(torch.log(y_mag), torch.log(x_mag))
-

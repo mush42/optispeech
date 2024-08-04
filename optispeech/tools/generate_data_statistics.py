@@ -17,7 +17,6 @@ from optispeech.dataset.text_wav_datamodule import TextWavDataModule
 from optispeech.utils import pylogger
 from optispeech.utils.generic import to_numpy
 
-
 log = pylogger.get_pylogger(__name__)
 
 
@@ -27,7 +26,7 @@ def calculate_data_statistics(dataset: torch.utils.data.Dataset, output_dir: Pat
     pitch_max = -float("inf")
     pitch_sum = 0
     pitch_sq_sum = 0
-    
+
     # Energy stats
     energy_min = float("inf")
     energy_max = -float("inf")
@@ -41,13 +40,13 @@ def calculate_data_statistics(dataset: torch.utils.data.Dataset, output_dir: Pat
 
     # Benefit of doing it over batch is the added speed due to multiprocessing
     for batch in tqdm(dataset, desc="Calculating"):
-        for i in range(batch['x'].shape[0]):
-            mel_len = batch['mel_lengths'][i]
-            mel_spec = batch['mel'][i][:, :mel_len]
-            pitch = batch['pitches'][i][:mel_len]
+        for i in range(batch["x"].shape[0]):
+            mel_len = batch["mel_lengths"][i]
+            mel_spec = batch["mel"][i][:, :mel_len]
+            pitch = batch["pitches"][i][:mel_len]
             pitch_min = min(pitch_min, torch.min(pitch).item())
             pitch_max = max(pitch_max, torch.max(pitch).item())
-            energy = batch['energies'][i][:mel_len]
+            energy = batch["energies"][i][:mel_len]
             energy_min = min(energy_min, torch.min(energy).item())
             energy_max = max(energy_max, torch.max(energy).item())
             # normalisation statistics
@@ -56,43 +55,40 @@ def calculate_data_statistics(dataset: torch.utils.data.Dataset, output_dir: Pat
             energy_sum += torch.sum(energy)
             energy_sq_sum += torch.sum(torch.pow(energy, 2))
             mel_sum += torch.sum(mel_spec)
-            mel_sq_sum += torch.sum(mel_spec ** 2)
+            mel_sq_sum += torch.sum(mel_spec**2)
             total_mel_len += mel_len
-    
+
     # Save normalisation statistics
     pitch_mean = pitch_sum / total_mel_len
     pitch_std = torch.sqrt((pitch_sq_sum / total_mel_len) - torch.pow(pitch_mean, 2))
-    
+
     energy_mean = energy_sum / total_mel_len
-    energy_std = torch.sqrt((energy_sq_sum / total_mel_len) - torch.pow(energy_mean,2))
+    energy_std = torch.sqrt((energy_sq_sum / total_mel_len) - torch.pow(energy_mean, 2))
 
     mel_mean = mel_sum / (total_mel_len * cfg.feature_extractor.n_feats)
     mel_std = torch.sqrt((mel_sq_sum / (total_mel_len * cfg.feature_extractor.n_feats)) - torch.pow(mel_mean, 2))
 
     stats = {
-                "pitch_min": round(pitch_min, 6),
-                "pitch_max": round(pitch_max, 6),
-                "pitch_mean": round(pitch_mean.item(), 6),
-                "pitch_std": round(pitch_std.item(), 6),
-                "energy_min": round(energy_min, 6),
-                "energy_max": round(energy_max, 6),
-                "energy_mean": round(energy_mean.item(), 6),
-                "energy_std": round(energy_std.item(), 6),
-                "mel_mean": round(mel_mean.item(), 6),
-                "mel_std": round(mel_std.item(), 6),
+        "pitch_min": round(pitch_min, 6),
+        "pitch_max": round(pitch_max, 6),
+        "pitch_mean": round(pitch_mean.item(), 6),
+        "pitch_std": round(pitch_std.item(), 6),
+        "energy_min": round(energy_min, 6),
+        "energy_max": round(energy_max, 6),
+        "energy_mean": round(energy_mean.item(), 6),
+        "energy_std": round(energy_std.item(), 6),
+        "mel_mean": round(mel_mean.item(), 6),
+        "mel_std": round(mel_std.item(), 6),
     }
 
-    print("\n".join([
-        f"  {k}: {v}" for k, v in stats.items()
-    ]))
+    print("\n".join([f"  {k}: {v}" for k, v in stats.items()]))
 
     if save_stats:
         with open(output_dir / "stats.json", "w") as f:
-            json.dump(stats,f, indent=4) 
+            json.dump(stats, f, indent=4)
         log.info("[+] Done! features saved to: ", output_dir)
     else:
         log.info("Stats not saved!")
-    
 
 
 def main():
@@ -146,7 +142,7 @@ def main():
         cfg["batch_size"] = args.batch_size
         cfg["train_filelist_path"] = str(os.path.join(root_path, cfg["train_filelist_path"]))
         cfg["valid_filelist_path"] = str(os.path.join(root_path, cfg["valid_filelist_path"]))
-        cfg['num_workers'] = args.num_workers
+        cfg["num_workers"] = args.num_workers
 
     if args.output_dir is not None:
         output_dir = Path(args.output_dir)

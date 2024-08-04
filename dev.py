@@ -1,19 +1,17 @@
 """Module used during model development."""
 
+import hydra
 import torch
+from hydra import compose, initialize
 from lightning.pytorch.trainer import Trainer
 from lightning.pytorch.utilities.model_summary import summarize
-
-import hydra
-from hydra import compose, initialize
 from omegaconf import OmegaConf
 
 from optispeech.text import process_and_phonemize_text
 
-
 # Text processing pipeline
 SENTENCE = "The history of the Galaxy has got a little muddled, for a number of reasons."
-phids, __ = process_and_phonemize_text(SENTENCE, "en-us", tokenizer='default')
+phids, __ = process_and_phonemize_text(SENTENCE, "en-us", tokenizer="default")
 print(f"Length of phoneme ids: {len(phids)}")
 
 # Config pipeline
@@ -26,7 +24,7 @@ with initialize(version_base=None, config_path="./configs"):
         text_processor=dataset_cfg.data.text_processor,
         feature_extractor=dataset_cfg.data.feature_extractor,
         batch_size=dataset_cfg.data.batch_size,
-        data_statistics = dataset_cfg.data.data_statistics
+        data_statistics=dataset_cfg.data.data_statistics,
     )
 
 # Dataset pipeline

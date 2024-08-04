@@ -5,15 +5,14 @@ import os
 from collections import Counter
 from pathlib import Path
 
-import numpy as np
 import hydra
+import numpy as np
 import rootutils
 from hydra import compose, initialize
 from tqdm import tqdm
 
 from optispeech.dataset import TextWavDataset
 from optispeech.utils import get_script_logger
-
 
 log = get_script_logger(__name__)
 
@@ -48,25 +47,19 @@ def get_sids_and_lids(dataset, all_utterances):
     if dataset.num_speakers > 1:
         row_len = len(all_utterances[0])
         assert row_len > 2, f"Speaker ID column not included. Invalid number of data items in dataset rows: {row_len}"
-        sids = [
-            sid.strip().lower()
-            for sid in [ut[1] for ut in all_utterances]
-        ]
+        sids = [sid.strip().lower() for sid in [ut[1] for ut in all_utterances]]
         assert all(sids), "Invalid input. Some utterances lack speaker identifier."
         sids = sort_by_most_common(sids)
     if dataset.text_processor.is_multi_language:
         row_len = len(all_utterances[0])
         assert row_len > 3, f"Language column not included. Invalid number of data items in dataset rows: {row_len}"
-        lids = [
-            lid.strip().lower()
-            for lid in [ut[2] for ut in all_utterances]
-        ]
+        lids = [lid.strip().lower() for lid in [ut[2] for ut in all_utterances]]
         assert all(lids), "Invalid input. Some utterances lack language identifier."
         lids = sort_by_most_common(lids)
     return sids, lids
 
 
-def sort_by_most_common(iterable)    :
+def sort_by_most_common(iterable):
     counter = Counter(iterable)
     return [j for j, k in counter.most_common()]
 
@@ -107,10 +100,10 @@ def main():
         num_speakers=cfg.num_speakers,
         filelist_path=os.devnull,
         text_processor=text_processor,
-        feature_extractor=    feature_extractor,
+        feature_extractor=feature_extractor,
     )
 
-    if args.format != 'ljspeech':
+    if args.format != "ljspeech":
         log.error(f"Unsupported dataset format `{args.format}`")
         exit(1)
 
@@ -137,7 +130,7 @@ def main():
     output_dir.mkdir(parents=True)
     data_dir = output_dir.joinpath("data")
     data_dir.mkdir()
-    for (out_filename, root) in outputs:
+    for out_filename, root in outputs:
         if not root.is_dir():
             log.warning(f"Datasplit `{root.name}` not found. Skipping...")
             exit(1)
@@ -173,10 +166,7 @@ def main():
             out_filelist.append(data_dir.joinpath(filestem))
         out_txt = output_dir.joinpath(out_filename)
         with open(out_txt, "w", encoding="utf-8", newline="\n") as file:
-            filelist = [
-                os.fspath(fn.resolve())
-                for fn in out_filelist
-            ]
+            filelist = [os.fspath(fn.resolve()) for fn in out_filelist]
             file.write("\n".join(filelist))
         log.info(f"Wrote file: {out_txt}")
 

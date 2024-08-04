@@ -17,13 +17,7 @@ class ConvNeXtBlock(nn.Module):
             Defaults to None.
     """
 
-    def __init__(
-        self,
-        dim: int,
-        intermediate_dim: int,
-        drop_path: float=0.0,
-        layer_scale_init_value: float=None
-    ):
+    def __init__(self, dim: int, intermediate_dim: int, drop_path: float = 0.0, layer_scale_init_value: float = None):
         super().__init__()
         self.dwconv = nn.Conv1d(dim, dim, kernel_size=7, padding=3, groups=dim)  # depthwise conv
         self.norm = nn.LayerNorm(dim, eps=1e-6)
@@ -35,7 +29,7 @@ class ConvNeXtBlock(nn.Module):
             if layer_scale_init_value > 0
             else None
         )
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual = x
@@ -69,13 +63,13 @@ class ConvNeXtBackbone(nn.Module):
         dim: int,
         intermediate_dim: int,
         num_layers: int,
-        drop_path: float=0.0,
-        layer_scale_init_value: Optional[float]=None,
+        drop_path: float = 0.0,
+        layer_scale_init_value: Optional[float] = None,
     ):
         super().__init__()
         layer_scale_init_value = layer_scale_init_value or 1 / num_layers
         # Apply stochastic depth as in ConvNeXt-TTS
-        drop_ppath_rates=[x.item() for x in torch.linspace(0, drop_path, num_layers)] 
+        drop_ppath_rates = [x.item() for x in torch.linspace(0, drop_path, num_layers)]
         self.convnext = nn.ModuleList(
             [
                 ConvNeXtBlock(
@@ -95,10 +89,10 @@ class ConvNeXtBackbone(nn.Module):
             nn.init.trunc_normal_(m.weight, std=0.02)
             nn.init.constant_(m.bias, 0)
 
-    def forward(self, x: torch.Tensor, padding_mask: Optional[torch.Tensor]=None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         x = x.transpose(1, 2)
         if padding_mask is not None:
-            mask = (1 - padding_mask.float().unsqueeze(1))
+            mask = 1 - padding_mask.float().unsqueeze(1)
         else:
             mask = None
         for conv_block in self.convnext:
@@ -113,7 +107,8 @@ class DropPath(nn.Module):
     """
     Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
     """
-    def __init__(self, drop_prob: float = 0., scale_by_keep: bool = True):
+
+    def __init__(self, drop_prob: float = 0.0, scale_by_keep: bool = True):
         super(DropPath, self).__init__()
 
         self.drop_prob = drop_prob
@@ -123,8 +118,8 @@ class DropPath(nn.Module):
         return self._drop_path(x, self.drop_prob, self.training, self.scale_by_keep)
 
     @staticmethod
-    def _drop_path(x, drop_prob: float = 0., training: bool = False, scale_by_keep: bool = True):
-        if drop_prob == 0. or not training:
+    def _drop_path(x, drop_prob: float = 0.0, training: bool = False, scale_by_keep: bool = True):
+        if drop_prob == 0.0 or not training:
             return x
         keep_prob = 1 - drop_prob
         shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
@@ -134,5 +129,4 @@ class DropPath(nn.Module):
         return x * random_tensor
 
     def extra_repr(self):
-        return f'drop_prob={round(self.drop_prob,3):0.3f}'
-
+        return f"drop_prob={round(self.drop_prob,3):0.3f}"
