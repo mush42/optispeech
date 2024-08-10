@@ -7,6 +7,7 @@ import torch
 from librosa.filters import mel as librosa_mel_fn
 from scipy.interpolate import interp1d
 from torch import nn
+from torchaudio.functional import gain, lowpass_biquad, highpass_biquad
 
 from optispeech.utils import pylogger, safe_log, trim_or_pad_to_target_length
 from optispeech.utils.audio import spectral_normalize_torch
@@ -30,6 +31,9 @@ class FeatureExtractor:
         f_max: int,
         center: bool,
         preemphasis_filter_coef: Optional[float] = None,
+        lowpass_freq: Optional[int]=None,
+        highpass_freq: Optional[int]=None,
+        gain_db: Optional[int]=None,
         trim_silence: bool = False,
         trim_silence_args: Optional[dict] = None,
     ):
@@ -42,6 +46,9 @@ class FeatureExtractor:
         self.f_max = f_max
         self.center = center
         self.preemphasis_filter_coef = preemphasis_filter_coef
+        self.lowpass_freq = lowpass_freq
+        self.highpass_freq = highpass_freq
+        self.gain_db = gain_db
         self.trim_silence = trim_silence
         self.trim_silence_args = trim_silence_args
         self._silence_detector = None
@@ -62,6 +69,26 @@ class FeatureExtractor:
         # Enhance higher frequencies (useful with some datasets)
         if self.preemphasis_filter_coef is not None:
             wav = librosa.effects.preemphasis(wav, coef=self.preemphasis_filter_coef)
+        # Cutt-off higher freqs
+        if self.lowpass_freq is not None:
+            wav = lowpass_biquad(
+                torch.from_numpy(wav.copy()),
+                sample_rate=self.sample_rate,
+                cutoff_freq=self.lowpass_freq
+            ).numpy()
+        if self.highpass_freq is not None:
+            wav = highpass_biquad(
+                torch.from_numpy(wav.copy()),
+                sample_rate=self.sample_rate,
+                cutoff_freq=self.highpass_freq
+            ).numpy()
+        if self.gain_db is not None:
+            wav = gain(
+                torch.from_numpy(wav.copy()),
+                gain_db=self.gain_db
+            ).numpy()
+        # Peak normalization
+        wav = librosa.util.normalize(wav)
         mel = self.get_mel(wav)
         mel_length = mel.shape[-1]
         energy = self.get_energy(wav, mel_length)

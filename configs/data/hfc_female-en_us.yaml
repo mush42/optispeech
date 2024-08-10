@@ -9,6 +9,11 @@ train_filelist_path: data/hfc_female-en_us/train.txt
 valid_filelist_path: data/hfc_female-en_us/val.txt
 batch_size: 64 
 num_workers: 8
+feature_extractor:
+  preemphasis_filter_coef: 0.5
+  lowpass_freq: 7600
+  highpass_freq: 50
+  gain_db: 10
 data_statistics:  # Computed for this dataset with the params of the above feature extractor
   pitch_min: 59.842995
   pitch_max: 804.788574

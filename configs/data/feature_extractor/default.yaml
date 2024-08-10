@@ -8,6 +8,9 @@ f_min: 80
 f_max: 8000
 center: false
 preemphasis_filter_coef: null # apply preemphasis filter
+lowpass_freq: null
+highpass_freq: null
+gain_db: null
 trim_silence: false
 trim_silence_args:
   silence_threshold: 0.2
