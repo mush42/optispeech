@@ -162,3 +162,5 @@ synth_output/
 # local only files/dirs
 synthesize.py
 ./data/
+*.ckpt
+*.pt
