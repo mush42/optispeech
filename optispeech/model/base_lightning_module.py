@@ -166,7 +166,7 @@ class BaseLightningModule(LightningModule, ABC):
         else:
             wav, wav_hat = wav_outputs
         loss, log_dict = self.discriminator.forward_disc(wav, wav_hat)
-        log_outputs["total_loss/discriminator"] = disc_loss
+        log_outputs["total_loss/discriminator"] = loss
         log_outputs.update({f"discriminator/{key}": val for key, val in log_dict.items()})
         self.log_dict(
             log_outputs,
