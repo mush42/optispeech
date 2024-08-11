@@ -40,6 +40,7 @@ dependencies = [
     "onnxruntime>=1.18.1",
     "requests>=2.32.3",
     "numpy<=1.24",
+    "torchcrepe>=0.0.23",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
