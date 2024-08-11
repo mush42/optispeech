@@ -140,8 +140,8 @@ class BaseLightningModule(LightningModule, ABC):
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         if train_discriminator:
             gen_adv_loss, log_dict = self.discriminator.forward_gen(wav, wav_hat)
-            log_outputs["total_loss/gen_adv_loss"] = gen_adv_loss
-            log_outputs.update({f"gen_subloss/adv_{key}": val for (key, val) in log_dict.items()})
+            log_outputs["total_loss/train_gen_adv_loss"] = gen_adv_loss
+            log_outputs.update({f"gen_adv_loss/train_{key}": val for (key, val) in log_dict.items()})
         else:
             gen_adv_loss = 0.0
         loss = gen_am_loss + gen_adv_loss
@@ -199,8 +199,9 @@ class BaseLightningModule(LightningModule, ABC):
         if gen_outputs.get("energy_loss") != 0.0:
             log_outputs["gen_subloss/val_energy_loss"] = gen_outputs["energy_loss"].item()
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
-        adv_loss, log_dict = self.discriminator.get_val_loss(wav, wav_hat)
-        log_outputs.update({f"gen_subloss/val_{key}": value for key, value in log_dict.items()})
+        gen_adv_loss, log_dict = self.discriminator.get_val_loss(wav, wav_hat)
+        log_outputs["total_loss/val_gen_adv_loss"] = gen_adv_loss
+        log_outputs.update({f"gen_adv_loss/val_{key}": value for key, value in log_dict.items()})
         # perceptual eval
         audio_16_khz = torchaudio.functional.resample(wav, orig_freq=self.sample_rate, new_freq=16000)
         audio_hat_16khz = torchaudio.functional.resample(wav_hat, orig_freq=self.sample_rate, new_freq=16000)
