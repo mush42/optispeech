@@ -219,8 +219,9 @@ class BaseLightningModule(LightningModule, ABC):
             )
         if self.train_args.evaluate_utmos:
             utmos_score = self.utmos_model.score(audio_hat_16khz.unsqueeze(1)).mean()
+            utmos_loss = 5 - utmos_score
         else:
-            utmos_score = torch.zeros(1, device=self.device)
+            utmos_loss = torch.zeros(1, device=self.device)
         if self.train_args.evaluate_pesq:
             from pesq import pesq
 
@@ -229,9 +230,10 @@ class BaseLightningModule(LightningModule, ABC):
                 pesq_score += pesq(16000, ref, deg, "wb", on_error=1)
             pesq_score /= len(audio_16_khz)
             pesq_score = torch.tensor(pesq_score)
+            pesq_loss = 5 - pesq_score
         else:
-            pesq_score = torch.zeros(1, device=self.device)
-        total_loss = gen_am_loss + gen_adv_loss + (5 - utmos_score) + (5 - pesq_score)
+            pesq_loss = torch.zeros(1, device=self.device)
+        total_loss = gen_am_loss + gen_adv_loss + utmos_loss + pesq_loss
         log_outputs["total_loss/val_total"] = total_loss
         self.log_dict(
             log_outputs,
