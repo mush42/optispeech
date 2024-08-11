@@ -188,6 +188,7 @@ class BaseLightningModule(LightningModule, ABC):
     def validation_step(self, batch, batch_idx, **kwargs):
         log_outputs = {}
         gen_outputs = self._process_batch(batch)
+        gen_am_loss = gen_outputs["loss"]
         log_outputs.update(
             {
                 "total_loss/val_am_loss": gen_outputs["loss"].item(),
@@ -230,7 +231,7 @@ class BaseLightningModule(LightningModule, ABC):
             pesq_score = torch.tensor(pesq_score)
         else:
             pesq_score = torch.zeros(1, device=self.device)
-        total_loss = adv_loss + (5 - utmos_score) + (5 - pesq_score)
+        total_loss = gen_am_loss + gen_adv_loss + (5 - utmos_score) + (5 - pesq_score)
         log_outputs["total_loss/val_total"] = total_loss
         self.log_dict(
             log_outputs,
