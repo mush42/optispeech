@@ -47,7 +47,7 @@ def _get_latest_ckpt():
     return os.fspath(files[0])
 
 
-def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -> Tuple[np.ndarray, int]:
+def speak(text: str, d_factor: float, p_factor: float, e_factor: float, load_latest_ckpt=False) -> Tuple[np.ndarray, int]:
     global MODEL, CKPT_PATH, CKPT_EPOCH, CKPT_GSTEP
     if load_latest_ckpt or (MODEL is None):
         CKPT_PATH = _get_latest_ckpt()
@@ -68,7 +68,7 @@ def speak(text: str, d_factor: float, p_factor: float, load_latest_ckpt=False) -
     # Avoid extremely long sentences
     text = text[:1024]
     x, x_lengths, normalized_text = MODEL.prepare_input(text)
-    outputs = MODEL.synthesise(x, x_lengths, d_factor=d_factor, p_factor=p_factor)
+    outputs = MODEL.synthesise(x, x_lengths, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor)
     info = "\n".join([
         f"Normalized text: {normalized_text}",
         f"Latency (ms): {outputs['latency']}",
@@ -95,11 +95,12 @@ with gui:
             gr.Markdown("## Synthesis options")
             d_factor = gr.Slider(value=1.0, minimum=0.1, maximum=2.0, label="Length factor")
             p_factor = gr.Slider(value=1.0, minimum=0.1, maximum=2.0, label="Pitch factor")
+            e_factor = gr.Slider(value=1.0, minimum=0.1, maximum=2.0, label="Energy factor")
             load_latest_ckpt = gr.Checkbox(value=False, label="Load latest checkpoint")
     speak_btn = gr.Button("Speak")
     audio = gr.Audio(label="Generated audio")
     info = gr.Text(label="Info", interactive=False)
-    speak_btn.click(fn=speak, inputs=[text, d_factor, p_factor, load_latest_ckpt], outputs=[audio, info])
+    speak_btn.click(fn=speak, inputs=[text, d_factor, p_factor, e_factor, load_latest_ckpt], outputs=[audio, info])
     random_sent_btn.click(
         fn=lambda txt: random.choice(RANDOM_SENTENCES),
         inputs=text,
