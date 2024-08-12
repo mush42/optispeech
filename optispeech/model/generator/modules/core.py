@@ -169,6 +169,8 @@ class PitchPredictor(torch.nn.Module):
     @torch.inference_mode()
     def infer(self, x, padding_mask, factor=1.0):
         preds = self.predictor(x, padding_mask)
+        # Optional scaling
+        preds = preds * factor
         emb = self.embed(preds.unsqueeze(1))
         x = x + emb.transpose(1, 2)
         x = x * (1 - padding_mask.float())[..., None]
