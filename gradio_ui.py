@@ -111,8 +111,11 @@ with gui:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("checkpoints_dir")
+    parser.add_argument("-s", "--share", action="store_true", help="Generate gradio share link")
     args = parser.parse_args()
     CHECKPOINTS_DIR = args.checkpoints_dir
     gui.launch(
-        server_name="0.0.0.0", server_port=7860
+        server_name="0.0.0.0",
+        server_port=7860,
+        share=args.share
     )
