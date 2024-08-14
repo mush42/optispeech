@@ -93,9 +93,9 @@ with gui:
             random_sent_btn = gr.Button("Random sentence...")
         with gr.Column():
             gr.Markdown("## Synthesis options")
-            d_factor = gr.Slider(value=1.0, minimum=0.1, maximum=2.0, label="Length factor")
-            p_factor = gr.Slider(value=1.0, minimum=0.1, maximum=2.0, label="Pitch factor")
-            e_factor = gr.Slider(value=1.0, minimum=0.1, maximum=2.0, label="Energy factor")
+            d_factor = gr.Slider(value=1.0, minimum=0.1, maximum=10.0, label="Length factor")
+            p_factor = gr.Slider(value=1.0, minimum=0.1, maximum=10.0, label="Pitch factor")
+            e_factor = gr.Slider(value=1.0, minimum=0.1, maximum=10.0, label="Energy factor")
             load_latest_ckpt = gr.Checkbox(value=False, label="Load latest checkpoint")
     speak_btn = gr.Button("Speak")
     audio = gr.Audio(label="Generated audio")
