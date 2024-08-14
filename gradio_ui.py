@@ -48,7 +48,7 @@ def _get_latest_ckpt():
 
 
 def speak(text: str, d_factor: float, p_factor: float, e_factor: float, load_latest_ckpt=False) -> Tuple[np.ndarray, int]:
-    global MODEL, CKPT_PATH, CKPT_EPOCH, CKPT_GSTEP
+    global MODEL, CKPT_PATH, CKPT_EPOCH, CKPT_GSTEP, RUN_NAME
     if load_latest_ckpt or (MODEL is None):
         CKPT_PATH = _get_latest_ckpt()
         MODEL = OptiSpeech.load_from_checkpoint(CKPT_PATH, map_location="cpu")
