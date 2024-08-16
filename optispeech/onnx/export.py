@@ -18,6 +18,9 @@ DEFAULT_SEED = 1234
 
 
 def export_as_onnx(model, out_filename, opset):
+    is_multi_speaker = model.hparams.data_args.num_speakers > 1
+    is_multi_language = len(model.hparams.data_args.text_processor.languages) >1
+
     dummy_input_length = 50
     x = torch.randint(low=0, high=20, size=(1, dummy_input_length), dtype=torch.long)
     x_lengths = torch.LongTensor([dummy_input_length])
@@ -28,11 +31,14 @@ def export_as_onnx(model, out_filename, opset):
     e_factor = 1.0
     scales = torch.Tensor([d_factor, p_factor, e_factor])
 
+    dummy_input = [x, x_lengths, scales,]
+
     input_names = [
         "x",
         "x_lengths",
         "scales",
     ]
+        
     output_names = ["wav", "wav_lengths", "durations"]
 
     # Set dynamic shape for inputs/outputs
@@ -44,27 +50,43 @@ def export_as_onnx(model, out_filename, opset):
         "durations": {0: "batch_size", 1: "time"},
     }
 
+    if is_multi_speaker:
+        dummy_input.append(torch.LongTensor([0]))
+        input_names.append("sids")
+        dynamic_axes["sids"] = {0: "batch_size"}
+
+    if is_multi_language:
+        dummy_input.append(torch.LongTensor([0]))
+        input_names.append("lids")
+        dynamic_axes["lids"] = {0: "batch_size"}
+
     # Create the output directory (if not exists)
     Path(out_filename).parent.mkdir(parents=True, exist_ok=True)
-
-    dummy_input = (x, x_lengths, scales)
 
     model._jit_is_scripting = True
     model_gen = model.generator
     del model_gen.alignment_module
 
-    def _infer_forward(x, x_lengths, scales):
+    def _infer_forward(x, x_lengths, scales, sids=None, lids=None):
         d_factor = scales[0]
         p_factor = scales[1]
         e_factor = scales[2]
-        outputs = model_gen.synthesise(x, x_lengths, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor)
+        outputs = model_gen.synthesise(
+            x,
+            x_lengths,
+            sids=sids,
+            lids=lids,
+            d_factor=d_factor,
+            p_factor=p_factor,
+            e_factor=e_factor
+        )
         return outputs["wav"], outputs["wav_lengths"], outputs["durations"]
 
     model_gen.forward = _infer_forward
     torch.onnx.export(
         model_gen,
         f=out_filename,
-        args=dummy_input,
+        args=tuple(dummy_input),
         input_names=input_names,
         output_names=output_names,
         dynamic_axes=dynamic_axes,
@@ -77,21 +99,24 @@ def export_as_onnx(model, out_filename, opset):
 
 def add_inference_metadata(onnxfile, model):
     onnx_model = onnx.load(onnxfile)
-    text_args = dict(model.hparams.data_args.text_processor.keywords)
-    text_args["unicode_norm_form"] = UNICODE_NORM_FORM if text_args["normalize_text"] else None
     input_symbols, special_symbols = get_input_symbols()
-    infer_dict = json.dumps(
-        dict(
-            name=model.hparams.data_args.name,
-            sample_rate=model.hparams.data_args.feature_extractor.sample_rate,
-            input_symbols=input_symbols,
-            special_symbols=special_symbols,
-            **text_args,
-        )
+    text_processor = model.text_processor
+    languages = [lang.code for lang in text_processor.languages]
+    text_processor.languages = [dict(lang) for lang in text_processor.languages]
+    infer_dict =  dict(
+        name=model.hparams.data_args.name,
+        sample_rate=model.hparams.data_args.feature_extractor.sample_rate,
+        input_symbols=input_symbols,
+        special_symbols=special_symbols,
+        speakers=[],
+        languages=languages,
+        unicode_norm_form=UNICODE_NORM_FORM,
+        text_processor=text_processor.asdict(),
     )
+    inference_data = json.dumps(infer_dict)
     m1 = onnx_model.metadata_props.add()
     m1.key = "inference"
-    m1.value = infer_dict
+    m1.value = inference_data
     onnx.checker.check_model(onnx_model)
     onnx.save(onnx_model, onnxfile)
 

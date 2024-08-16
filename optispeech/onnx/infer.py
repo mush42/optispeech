@@ -1,5 +1,6 @@
 import argparse
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 
@@ -7,7 +8,7 @@ import numpy as np
 import onnxruntime
 import soundfile as sf
 
-from optispeech.text import process_and_phonemize_text
+from optispeech.dataset.text_processor import TextProcessor
 from optispeech.utils import get_script_logger, numpy_pad_sequences, numpy_unpad_sequences
 
 log = get_script_logger(__name__)
@@ -16,6 +17,88 @@ ONNX_CPU_PROVIDERS = [
     "CPUExecutionProvider",
 ]
 
+
+@dataclass
+class OptiSpeechONNXModel:
+    session: onnxruntime.InferenceSession
+    sample_rate: int
+    text_processor: TextProcessor
+    speakers: bool
+    languages: bool
+
+    def __post_init__(self):
+            self.is_multispeaker=len(self.speakers) > 1
+            self.is_multilanguage=len(self.languages) > 1
+
+    @classmethod
+    def from_onnx_session(cls, session: onnxruntime.InferenceSession):
+        meta = session.get_modelmeta()
+        infer_params = json.loads(meta.custom_metadata_map["inference"])
+        text_processor = TextProcessor.from_dict(infer_params["text_processor"])
+        return cls(
+            session=session,
+            sample_rate = infer_params["sample_rate"],
+            text_processor=text_processor,
+            speakers=infer_params["speakers"],
+            languages=infer_params["languages"]
+        )
+
+    @classmethod
+    def from_onnx_file_path(cls, onnx_path: str, onnx_providers: list[str]=ONNX_CPU_PROVIDERS):
+        session = onnxruntime.InferenceSession(onnx_path, providers=onnx_providers)
+        return cls.from_onnx_session(session)
+
+    def prepare_input(self, text: str, lang: str|None=None, speaker: str|int|None=None, split_sentences: bool=True):
+        if self.is_multispeaker:
+            if speaker is None:
+                sid = 0
+            elif type(speaker) is str:
+                try:
+                    sid = self.speakers.index(speaker)
+                except IndexError:
+                    raise ValueError(f"A speaker with the given name `{speaker}` was not found in speaker list")
+            elif type(speaker) is int:
+                sid = speaker
+        else:
+            sid = None
+        if self.is_multilanguage:
+            if lang is None:
+                lang = self.languages[0]
+            try:
+                lid = self.languages.index(lang)
+            except IndexError:
+                raise ValueError(f"A language with the given name `{lang}` was not found in language list")
+        else:
+            lid = None
+        phids, clean_text = self.text_processor(text=text, lang=lang, split_sentences=split_sentences)
+        if not split_sentences:
+            phids = [phids]
+        x = []
+        x_lengths = []
+        for phid in phids:
+            x.append(phid)
+            x_lengths.append(len(phid))
+        x = numpy_pad_sequences(x).astype(np.int64)
+        x_lengths = np.array(x_lengths, dtype=np.int64)
+        sids = [sid] * x.shape[0] if sid is not None else None
+        lids = [lid] * x.shape[0] if lid is not None else None
+        return clean_text, x, x_lengths, sids, lids
+
+    def synthesise(self, x, x_lengths, sids, lids, d_factor, p_factor, e_factor):
+        inputs = dict(
+            x=x,
+            x_lengths=x_lengths,
+            scales=np.array([d_factor, p_factor, e_factor], dtype=np.float32),
+        )
+        if self.is_multispeaker:
+            assert sids is not None, "Speaker IDs are required for multi speaker models"
+            inputs["sids"] = np.array(sids, dtype=np.int64)
+        if self.is_multilanguage:
+            assert lids is not None, "Language IDs are required for multi language models"
+            inputs["lids"] = np.array(lids, dtype=np.int64)
+        wavs, wav_lengths, durations = self.session.run(None, inputs)
+        wavs = numpy_unpad_sequences(wavs, wav_lengths)
+        return wavs, wav_lengths
 
 def main():
     parser = argparse.ArgumentParser(description=" ONNX inference of OptiSpeech")
@@ -39,46 +122,38 @@ def main():
 
     args = parser.parse_args()
 
+    # Load model
     onnx_providers = ONNX_CUDA_PROVIDERS if args.cuda else ONNX_CPU_PROVIDERS
-    model = onnxruntime.InferenceSession(args.onnx_path, providers=onnx_providers)
-    meta = model.get_modelmeta()
-    infer_params = json.loads(meta.custom_metadata_map["inference"])
-    sample_rate = infer_params["sample_rate"]
-    lang = infer_params["language"]
-    add_blank = infer_params["add_blank"]
-    tokenizer = infer_params["tokenizer"]
+    model = OptiSpeechONNXModel.from_onnx_file_path(args.onnx_path, onnx_providers=onnx_providers)
 
-    phids, norm_text = process_and_phonemize_text(
-        args.text, language=lang, tokenizer=tokenizer, add_blank=add_blank, split_sentences=not args.no_split
-    )
-    if args.no_split:
-        phids = [phids]
-    log.info(f"Normalized text: {norm_text}")
-    x = []
-    x_lengths = []
-    for phid in phids:
-        x.append(phid)
-        x_lengths.append(len(phid))
+    # Process text
+    clean_text, x, x_lengths, sids, lids = model.prepare_input(args.text, split_sentences=not args.no_split)
+    log.info(f"Normalized text: {clean_text}")
 
-    x = numpy_pad_sequences(x).astype(np.int64)
-    x_lengths = np.array(x_lengths, dtype=np.int64)
-    scales = np.array([args.d_factor, args.p_factor, args.e_factor], dtype=np.float32)
-
+    # Perform inference
     t0 = perf_counter()
-    wavs, wav_lengths, durations = model.run(None, {"x": x, "x_lengths": x_lengths, "scales": scales})
+    wavs, wav_lengths = model.synthesise(
+        x=x,
+        x_lengths=x_lengths,
+        sids=sids,
+        lids=lids,
+        d_factor=args.d_factor,
+        p_factor=args.p_factor,
+        e_factor=args.e_factor
+    )
     t_infer = perf_counter() - t0
-    t_audio = wav_lengths.sum() / sample_rate
+    t_audio = wav_lengths.sum() / model.sample_rate
     rtf = t_infer / t_audio
     latency = t_infer * 1000
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for i, wav in enumerate(numpy_unpad_sequences(wavs, wav_lengths)):
+    for i, wav in enumerate(wavs):
         outfile = output_dir.joinpath(f"gen-{i + 1}")
         out_wav = outfile.with_suffix(".wav")
         wav = wav.squeeze()
-        sf.write(out_wav, wav, sample_rate)
+        sf.write(out_wav, wav, model.sample_rate)
         log.info(f"Wrote wav to: `{out_wav}`")
 
     log.info(f"OptiSpeech latency: {round(latency)} ms")
