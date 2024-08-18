@@ -1,8 +1,9 @@
 import torch
-from espnet2.torch_utils.initialize import initialize
-from espnet.nets.pytorch_backend.conformer.encoder import Encoder as ConformerEncoder
-from espnet.nets.pytorch_backend.transformer.embedding import PositionalEncoding, ScaledPositionalEncoding
 from torch import nn
+
+from ._conformer.encoder import Encoder as ConformerEncoder
+from ._transformer.embedding import PositionalEncoding, ScaledPositionalEncoding
+from ._transformer.initialize import initialize
 
 
 class Conformer(nn.Module):

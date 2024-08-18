@@ -17,7 +17,7 @@ print(f"Length of phoneme ids: {len(phids)}")
 # Config pipeline
 with initialize(version_base=None, config_path="./configs"):
     dataset_cfg = compose(config_name="data/ryan.yaml")
-    cfg = compose(config_name="model/convnext_tts.yaml")
+    cfg = compose(config_name="model/optispeech.yaml")
     cfg.model.data_args = dict(
         name=dataset_cfg.data.name,
         num_speakers=dataset_cfg.data.num_speakers,
@@ -76,6 +76,6 @@ from optispeech.onnx.export import export_as_onnx, add_inference_metadata
 from optispeech.onnx.infer import OptiSpeechONNXModel
 
 output = "mc.onnx"
-export_as_onnx(model, output, 16)
-add_inference_metadata(output, model)
-onx = OptiSpeechONNXModel.from_onnx_file_path(output)
+# export_as_onnx(model, output, 16)
+# add_inference_metadata(output, model)
+# onx = OptiSpeechONNXModel.from_onnx_file_path(output)

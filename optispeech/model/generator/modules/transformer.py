@@ -1,8 +1,10 @@
 import torch
-from espnet2.torch_utils.initialize import initialize
-from espnet.nets.pytorch_backend.transformer.embedding import PositionalEncoding, ScaledPositionalEncoding
-from espnet.nets.pytorch_backend.transformer.encoder import Encoder as FS2Transformer
 from torch import nn
+
+
+from ._transformer.initialize import initialize
+from ._transformer.embedding import PositionalEncoding, ScaledPositionalEncoding
+from ._transformer.encoder import Encoder as FS2Transformer
 
 
 class Transformer(nn.Module):
