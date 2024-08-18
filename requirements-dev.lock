@@ -351,7 +351,7 @@ nest-asyncio==1.6.0
     # via ipykernel
 networkx==3.3
     # via torch
-nltk==3.8.2
+nltk==3.9
     # via espnet
     # via g2p-en
 nodeenv==1.9.1
