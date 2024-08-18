@@ -86,7 +86,7 @@ sf.write("output.wav", wav.squeeze().detach().cpu().numpy(), model.sample_rate)
 
 Since this code uses [Lightning-Hydra-Template](https://github.com/ashleve/lightning-hydra-template), you have all the powers that come with it.
 
-Training is easy as 1, 2:
+Training is easy as 1, 2, 3:
 
 ### 1. Prepare Dataset
 
@@ -145,7 +145,22 @@ options:
                         Output directory to save the data statistics
 ```
 
-### 2. Start training
+### 2. [Optional] Choose your backbone
+
+**OptiSpeech** provides interchangeable types of backbones for the model's **encoder** and **decoder**, you choose the backbone based on your requirements.
+
+To help you choose, here's a quick evaluation table of the available backbones:
+
+| Backbone | Config File | FLOPs | MACs | #Params |
+| ---------- | ---------- | ---------- | ---------- | ---------- |
+| ConvNeXt | `convnext_tts.yaml` | 13.78 GFLOPS | 6.88 GMACs | 17.43 M |
+| Transformer | `optispeech.yaml` | 15.13 GFLOPS | 7.55 GMACs | 19.52 M |
+| Conformer | `conformer_tts.yaml` | 19.96 GFLOPS | 9.95 GMACs | 25.89 M |
+| LightSpeech | `lightspeech.yaml` | 9.6 GFLOPS | 4.78 GMACs | 13.29 M |
+
+The default backbone is `Transformer`, but if you want to change it you can edit your experiment config.
+
+### 3. Start training
 
 To start training run the following command. Note that this training run uses **config** from [hfc_female-en_US](./configs/experiment/hfc_female-en_US.yaml). You can copy and update it with your own config values, and pass the name of the custom config file (without extension) instead.
 

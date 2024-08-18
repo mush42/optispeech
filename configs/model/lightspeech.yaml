@@ -1,0 +1,8 @@
+defaults:
+  - _self_
+  - optispeech
+  - override generator/encoder: lightspeech_transformer
+  - override generator/decoder: lightspeech_transformer
+  - override generator/duration_predictor: lite
+  - override generator/pitch_predictor: lite
+  - override generator/energy_predictor: lite
