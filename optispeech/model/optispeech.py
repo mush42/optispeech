@@ -14,8 +14,9 @@ class OptiSpeech(BaseLightningModule):
         dim,
         generator,
         discriminator,
-        data_args,
         train_args,
+        data_args,
+        inference_args,
         optimizer=None,
         scheduler=None,
     ):
@@ -29,10 +30,13 @@ class OptiSpeech(BaseLightningModule):
         if data_args.num_speakers < 1:
             raise ValueError("num_speakers should be a positive integer >= 1")
 
-        self.data_args = data_args
         self.train_args = train_args
+        self.data_args = data_args
+        self.inference_args = inference_args
+
         self.text_processor = self.data_args.text_processor
 
+        self.num_speakers = data_args.num_speakers
         self.sample_rate = data_args.feature_extractor.sample_rate
         self.hop_length = data_args.feature_extractor.hop_length
 
@@ -49,29 +53,62 @@ class OptiSpeech(BaseLightningModule):
         self.discriminator = discriminator(feature_extractor=data_args.feature_extractor)
 
     @torch.inference_mode()
-    def synthesise(self, x, x_lengths, sids=None, lids=None, d_factor=1.0, p_factor=1.0, e_factor=1.0):
+    def synthesise(self, x, x_lengths, sids=None, lids=None, d_factor=None, p_factor=None, e_factor=None):
         x = x.to(self.device)
         x_lengths = x_lengths.long().to("cpu")
+
+        d_factor = d_factor or self.inference_args.d_factor
+        p_factor = p_factor or self.inference_args.p_factor
+        e_factor = e_factor or self.inference_args.e_factor
+
         return self.generator.synthesise(
             x=x, x_lengths=x_lengths, sids=sids, lids=lids, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor
         )
 
-    def prepare_input(self, text: str, language: str = None, split_sentences: bool = False) -> List[int]:
+    def prepare_input(self, text: str, language: str|None=None, speaker: str|int|None=None, split_sentences: bool=True):
         """
         Convenient helper.
 
         Args:
             text (str): input text
-            language (str): language of input text
+            language (str|None): language of input text
+            speaker (int|str|None): speaker name
             split_sentences (bool): split text into sentences (each sentence is an element in the batch)
 
         Returns:
+            clean_text (str): cleaned an normalized text
             x (torch.LongTensor): input phoneme ids
                 shape: [B, max_text_length]
             x_lengths (torch.LongTensor): input lengths
                 shape: [B]
-            clean_text (str): cleaned an normalized text
+            sids (torch.LongTensor): speaker IDs
+                shape: [B]
+            lids (torch.LongTensor): language IDs
+                shape: [B]
         """
+        languages = self.text_processor.languages
+        if  language is None:
+             language = languages[0]
+        if self.num_speakers > 1:
+            if speaker is None:
+                sid = 0
+            elif type(speaker) is str:
+                try:
+                    sid = self.speakers.index(speaker)
+                except IndexError:
+                    raise ValueError(f"A speaker with the given name `{speaker}` was not found in speaker list")
+            elif type(speaker) is int:
+                sid = speaker
+        else:
+            sid = None
+        if self.text_processor.is_multi_language:
+            try:
+                lid = languages.index(lang)
+            except IndexError:
+                raise ValueError(f"A language with the given name `{lang}` was not found in language list")
+        else:
+            lid = None
+
         phoneme_ids, clean_text = self.text_processor(text, lang=language, split_sentences=split_sentences)
         if split_sentences:
             x_lengths = torch.LongTensor([len(phids) for phids in phoneme_ids])
@@ -79,4 +116,14 @@ class OptiSpeech(BaseLightningModule):
         else:
             x_lengths = torch.LongTensor([1])
             x = torch.LongTensor(phoneme_ids).unsqueeze(0)
-        return x.long(), x_lengths.long(), clean_text
+
+        sids = [sid] * x.shape[0] if sid is not None else None
+        lids = [lid] * x.shape[0] if lid is not None else None
+
+        return (
+            clean_text,
+            x.long(),
+            x_lengths.long(),
+            sids,
+            lids,
+        )

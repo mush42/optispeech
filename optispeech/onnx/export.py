@@ -111,6 +111,7 @@ def add_inference_metadata(onnxfile, model):
     infer_dict =  dict(
         name=model.hparams.data_args.name,
         sample_rate=model.hparams.data_args.feature_extractor.sample_rate,
+        inference_args=dict(model.hparams.inference_args),
         input_symbols=input_symbols,
         special_symbols=special_symbols,
         speakers=[],

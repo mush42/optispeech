@@ -22,3 +22,8 @@ data_args:
   feature_extractor: ${data.feature_extractor}
   batch_size: ${data.batch_size}
   data_statistics: ${data.data_statistics}
+inference_args:
+  d_factor: 1.1
+  p_factor: 1.6
+  e_factor: 1.2
+
