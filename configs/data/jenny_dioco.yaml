@@ -7,7 +7,7 @@ _target_: optispeech.dataset.TextWavDataModule
 name: jenny_dioco
 train_filelist_path: /home/momer/datasets/processed/jenny_dioco/train.txt
 valid_filelist_path: /home/momer/datasets/processed/jenny_dioco/val.txt
-batch_size: 64 
+batch_size: 64
 num_workers: 8
 text_processor:
   languages:

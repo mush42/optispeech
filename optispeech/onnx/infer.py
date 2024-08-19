@@ -9,7 +9,11 @@ import onnxruntime
 import soundfile as sf
 
 from optispeech.text import TextProcessor
-from optispeech.utils import get_script_logger, numpy_pad_sequences, numpy_unpad_sequences
+from optispeech.utils import (
+    get_script_logger,
+    numpy_pad_sequences,
+    numpy_unpad_sequences,
+)
 
 log = get_script_logger(__name__)
 ONNX_CUDA_PROVIDERS = [("CUDAExecutionProvider", {"cudnn_conv_algo_search": "DEFAULT"}), "CPUExecutionProvider"]
@@ -29,8 +33,8 @@ class OptiSpeechONNXModel:
     languages: bool
 
     def __post_init__(self):
-        self.is_multispeaker=len(self.speakers) > 1
-        self.is_multilanguage=len(self.languages) > 1
+        self.is_multispeaker = len(self.speakers) > 1
+        self.is_multilanguage = len(self.languages) > 1
 
     @classmethod
     def from_onnx_session(cls, session: onnxruntime.InferenceSession):
@@ -39,20 +43,22 @@ class OptiSpeechONNXModel:
         text_processor = TextProcessor.from_dict(infer_params["text_processor"])
         return cls(
             session=session,
-            name = infer_params["name"],
-            sample_rate = infer_params["sample_rate"],
-            inference_args = infer_params["inference_args"],
+            name=infer_params["name"],
+            sample_rate=infer_params["sample_rate"],
+            inference_args=infer_params["inference_args"],
             text_processor=text_processor,
             speakers=infer_params["speakers"],
-            languages=infer_params["languages"]
+            languages=infer_params["languages"],
         )
 
     @classmethod
-    def from_onnx_file_path(cls, onnx_path: str, onnx_providers: list[str]=ONNX_CPU_PROVIDERS):
+    def from_onnx_file_path(cls, onnx_path: str, onnx_providers: list[str] = ONNX_CPU_PROVIDERS):
         session = onnxruntime.InferenceSession(onnx_path, providers=onnx_providers)
         return cls.from_onnx_session(session)
 
-    def prepare_input(self, text: str, lang: str|None=None, speaker: str|int|None=None, split_sentences: bool=True):
+    def prepare_input(
+        self, text: str, lang: str | None = None, speaker: str | int | None = None, split_sentences: bool = True
+    ):
         if self.is_multispeaker:
             if speaker is None:
                 sid = 0
@@ -89,7 +95,6 @@ class OptiSpeechONNXModel:
         return clean_text, x, x_lengths, sids, lids
 
     def synthesise(self, x, x_lengths, sids=None, lids=None, d_factor=None, p_factor=None, e_factor=None):
-        
         d_factor = d_factor or self.inference_args.d_factor
         p_factor = p_factor or self.inference_args.p_factor
         e_factor = e_factor or self.inference_args.e_factor
@@ -112,12 +117,8 @@ class OptiSpeechONNXModel:
         rtf = t_infer / t_audio
         latency = t_infer * 1000
         wavs = numpy_unpad_sequences(wavs, wav_lengths)
-        return dict(
-            wav=wavs[0],
-            wavs=wavs,
-            rtf=rtf,
-            latency=latency
-        )
+        return dict(wav=wavs[0], wavs=wavs, rtf=rtf, latency=latency)
+
 
 def main():
     parser = argparse.ArgumentParser(description=" ONNX inference of OptiSpeech")
@@ -157,7 +158,7 @@ def main():
         lids=lids,
         d_factor=args.d_factor,
         p_factor=args.p_factor,
-        e_factor=args.e_factor
+        e_factor=args.e_factor,
     )
     wavs = outputs["wavs"]
 

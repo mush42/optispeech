@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # Copyright 2019 Tomoki Hayashi
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
@@ -32,7 +31,7 @@ class MultiLayeredConv1d(torch.nn.Module):
             dropout_rate (float): Dropout rate.
 
         """
-        super(MultiLayeredConv1d, self).__init__()
+        super().__init__()
         self.w_1 = torch.nn.Conv1d(
             in_chans,
             hidden_chans,
@@ -80,7 +79,7 @@ class Conv1dLinear(torch.nn.Module):
             dropout_rate (float): Dropout rate.
 
         """
-        super(Conv1dLinear, self).__init__()
+        super().__init__()
         self.w_1 = torch.nn.Conv1d(
             in_chans,
             hidden_chans,

@@ -6,13 +6,13 @@ defaults:
 _target_: optispeech.dataset.TextWavDataModule
 name: ljspeech
 num_speakers: 1
-train_filelist_path: data/LJSpeech-1.1/train.txt 
+train_filelist_path: data/LJSpeech-1.1/train.txt
 valid_filelist_path: data/LJSpeech-1.1/val.txt
-batch_size: 128 
+batch_size: 128
 num_workers: 8
 pin_memory: True
 data_statistics:  # Computed for ljspeech dataset
-  pitch_min: 67.836174 
+  pitch_min: 67.836174
   pitch_max: 792.962036
   pitch_mean: 211.046158
   pitch_std: 53.012085

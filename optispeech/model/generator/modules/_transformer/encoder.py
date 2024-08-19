@@ -15,19 +15,10 @@ from .encoder_layer import EncoderLayer
 from .layer_norm import LayerNorm
 from .lightconv import LightweightConvolution
 from .lightconv2d import LightweightConvolution2D
-from .multi_layer_conv import (
-    Conv1dLinear,
-    MultiLayeredConv1d,
-)
-from .positionwise_feed_forward import (
-    PositionwiseFeedForward,
-)
+from .multi_layer_conv import Conv1dLinear, MultiLayeredConv1d
+from .positionwise_feed_forward import PositionwiseFeedForward
 from .repeat import repeat
-from .subsampling import (
-    Conv2dSubsampling,
-    Conv2dSubsampling6,
-    Conv2dSubsampling8,
-)
+from .subsampling import Conv2dSubsampling, Conv2dSubsampling6, Conv2dSubsampling8
 
 
 class Encoder(torch.nn.Module):
@@ -96,7 +87,7 @@ class Encoder(torch.nn.Module):
         conditioning_layer_dim=None,
     ):
         """Construct an Encoder object."""
-        super(Encoder, self).__init__()
+        super().__init__()
 
         self.conv_subsampling_factor = 1
         if input_layer == "linear":
@@ -135,9 +126,7 @@ class Encoder(torch.nn.Module):
                 pos_enc_class(attention_dim, positional_dropout_rate),
             )
         elif input_layer is None:
-            self.embed = torch.nn.Sequential(
-                pos_enc_class(attention_dim, positional_dropout_rate)
-            )
+            self.embed = torch.nn.Sequential(pos_enc_class(attention_dim, positional_dropout_rate))
         else:
             raise ValueError("unknown input_layer: " + input_layer)
         self.normalize_before = normalize_before
@@ -177,10 +166,7 @@ class Encoder(torch.nn.Module):
                 for lnum in range(num_blocks)
             ]
         elif selfattention_layer_type == "lightconv2d":
-            logging.info(
-                "encoder self-attention layer "
-                "type = lightweight convolution 2-dimensional"
-            )
+            logging.info("encoder self-attention layer " "type = lightweight convolution 2-dimensional")
             encoder_selfattn_layer = LightweightConvolution2D
             encoder_selfattn_layer_args = [
                 (
@@ -208,9 +194,7 @@ class Encoder(torch.nn.Module):
                 for lnum in range(num_blocks)
             ]
         elif selfattention_layer_type == "dynamicconv2d":
-            logging.info(
-                "encoder self-attention layer type = dynamic convolution 2-dimensional"
-            )
+            logging.info("encoder self-attention layer type = dynamic convolution 2-dimensional")
             encoder_selfattn_layer = DynamicConvolution2D
             encoder_selfattn_layer_args = [
                 (
@@ -245,9 +229,7 @@ class Encoder(torch.nn.Module):
         self.use_conditioning = True if ctc_softmax is not None else False
         if self.use_conditioning:
             self.ctc_softmax = ctc_softmax
-            self.conditioning_layer = torch.nn.Linear(
-                conditioning_layer_dim, attention_dim
-            )
+            self.conditioning_layer = torch.nn.Linear(conditioning_layer_dim, attention_dim)
 
     def get_positionwise_layer(
         self,
@@ -295,7 +277,11 @@ class Encoder(torch.nn.Module):
         """
         if isinstance(
             self.embed,
-            (Conv2dSubsampling, Conv2dSubsampling6, Conv2dSubsampling8,),
+            (
+                Conv2dSubsampling,
+                Conv2dSubsampling6,
+                Conv2dSubsampling8,
+            ),
         ):
             xs, masks = self.embed(xs, masks)
         else:
@@ -308,10 +294,7 @@ class Encoder(torch.nn.Module):
             for layer_idx, encoder_layer in enumerate(self.encoders):
                 xs, masks = encoder_layer(xs, masks)
 
-                if (
-                    self.intermediate_layers is not None
-                    and layer_idx + 1 in self.intermediate_layers
-                ):
+                if self.intermediate_layers is not None and layer_idx + 1 in self.intermediate_layers:
                     encoder_output = xs
                     # intermediate branches also require normalization.
                     if self.normalize_before:

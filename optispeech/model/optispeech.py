@@ -65,7 +65,9 @@ class OptiSpeech(BaseLightningModule):
             x=x, x_lengths=x_lengths, sids=sids, lids=lids, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor
         )
 
-    def prepare_input(self, text: str, language: str|None=None, speaker: str|int|None=None, split_sentences: bool=True):
+    def prepare_input(
+        self, text: str, language: str | None = None, speaker: str | int | None = None, split_sentences: bool = True
+    ):
         """
         Convenient helper.
 
@@ -87,8 +89,8 @@ class OptiSpeech(BaseLightningModule):
                 shape: [B]
         """
         languages = self.text_processor.languages
-        if  language is None:
-             language = languages[0]
+        if language is None:
+            language = languages[0]
         if self.num_speakers > 1:
             if speaker is None:
                 sid = 0
@@ -103,9 +105,9 @@ class OptiSpeech(BaseLightningModule):
             sid = None
         if self.text_processor.is_multi_language:
             try:
-                lid = languages.index(lang)
+                lid = languages.index(language)
             except IndexError:
-                raise ValueError(f"A language with the given name `{lang}` was not found in language list")
+                raise ValueError(f"A language with the given name `{language}` was not found in language list")
         else:
             lid = None
 

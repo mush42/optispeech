@@ -109,7 +109,7 @@ class DropPath(nn.Module):
     """
 
     def __init__(self, drop_prob: float = 0.0, scale_by_keep: bool = True):
-        super(DropPath, self).__init__()
+        super().__init__()
 
         self.drop_prob = drop_prob
         self.scale_by_keep = scale_by_keep

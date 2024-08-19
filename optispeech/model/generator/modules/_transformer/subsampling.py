@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # Copyright 2019 Shigeki Karita
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
@@ -62,7 +61,7 @@ class Conv1dSubsampling1(torch.nn.Module):
 
     def __init__(self, idim, odim, dropout_rate, pos_enc=None):
         """Construct an Conv1dSubsampling1 object."""
-        super(Conv1dSubsampling1, self).__init__()
+        super().__init__()
         self.conv = torch.nn.Sequential(
             torch.nn.Conv1d(idim, odim, 3, 1),
             torch.nn.ReLU(),
@@ -121,7 +120,7 @@ class Conv1dSubsampling2(torch.nn.Module):
 
     def __init__(self, idim, odim, dropout_rate, pos_enc=None):
         """Construct an Conv1dSubsampling2 object."""
-        super(Conv1dSubsampling2, self).__init__()
+        super().__init__()
         self.conv = torch.nn.Sequential(
             torch.nn.Conv1d(idim, odim, 3, 1),
             torch.nn.ReLU(),
@@ -180,7 +179,7 @@ class Conv1dSubsampling3(torch.nn.Module):
 
     def __init__(self, idim, odim, dropout_rate, pos_enc=None):
         """Construct an Conv1dSubsampling3 object."""
-        super(Conv1dSubsampling3, self).__init__()
+        super().__init__()
         self.conv = torch.nn.Sequential(
             torch.nn.Conv1d(idim, odim, 3, 1),
             torch.nn.ReLU(),
@@ -239,7 +238,7 @@ class Conv2dSubsampling(torch.nn.Module):
 
     def __init__(self, idim, odim, dropout_rate, pos_enc=None):
         """Construct an Conv2dSubsampling object."""
-        super(Conv2dSubsampling, self).__init__()
+        super().__init__()
         self.conv = torch.nn.Sequential(
             torch.nn.Conv2d(1, odim, 3, 2),
             torch.nn.ReLU(),
@@ -298,7 +297,7 @@ class Conv2dSubsampling1(torch.nn.Module):
 
     def __init__(self, idim, odim, dropout_rate, pos_enc=None):
         """Construct an Conv2dSubsampling1 object."""
-        super(Conv2dSubsampling1, self).__init__()
+        super().__init__()
         self.conv = torch.nn.Sequential(
             torch.nn.Conv2d(1, odim, 3, 1),
             torch.nn.ReLU(),
@@ -357,7 +356,7 @@ class Conv2dSubsampling2(torch.nn.Module):
 
     def __init__(self, idim, odim, dropout_rate, pos_enc=None):
         """Construct an Conv2dSubsampling2 object."""
-        super(Conv2dSubsampling2, self).__init__()
+        super().__init__()
         self.conv = torch.nn.Sequential(
             torch.nn.Conv2d(1, odim, 3, 2),
             torch.nn.ReLU(),
@@ -365,7 +364,7 @@ class Conv2dSubsampling2(torch.nn.Module):
             torch.nn.ReLU(),
         )
         self.out = torch.nn.Sequential(
-            torch.nn.Linear(odim * (((idim - 1) // 2 - 2)), odim),
+            torch.nn.Linear(odim * ((idim - 1) // 2 - 2), odim),
             pos_enc if pos_enc is not None else PositionalEncoding(odim, dropout_rate),
         )
 
@@ -416,7 +415,7 @@ class Conv2dSubsampling6(torch.nn.Module):
 
     def __init__(self, idim, odim, dropout_rate, pos_enc=None):
         """Construct an Conv2dSubsampling6 object."""
-        super(Conv2dSubsampling6, self).__init__()
+        super().__init__()
         self.conv = torch.nn.Sequential(
             torch.nn.Conv2d(1, odim, 3, 2),
             torch.nn.ReLU(),
@@ -464,7 +463,7 @@ class Conv2dSubsampling8(torch.nn.Module):
 
     def __init__(self, idim, odim, dropout_rate, pos_enc=None):
         """Construct an Conv2dSubsampling8 object."""
-        super(Conv2dSubsampling8, self).__init__()
+        super().__init__()
         self.conv = torch.nn.Sequential(
             torch.nn.Conv2d(1, odim, 3, 2),
             torch.nn.ReLU(),

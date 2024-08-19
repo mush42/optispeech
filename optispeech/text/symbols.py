@@ -1,6 +1,3 @@
-# coding: utf-8
-
-
 SYMBOLS = [
     "_",
     "^",
@@ -201,4 +198,3 @@ def ids_to_phonemes(sequence):
         s = ID_TO_SYMBOL[symbol_id]
         result += s
     return result
-

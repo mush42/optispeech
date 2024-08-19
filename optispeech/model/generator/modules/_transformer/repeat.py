@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # Copyright 2019 Shigeki Karita
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
@@ -19,7 +18,7 @@ class MultiSequential(torch.nn.Sequential):
             layer_drop_rate (float): Probability of dropping out each fn (layer).
 
         """
-        super(MultiSequential, self).__init__(*args)
+        super().__init__(*args)
         self.layer_drop_rate = layer_drop_rate
 
     def forward(self, *args):

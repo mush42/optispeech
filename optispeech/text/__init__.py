@@ -3,14 +3,8 @@ from .tokenizers import BaseTokenizer
 
 
 class TextProcessor:
-
     def __init__(
-        self,
-        tokenizer_name: str,
-        add_blank: str,
-        add_bos_eos: str,
-        normalize_text: bool,
-        languages: list[str]
+        self, tokenizer_name: str, add_blank: str, add_bos_eos: str, normalize_text: bool, languages: list[str]
     ):
         self.tokenizer_name = tokenizer_name
         self.add_blank = add_blank
@@ -18,16 +12,12 @@ class TextProcessor:
         self.normalize_text = normalize_text
         self.languages = languages
         tokenizer_cls = BaseTokenizer.get_tokenizer_by_name(tokenizer_name)
-        self.tokenizer = tokenizer_cls(
-             add_blank= add_blank,
-             add_bos_eos=add_bos_eos,
-             normalize_text=normalize_text
-        )
+        self.tokenizer = tokenizer_cls(add_blank=add_blank, add_bos_eos=add_bos_eos, normalize_text=normalize_text)
         self.num_languages = len(languages)
         self.is_multi_language = self.num_languages > 1
         self.default_language = languages[0].strip().lower()
 
-    def __call__(self, text, lang, split_sentences: bool=False):
+    def __call__(self, text, lang, split_sentences: bool = False):
         # handle special value
         if lang is None:
             lang = self.default_language

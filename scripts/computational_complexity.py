@@ -2,6 +2,7 @@
 
 import os
 import sys
+
 import rootutils
 
 root_path = rootutils.setup_root(search_from=os.getcwd(), indicator=".project-root")
@@ -13,7 +14,6 @@ from calflops import calculate_flops
 from hydra import compose, initialize
 from lightning.pytorch.utilities.model_summary import summarize
 from omegaconf import OmegaConf
-
 
 model_name = "lightspeech"
 
@@ -35,14 +35,16 @@ device = torch.device("cuda")
 model = hydra.utils.instantiate(cfg.model)
 model = model.eval()
 
-#Not used during inference
+# Not used during inference
 del model.discriminator
 del model.generator.alignment_module
 model.to(device)
 print(summarize(model, 2))
 
 
-x, x_lengths, clean_text = model.prepare_input("Maintaining regular medical check-ups and screenings, including blood pressure, cholesterol, and cancer screenings as recommended by healthcare providers, allows for early detection and proactive management of potential health issues.")
+x, x_lengths, clean_text = model.prepare_input(
+    "Maintaining regular medical check-ups and screenings, including blood pressure, cholesterol, and cancer screenings as recommended by healthcare providers, allows for early detection and proactive management of potential health issues."
+)
 model.forward = lambda *args: model.synthesise(x, x_lengths)
 
 model_display_name = f"optispeech-{model_name}"
@@ -50,4 +52,4 @@ flops, macs, params = calculate_flops(
     model=model,
     args=[x, x_lengths],
 )
-print("%s FLOPs:%s  MACs:%s  Params:%s \n" %(model_display_name, flops, macs, params))
+print(f"{model_display_name} FLOPs:{flops}  MACs:{macs}  Params:{params} \n")

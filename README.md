@@ -167,7 +167,7 @@ To start training run the following command. Note that this training run uses **
 
 ```bash
 $ python3 -m optispeech.train experiment=hfc_female-en_us
-``` 
+```
 
 ## ONNX support
 
@@ -242,8 +242,8 @@ Repositories I would like to acknowledge:
 
 @INPROCEEDINGS{10446890,
   author={Okamoto, Takuma and Ohtani, Yamato and Toda, Tomoki and Kawai, Hisashi},
-  booktitle={ICASSP 2024 - 2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)}, 
-  title={Convnext-TTS And Convnext-VC: Convnext-Based Fast End-To-End Sequence-To-Sequence Text-To-Speech And Voice Conversion}, 
+  booktitle={ICASSP 2024 - 2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)},
+  title={Convnext-TTS And Convnext-VC: Convnext-Based Fast End-To-End Sequence-To-Sequence Text-To-Speech And Voice Conversion},
   year={2024},
   volume={},
   number={},
@@ -256,5 +256,3 @@ Repositories I would like to acknowledge:
 ## Licence
 
 Copyright (c) Musharraf Omer. MIT Licence. See [LICENSE](./LICENSE) for more details.
-
-

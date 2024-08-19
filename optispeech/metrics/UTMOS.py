@@ -11,7 +11,7 @@ UTMOS_CKPT_URL = "https://huggingface.co/spaces/sarulab-speech/UTMOS-demo/resolv
 WAV2VEC_URL = "https://huggingface.co/spaces/sarulab-speech/UTMOS-demo/resolve/main/wav2vec_small.pt"
 
 """
-UTMOS score, automatic Mean Opinion Score (MOS) prediction system, 
+UTMOS score, automatic Mean Opinion Score (MOS) prediction system,
 adapted from https://huggingface.co/spaces/sarulab-speech/UTMOS-demo
 """
 
@@ -122,7 +122,7 @@ class BaselineLightningModule(pl.LightningModule):
 
 class SSL_model(nn.Module):
     def __init__(self, ssl_model, ssl_out_dim) -> None:
-        super(SSL_model, self).__init__()
+        super().__init__()
         self.ssl_model, self.ssl_out_dim = ssl_model, ssl_out_dim
 
     def forward(self, batch):
@@ -159,7 +159,7 @@ class LDConditioner(nn.Module):
         self.input_dim = input_dim
         self.judge_dim = judge_dim
         self.num_judges = num_judges
-        assert num_judges != None
+        assert num_judges is not None
         self.judge_embedding = nn.Embedding(num_judges, self.judge_dim)
         # concat [self.output_layer, phoneme features]
 
@@ -191,7 +191,7 @@ class LDConditioner(nn.Module):
                 ),
                 dim=2,
             )
-        if judge_ids != None:
+        if judge_ids is not None:
             concatenated_feature = torch.cat(
                 (
                     concatenated_feature,
@@ -205,7 +205,7 @@ class LDConditioner(nn.Module):
 
 class Projection(nn.Module):
     def __init__(self, input_dim, hidden_dim, activation, range_clipping=False):
-        super(Projection, self).__init__()
+        super().__init__()
         self.range_clipping = range_clipping
         output_dim = 1
         if range_clipping:

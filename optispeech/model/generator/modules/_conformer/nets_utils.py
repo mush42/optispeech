@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """Network related utility tools."""
 
 import logging
@@ -25,9 +23,7 @@ def to_device(m, x):
     elif isinstance(m, torch.Tensor):
         device = m.device
     else:
-        raise TypeError(
-            "Expected torch.nn.Module or torch.tensor, " f"bot got: {type(m)}"
-        )
+        raise TypeError("Expected torch.nn.Module or torch.tensor, " f"bot got: {type(m)}")
     return x.to(device)
 
 
@@ -148,7 +144,7 @@ def make_pad_mask(lengths, xs=None, length_dim=-1, maxlen=None):
 
     """
     if length_dim == 0:
-        raise ValueError("length_dim cannot be 0: {}".format(length_dim))
+        raise ValueError(f"length_dim cannot be 0: {length_dim}")
 
     # If the input dimension is 2 or 3,
     # then we use ESPnet-ONNX based implementation for tracable modeling.
@@ -182,9 +178,7 @@ def _make_pad_mask(lengths, xs=None, length_dim=-1, maxlen=None):
             maxlen = xs.size(length_dim)
     else:
         assert xs is None, "When maxlen is specified, xs must not be specified."
-        assert maxlen >= int(
-            max(lengths)
-        ), f"maxlen {maxlen} must be >= max(lengths) {max(lengths)}"
+        assert maxlen >= int(max(lengths)), f"maxlen {maxlen} must be >= max(lengths) {max(lengths)}"
 
     seq_range = torch.arange(0, maxlen, dtype=torch.int64)
     seq_range_expand = seq_range.unsqueeze(0).expand(bs, maxlen)
@@ -192,16 +186,12 @@ def _make_pad_mask(lengths, xs=None, length_dim=-1, maxlen=None):
     mask = seq_range_expand >= seq_length_expand
 
     if xs is not None:
-        assert (
-            xs.size(0) == bs
-        ), f"The size of x.size(0) {xs.size(0)} must match the batch size {bs}"
+        assert xs.size(0) == bs, f"The size of x.size(0) {xs.size(0)} must match the batch size {bs}"
 
         if length_dim < 0:
             length_dim = xs.dim() + length_dim
         # ind = (:, None, ..., None, :, , None, ..., None)
-        ind = tuple(
-            slice(None) if i in (0, length_dim) else None for i in range(xs.dim())
-        )
+        ind = tuple(slice(None) if i in (0, length_dim) else None for i in range(xs.dim()))
         mask = mask[ind].expand_as(xs).to(xs.device)
     return mask
 
@@ -227,10 +217,7 @@ def _make_pad_mask_traceable(lengths, xs, length_dim, maxlen=None):
         else:
             # Then length_dim is 2 or -1.
             if length_dim not in (-1, 2):
-                logging.warn(
-                    f"Invalid length_dim {length_dim}."
-                    + "We set it to -1, which is the default value."
-                )
+                logging.warn(f"Invalid length_dim {length_dim}." + "We set it to -1, which is the default value.")
                 length_dim = -1
             lengths = lengths.unsqueeze(1).expand(*xs.shape[:2])
 
@@ -393,13 +380,9 @@ def th_accuracy(pad_outputs, pad_targets, ignore_label):
         float: Accuracy value (0.0 - 1.0).
 
     """
-    pad_pred = pad_outputs.view(
-        pad_targets.size(0), pad_targets.size(1), pad_outputs.size(1)
-    ).argmax(2)
+    pad_pred = pad_outputs.view(pad_targets.size(0), pad_targets.size(1), pad_outputs.size(1)).argmax(2)
     mask = pad_targets != ignore_label
-    numerator = torch.sum(
-        pad_pred.masked_select(mask) == pad_targets.masked_select(mask)
-    )
+    numerator = torch.sum(pad_pred.masked_select(mask) == pad_targets.masked_select(mask))
     denominator = torch.sum(mask)
     return float(numerator) / float(denominator)
 
@@ -445,7 +428,7 @@ def to_torch_tensor(x):
         from torch_complex.tensor import ComplexTensor
 
         if "real" not in x or "imag" not in x:
-            raise ValueError("has 'real' and 'imag' keys: {}".format(list(x)))
+            raise ValueError(f"has 'real' and 'imag' keys: {list(x)}")
         # Relative importing because of using python3 syntax
         return ComplexTensor(x["real"], x["imag"])
 
@@ -504,28 +487,18 @@ def get_subsample(train_args, mode, arch):
             for j in range(min(train_args.elayers + 1, len(ss))):
                 subsample[j] = int(ss[j])
         else:
-            logging.warning(
-                "Subsampling is not performed for vgg*. "
-                "It is performed in max pooling layers at CNN."
-            )
+            logging.warning("Subsampling is not performed for vgg*. " "It is performed in max pooling layers at CNN.")
         logging.info("subsample: " + " ".join([str(x) for x in subsample]))
         return subsample
 
     elif mode == "asr" and arch == "rnn_mix":
-        subsample = np.ones(
-            train_args.elayers_sd + train_args.elayers + 1, dtype=np.int64
-        )
+        subsample = np.ones(train_args.elayers_sd + train_args.elayers + 1, dtype=np.int64)
         if train_args.etype.endswith("p") and not train_args.etype.startswith("vgg"):
             ss = train_args.subsample.split("_")
-            for j in range(
-                min(train_args.elayers_sd + train_args.elayers + 1, len(ss))
-            ):
+            for j in range(min(train_args.elayers_sd + train_args.elayers + 1, len(ss))):
                 subsample[j] = int(ss[j])
         else:
-            logging.warning(
-                "Subsampling is not performed for vgg*. "
-                "It is performed in max pooling layers at CNN."
-            )
+            logging.warning("Subsampling is not performed for vgg*. " "It is performed in max pooling layers at CNN.")
         logging.info("subsample: " + " ".join([str(x) for x in subsample]))
         return subsample
 
@@ -533,9 +506,7 @@ def get_subsample(train_args, mode, arch):
         subsample_list = []
         for idx in range(train_args.num_encs):
             subsample = np.ones(train_args.elayers[idx] + 1, dtype=np.int64)
-            if train_args.etype[idx].endswith("p") and not train_args.etype[
-                idx
-            ].startswith("vgg"):
+            if train_args.etype[idx].endswith("p") and not train_args.etype[idx].startswith("vgg"):
                 ss = train_args.subsample[idx].split("_")
                 for j in range(min(train_args.elayers[idx] + 1, len(ss))):
                     subsample[j] = int(ss[j])
@@ -550,12 +521,10 @@ def get_subsample(train_args, mode, arch):
         return subsample_list
 
     else:
-        raise ValueError("Invalid options: mode={}, arch={}".format(mode, arch))
+        raise ValueError(f"Invalid options: mode={mode}, arch={arch}")
 
 
-def rename_state_dict(
-    old_prefix: str, new_prefix: str, state_dict: Dict[str, torch.Tensor]
-):
+def rename_state_dict(old_prefix: str, new_prefix: str, state_dict: Dict[str, torch.Tensor]):
     """Replace keys of old prefix with new prefix in state dict."""
     # need this list not to break the dict iterator
     old_keys = [k for k in state_dict if k.startswith(old_prefix)]
@@ -570,7 +539,7 @@ def rename_state_dict(
 def get_activation(act):
     """Return activation function."""
     # Lazy load to avoid unused import
-    from espnet.nets.pytorch_backend.conformer.swish import Swish
+    from .swish import Swish
 
     activation_funcs = {
         "hardtanh": torch.nn.Hardtanh,
@@ -608,18 +577,14 @@ def trim_by_ctc_posterior(
 
     # blank frames
     max_values, max_indices = ctc_probs.max(dim=2)
-    blank_masks = torch.logical_and(
-        max_values > conf_tolerance, max_indices == blank_id
-    )
+    blank_masks = torch.logical_and(max_values > conf_tolerance, max_indices == blank_id)
 
     # plus ignored frames
     joint_masks = torch.logical_or(blank_masks, ~masks)
 
     # lengths after the trimming
     B, T, _ = h.size()
-    frame_idx = torch.where(
-        joint_masks, -1, torch.arange(T).unsqueeze(0).repeat(B, 1).to(h.device)
-    )
+    frame_idx = torch.where(joint_masks, -1, torch.arange(T).unsqueeze(0).repeat(B, 1).to(h.device))
     after_lens = torch.where(
         frame_idx.max(dim=-1)[0] + frame_tolerance + 1 < hlens,
         frame_idx.max(dim=-1)[0] + frame_tolerance + 1,
@@ -632,9 +597,7 @@ def trim_by_ctc_posterior(
     if pos_emb is None:
         pos_emb = None
     elif (hlens.max() * 2 - 1).item() == pos_emb.size(1):  # RelPositionalEncoding
-        pos_emb = pos_emb[
-            :, pos_emb.size(1) // 2 - h.size(1) + 1 : pos_emb.size(1) // 2 + h.size(1)
-        ]
+        pos_emb = pos_emb[:, pos_emb.size(1) // 2 - h.size(1) + 1 : pos_emb.size(1) // 2 + h.size(1)]
     else:
         pos_emb = pos_emb[:, : h.size(1)]
 

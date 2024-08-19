@@ -2,6 +2,7 @@
 
 import os
 import sys
+
 import rootutils
 
 root_path = rootutils.setup_root(search_from=os.getcwd(), indicator=".project-root")
@@ -20,11 +21,7 @@ from optispeech.text import TextProcessor
 # Text processing pipeline
 SENTENCE = "The history of the Galaxy has got a little muddled, for a number of reasons."
 text_processor = TextProcessor(
-    tokenizer_name="ipa",
-    add_blank=True,
-    add_bos_eos=True,
-    normalize_text=True,
-    languages=["en-us"]
+    tokenizer_name="ipa", add_blank=True, add_bos_eos=True, normalize_text=True, languages=["en-us"]
 )
 phids, clean_text = text_processor(SENTENCE, "en-us")
 print(f"Length of phoneme ids: {len(phids)}")
@@ -86,8 +83,8 @@ synth_outs = model.synthesise(x, x_lengths)
 print(f"RTF: {synth_outs['rtf']}")
 print(f"Latency: {synth_outs['latency']}")
 
-# ONNX Export and inference 
-from optispeech.onnx.export import export_as_onnx, add_inference_metadata
+# ONNX Export and inference
+from optispeech.onnx.export import add_inference_metadata, export_as_onnx
 from optispeech.onnx.infer import OptiSpeechONNXModel
 
 output = "mc.onnx"

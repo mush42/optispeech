@@ -7,7 +7,12 @@ from torch.nn import functional as F
 from optispeech.utils import denormalize, sequence_mask
 from optispeech.utils.segments import get_random_segments
 
-from .alignments import AlignmentModule, GaussianUpsampling, average_by_duration, viterbi_decode
+from .alignments import (
+    AlignmentModule,
+    GaussianUpsampling,
+    average_by_duration,
+    viterbi_decode,
+)
 from .loss import FastSpeech2Loss, ForwardSumLoss
 
 

@@ -20,7 +20,6 @@ log = get_pylogger(__name__)
 
 
 class BaseLightningModule(LightningModule, ABC):
-
     def _process_batch(self, batch):
         sids = batch["sids"]
         lids = batch["lids"]

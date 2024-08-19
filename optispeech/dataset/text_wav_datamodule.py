@@ -126,7 +126,7 @@ class TextWavDataset(torch.utils.data.Dataset):
         input_file = Path(filepath)
         json_filepath = input_file.with_suffix(".json")
         arrays_filepath = input_file.with_suffix(".npz")
-        with open(json_filepath, "r", encoding="utf-8") as file:
+        with open(json_filepath, encoding="utf-8") as file:
             data = json.load(file)
             phoneme_ids = data["phoneme_ids"]
             text = data["text"]
@@ -171,7 +171,6 @@ class TextWavDataset(torch.utils.data.Dataset):
 
 
 class TextWavBatchCollate:
-
     def __init__(self, n_feats: float, data_statistics: Dict[str, float], do_normalize: bool = True):
         self.n_feats = n_feats
         self.data_statistics = data_statistics

@@ -6,7 +6,7 @@ _target_: optispeech.dataset.TextWavDataModule
 name: ryan
 train_filelist_path: data/ryan/train.txt
 valid_filelist_path: data/ryan/val.txt
-batch_size: 64 
+batch_size: 64
 num_workers: 8
 data_statistics:  # Computed for this dataset with the params of the above feature extractor
   pitch_min: 58.926632

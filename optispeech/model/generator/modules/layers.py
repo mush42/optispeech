@@ -31,7 +31,7 @@ class LayerNorm(torch.nn.LayerNorm):
 
     def __init__(self, nout, dim=-1):
         """Construct an LayerNorm object."""
-        super(LayerNorm, self).__init__(nout, eps=1e-12)
+        super().__init__(nout, eps=1e-12)
         self.dim = dim
 
     def forward(self, x):
@@ -41,8 +41,8 @@ class LayerNorm(torch.nn.LayerNorm):
         :rtype torch.Tensor
         """
         if self.dim == -1:
-            return super(LayerNorm, self).forward(x)
-        return super(LayerNorm, self).forward(x.transpose(1, -1)).transpose(1, -1)
+            return super().forward(x)
+        return super().forward(x.transpose(1, -1)).transpose(1, -1)
 
 
 class ScaledSinusoidalEmbedding(nn.Module):
@@ -454,7 +454,7 @@ class MultiheadAttention(nn.Module):
 
 class ConvSeparable(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, padding=0, dropout=0):
-        super(ConvSeparable, self).__init__()
+        super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
@@ -476,7 +476,6 @@ class ConvSeparable(nn.Module):
 
 
 class EncSepConvLayer(nn.Module):
-
     def __init__(self, c, kernel_size, dropout, activation):
         super().__init__()
         self.layer_norm = nn.LayerNorm(c, eps=1e-6, elementwise_affine=True)
@@ -510,7 +509,7 @@ class EncTransformerAttnLayer(nn.Module):
         self.self_attn = MultiheadAttention(c, num_heads, self_attention=True, dropout=attention_dropout, bias=False)
         self.self_attn_layer_norm = nn.LayerNorm(c, eps=1e-6, elementwise_affine=True)
 
-    def forward(self, x, encoder_padding_mask=None):
+    def forward(self, x, encoder_padding_mask=None, **kwargs):
         """
         LayerNorm is applied either before or after the self-attention/ffn
         modules similar to the original Transformer imlementation.
@@ -563,7 +562,6 @@ class EncTransformerFFNLayer(nn.Module):
 
 
 class IdentityLayer(nn.Module):
-
     def __init__(
         self,
     ):

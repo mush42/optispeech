@@ -1,13 +1,14 @@
 import os
 import sys
+
 import rootutils
 
 root_path = rootutils.setup_root(search_from=os.getcwd(), indicator=".project-root")
 sys.path.append(os.fspath(root_path))
 
 import argparse
-import urllib.request
 import random
+import urllib.request
 from functools import partial
 from pathlib import Path
 from typing import Tuple
@@ -20,7 +21,6 @@ import yaml
 from optispeech.model import OptiSpeech
 from optispeech.onnx import OptiSpeechONNXModel
 
-
 APP_DESC = """
 ## About OptiSpeech
 
@@ -30,17 +30,19 @@ APP_DESC = """
 
 - The input text is limmited to 1280 chars to prevent overloading the system. Longer input will be truncated.
 - The inference time will be higher  in the first run or when the `Load latest checkpoint` checkbox is checked.
-- The values of **Latency** and **RTF (Real Time Factor)** will vary depending on the machine you run inference on. 
+- The values of **Latency** and **RTF (Real Time Factor)** will vary depending on the machine you run inference on.
 
 """.strip()
 
 RAND_SENTS_URL = "https://gist.github.com/mush42/17ec8752de20f595941e44df1d3fc5c4/raw/946c8c1e5d11e3753ae8771476138602a0f6002c/tts-demo-sentences.txt"
 try:
     with urllib.request.urlopen(RAND_SENTS_URL) as response:
-        RANDOM_SENTENCES = response.read().decode('utf-8').splitlines()
+        RANDOM_SENTENCES = response.read().decode("utf-8").splitlines()
 except Exception as e:
     print(e)
-    RANDOM_SENTENCES = ["Learning a new language not only facilitates communication across borders but also opens doors to understanding different cultures, broadening one's worldview, and forging connections with people from diverse linguistic backgrounds."]
+    RANDOM_SENTENCES = [
+        "Learning a new language not only facilitates communication across borders but also opens doors to understanding different cultures, broadening one's worldview, and forging connections with people from diverse linguistic backgrounds."
+    ]
 random.shuffle(RANDOM_SENTENCES)
 DEVICE = torch.device("cpu")
 CHECKPOINTS_DIR = None
@@ -91,28 +93,32 @@ def get_inference_arg_value(name):
     ensure_model_loaded(False)
     return MODEL.inference_args[name]
 
-def speak(text: str, d_factor: float, p_factor: float, e_factor: float, load_latest_ckpt=False) -> Tuple[np.ndarray, int]:
+
+def speak(
+    text: str, d_factor: float, p_factor: float, e_factor: float, load_latest_ckpt=False
+) -> Tuple[np.ndarray, int]:
     global MODEL, CKPT_PATH, CKPT_EPOCH, CKPT_GSTEP, RUN_NAME
     ensure_model_loaded(load_latest_ckpt)
     # Avoid extremely long sentences
     text = text[:1280]
     normalized_text, x, x_lengths, sids, lids = MODEL.prepare_input(text)
-    outputs = MODEL.synthesise(x, x_lengths, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor)
-    info = "\n".join([
-        f"Normalized text: {normalized_text}",
-        f"Latency (ms): {outputs['latency']}",
-        f"RTF: {outputs['rtf']}",
-        f"training run name: {RUN_NAME}",
-        f"checkpoint epoch: {CKPT_EPOCH}",
-        f"checkpoint steps: {CKPT_GSTEP}",
-    ])
+    outputs = MODEL.synthesise(
+        x, x_lengths, sids=sids, lids=lids, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor
+    )
+    info = "\n".join(
+        [
+            f"Normalized text: {normalized_text}",
+            f"Latency (ms): {outputs['latency']}",
+            f"RTF: {outputs['rtf']}",
+            f"training run name: {RUN_NAME}",
+            f"checkpoint epoch: {CKPT_EPOCH}",
+            f"checkpoint steps: {CKPT_GSTEP}",
+        ]
+    )
     wav = outputs["wav"].squeeze()
     if isinstance(wav, torch.Tensor):
         wav = wav.cpu().numpy()
-    return (
-        (MODEL.sample_rate, wav),
-        info
-    )
+    return ((MODEL.sample_rate, wav), info)
 
 
 def create_interface():
@@ -126,37 +132,24 @@ def create_interface():
             with gr.Column():
                 gr.Markdown("## Synthesis options")
                 d_factor = gr.Slider(
-                    value=partial(get_inference_arg_value, "d_factor"),
-                    minimum=0.1,
-                    maximum=10.0,
-                    label="Length factor"
+                    value=partial(get_inference_arg_value, "d_factor"), minimum=0.1, maximum=10.0, label="Length factor"
                 )
                 p_factor = gr.Slider(
-                    value=partial(get_inference_arg_value, "p_factor"),
-                    minimum=0.1,
-                    maximum=10.0,
-                    label="Pitch factor"
+                    value=partial(get_inference_arg_value, "p_factor"), minimum=0.1, maximum=10.0, label="Pitch factor"
                 )
                 e_factor = gr.Slider(
-                    value=partial(get_inference_arg_value, "e_factor"),
-                    minimum=0.1,
-                    maximum=10.0,
-                    label="Energy factor"
+                    value=partial(get_inference_arg_value, "e_factor"), minimum=0.1, maximum=10.0, label="Energy factor"
                 )
                 load_latest_ckpt = gr.Checkbox(value=False, label="Load latest model version")
         speak_btn = gr.Button("Speak")
         audio = gr.Audio(label="Generated audio")
         info = gr.Text(label="Info", interactive=False)
         speak_btn.click(fn=speak, inputs=[text, d_factor, p_factor, e_factor, load_latest_ckpt], outputs=[audio, info])
-        random_sent_btn.click(
-            fn=lambda txt: random.choice(RANDOM_SENTENCES),
-            inputs=text,
-            outputs=text
-        )
+        random_sent_btn.click(fn=lambda txt: random.choice(RANDOM_SENTENCES), inputs=text, outputs=text)
     return gui
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("checkpoints_dir")
     parser.add_argument("--onnx", action="store_true")
@@ -165,8 +158,4 @@ if __name__ == '__main__':
     CHECKPOINTS_DIR = args.checkpoints_dir
     ONNX_INFERENCE = args.onnx
     gui = create_interface()
-    gui.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        share=args.share
-    )
+    gui.launch(server_name="0.0.0.0", server_port=7860, share=args.share)

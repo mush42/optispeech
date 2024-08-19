@@ -1,10 +1,9 @@
 import torch
 from torch import nn
 
-
-from ._transformer.initialize import initialize
 from ._transformer.embedding import PositionalEncoding, ScaledPositionalEncoding
 from ._transformer.encoder import Encoder as FS2Transformer
+from ._transformer.initialize import initialize
 
 
 class Transformer(nn.Module):

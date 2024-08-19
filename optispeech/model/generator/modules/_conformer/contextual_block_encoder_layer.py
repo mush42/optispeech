@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Created on Sat Aug 21 16:57:31 2021.
 
@@ -8,7 +7,7 @@ Created on Sat Aug 21 16:57:31 2021.
 import torch
 from torch import nn
 
-from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
+from .._transformer.layer_norm import LayerNorm
 
 
 class ContextualBlockEncoderLayer(nn.Module):
@@ -50,7 +49,7 @@ class ContextualBlockEncoderLayer(nn.Module):
         concat_after=False,
     ):
         """Construct an EncoderLayer object."""
-        super(ContextualBlockEncoderLayer, self).__init__()
+        super().__init__()
         self.self_attn = self_attn
         self.feed_forward = feed_forward
         self.feed_forward_macaron = feed_forward_macaron
@@ -88,13 +87,9 @@ class ContextualBlockEncoderLayer(nn.Module):
         if self.training or not infer_mode:
             return self.forward_train(x, mask, past_ctx, next_ctx, layer_idx, cache)
         else:
-            return self.forward_infer(
-                x, mask, past_ctx, next_ctx, is_short_segment, layer_idx, cache
-            )
+            return self.forward_infer(x, mask, past_ctx, next_ctx, is_short_segment, layer_idx, cache)
 
-    def forward_train(
-        self, x, mask, past_ctx=None, next_ctx=None, layer_idx=0, cache=None
-    ):
+    def forward_train(self, x, mask, past_ctx=None, next_ctx=None, layer_idx=0, cache=None):
         """Compute encoded features.
 
         Args:
@@ -118,9 +113,7 @@ class ContextualBlockEncoderLayer(nn.Module):
         if past_ctx is not None:
             if next_ctx is None:
                 # store all context vectors in one tensor
-                next_ctx = past_ctx.new_zeros(
-                    nbatch, nblock, self.total_layer_num, x.size(-1)
-                )
+                next_ctx = past_ctx.new_zeros(nbatch, nblock, self.total_layer_num, x.size(-1))
             else:
                 x[:, :, 0] = past_ctx[:, :, layer_idx]
 

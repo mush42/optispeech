@@ -134,7 +134,6 @@ class DurationPredictor(VariancePredictor):
 
 
 class PitchPredictor(torch.nn.Module):
-
     def __init__(self, *args, embed_kernel_size=9, embed_dropout=0.1, **kwargs):
         super().__init__()
         self.predictor = VariancePredictor(*args, **kwargs)

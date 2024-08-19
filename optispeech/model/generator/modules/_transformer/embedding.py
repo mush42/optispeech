@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # Copyright 2019 Shigeki Karita
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
@@ -46,7 +45,7 @@ class PositionalEncoding(torch.nn.Module):
 
     def __init__(self, d_model, dropout_rate, max_len=5000, reverse=False):
         """Construct an PositionalEncoding object."""
-        super(PositionalEncoding, self).__init__()
+        super().__init__()
         self.d_model = d_model
         self.reverse = reverse
         self.xscale = math.sqrt(self.d_model)
@@ -64,14 +63,11 @@ class PositionalEncoding(torch.nn.Module):
                 return
         pe = torch.zeros(x.size(1), self.d_model)
         if self.reverse:
-            position = torch.arange(
-                x.size(1) - 1, -1, -1.0, dtype=torch.float32
-            ).unsqueeze(1)
+            position = torch.arange(x.size(1) - 1, -1, -1.0, dtype=torch.float32).unsqueeze(1)
         else:
             position = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
         div_term = torch.exp(
-            torch.arange(0, self.d_model, 2, dtype=torch.float32)
-            * -(math.log(10000.0) / self.d_model)
+            torch.arange(0, self.d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / self.d_model)
         )
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
@@ -154,7 +150,7 @@ class LearnableFourierPosEnc(torch.nn.Module):
         hidden_dim=None,
     ):
         """Initialize class."""
-        super(LearnableFourierPosEnc, self).__init__()
+        super().__init__()
 
         self.d_model = d_model
 
@@ -170,9 +166,7 @@ class LearnableFourierPosEnc(torch.nn.Module):
         if self.gamma is None:
             self.gamma = self.d_model // 2
 
-        assert (
-            d_model % 2 == 0
-        ), "d_model should be divisible by two in order to use this layer."
+        assert d_model % 2 == 0, "d_model should be divisible by two in order to use this layer."
         self.w_r = torch.nn.Parameter(torch.empty(1, d_model // 2))
         self._reset()  # init the weights
 
@@ -185,9 +179,7 @@ class LearnableFourierPosEnc(torch.nn.Module):
             )
 
     def _reset(self):
-        self.w_r.data = torch.normal(
-            0, (1 / math.sqrt(self.gamma)), (1, self.d_model // 2)
-        )
+        self.w_r.data = torch.normal(0, (1 / math.sqrt(self.gamma)), (1, self.d_model // 2))
 
     def extend_pe(self, x):
         """Reset the positional encodings."""
@@ -273,7 +265,7 @@ class RelPositionalEncoding(torch.nn.Module):
 
     def __init__(self, d_model, dropout_rate, max_len=5000):
         """Construct an PositionalEncoding object."""
-        super(RelPositionalEncoding, self).__init__()
+        super().__init__()
         self.d_model = d_model
         self.xscale = math.sqrt(self.d_model)
         self.dropout = torch.nn.Dropout(p=dropout_rate)
@@ -296,8 +288,7 @@ class RelPositionalEncoding(torch.nn.Module):
         pe_negative = torch.zeros(x.size(1), self.d_model)
         position = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
         div_term = torch.exp(
-            torch.arange(0, self.d_model, 2, dtype=torch.float32)
-            * -(math.log(10000.0) / self.d_model)
+            torch.arange(0, self.d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / self.d_model)
         )
         pe_positive[:, 0::2] = torch.sin(position * div_term)
         pe_positive[:, 1::2] = torch.cos(position * div_term)
@@ -343,7 +334,7 @@ class StreamPositionalEncoding(torch.nn.Module):
 
     def __init__(self, d_model, dropout_rate, max_len=5000):
         """Construct an PositionalEncoding object."""
-        super(StreamPositionalEncoding, self).__init__()
+        super().__init__()
         self.d_model = d_model
         self.xscale = math.sqrt(self.d_model)
         self.dropout = torch.nn.Dropout(p=dropout_rate)
@@ -362,8 +353,7 @@ class StreamPositionalEncoding(torch.nn.Module):
         pe = torch.zeros(length, self.d_model)
         position = torch.arange(0, length, dtype=torch.float32).unsqueeze(1)
         div_term = torch.exp(
-            torch.arange(0, self.d_model, 2, dtype=torch.float32)
-            * -(math.log(10000.0) / self.d_model)
+            torch.arange(0, self.d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / self.d_model)
         )
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)

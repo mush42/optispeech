@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import librosa
 import numpy as np
@@ -6,10 +6,9 @@ import pyworld as pw
 import torch
 from librosa.filters import mel as librosa_mel_fn
 from scipy.interpolate import interp1d
-from torch import nn
-from torchaudio.functional import gain, lowpass_biquad, highpass_biquad
+from torchaudio.functional import gain, highpass_biquad, lowpass_biquad
 
-from optispeech.utils import pylogger, safe_log, trim_or_pad_to_target_length
+from optispeech.utils import pylogger, trim_or_pad_to_target_length
 from optispeech.utils.audio import spectral_normalize_torch
 
 from .norm_audio import make_silence_detector, trim_audio
@@ -31,9 +30,9 @@ class FeatureExtractor:
         f_max: int,
         center: bool,
         preemphasis_filter_coef: Optional[float] = None,
-        lowpass_freq: Optional[int]=None,
-        highpass_freq: Optional[int]=None,
-        gain_db: Optional[int]=None,
+        lowpass_freq: Optional[int] = None,
+        highpass_freq: Optional[int] = None,
+        gain_db: Optional[int] = None,
         trim_silence: bool = False,
         trim_silence_args: Optional[dict] = None,
     ):
@@ -72,21 +71,14 @@ class FeatureExtractor:
         # Cutt-off higher freqs
         if self.lowpass_freq is not None:
             wav = lowpass_biquad(
-                torch.from_numpy(wav.copy()),
-                sample_rate=self.sample_rate,
-                cutoff_freq=self.lowpass_freq
+                torch.from_numpy(wav.copy()), sample_rate=self.sample_rate, cutoff_freq=self.lowpass_freq
             ).numpy()
         if self.highpass_freq is not None:
             wav = highpass_biquad(
-                torch.from_numpy(wav.copy()),
-                sample_rate=self.sample_rate,
-                cutoff_freq=self.highpass_freq
+                torch.from_numpy(wav.copy()), sample_rate=self.sample_rate, cutoff_freq=self.highpass_freq
             ).numpy()
         if self.gain_db is not None:
-            wav = gain(
-                torch.from_numpy(wav.copy()),
-                gain_db=self.gain_db
-            ).numpy()
+            wav = gain(torch.from_numpy(wav.copy()), gain_db=self.gain_db).numpy()
         # Peak normalization
         wav = librosa.util.normalize(wav)
         mel = self.get_mel(wav)
@@ -165,9 +157,9 @@ class CommonFeatureExtractor(FeatureExtractor):
         y = torch.from_numpy(wav).unsqueeze(0)
 
         if torch.min(y) < -1.0:
-            log.warning("min value is ", torch.min(y))
+            log.warning(f"min value is {torch.min(y)}")
         if torch.max(y) > 1.0:
-            log.warning("max value is ", torch.max(y))
+            log.warning(f"max value is {torch.max(y)}")
 
         mel_basis_key = str(self.f_max) + "_" + str(y.device)
         hann_win_key = str(y.device)
@@ -202,9 +194,6 @@ class CommonFeatureExtractor(FeatureExtractor):
         )
 
         magnitudes = torch.sqrt(spec.pow(2).sum(-1) + (1e-9))
-        energy = torch.norm(magnitudes, dim=1)
-
         spec = torch.matmul(self.mel_basis[mel_basis_key], magnitudes)
         spec = spectral_normalize_torch(spec)
-
         return spec.squeeze().cpu().numpy()

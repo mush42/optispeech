@@ -111,10 +111,10 @@ def main():
     val_root = Path(args.input_dir).joinpath("val")
     # get all utterances to calculate number of speakers/languages
     all_utterances = []
-    with open(train_root.joinpath("metadata.csv"), "r", encoding="utf-8") as cfile:
+    with open(train_root.joinpath("metadata.csv"), encoding="utf-8") as cfile:
         reader = csv.reader(cfile, delimiter="|")
         all_utterances.extend(reader)
-    with open(val_root.joinpath("metadata.csv"), "r", encoding="utf-8") as cfile:
+    with open(val_root.joinpath("metadata.csv"), encoding="utf-8") as cfile:
         reader = csv.reader(cfile, delimiter="|")
         all_utterances.extend(reader)
     sids, lids = get_sids_and_lids(dataset, all_utterances)
@@ -135,7 +135,7 @@ def main():
             log.warning(f"Datasplit `{root.name}` not found. Skipping...")
             exit(1)
         log.info(f"Extracting datasplit `{root.name}`")
-        with open(root.joinpath("metadata.csv"), "r", encoding="utf-8") as file:
+        with open(root.joinpath("metadata.csv"), encoding="utf-8") as file:
             reader = csv.reader(file, delimiter="|")
             inrows = list(reader)
         log.info(f"Found {len(inrows)} utterances in file.")
@@ -159,7 +159,7 @@ def main():
             lid = lids.index(lang.strip().lower()) if lang else None
             try:
                 data = dataset.preprocess_utterance(audio_path, text, lang)
-            except:
+            except Exception:
                 log.exception(f"Failed to process file: {audio_path.name}", exc_info=True)
                 continue
             write_data(data_dir, audio_path.stem, data, sid, lid)

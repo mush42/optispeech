@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-INCREMENTAL_STATE_INSTANCE_ID = defaultdict(lambda: 0)
+INCREMENTAL_STATE_INSTANCE_ID = defaultdict(int)
 
 
 def sequence_mask(length, max_length=None):
@@ -220,9 +220,7 @@ def build_activation(act_func, inplace=True):
     elif act_func == "relu6":
         return nn.ReLU6(inplace=inplace)
     elif act_func == "gelu":
-        return GeLU()
-    elif act_func == "gelu_accurate":
-        return GeLUAcc()
+        return torch.nn.GELU()
     elif act_func == "tanh":
         return nn.Tanh()
     elif act_func == "sigmoid":
@@ -259,7 +257,7 @@ def _get_full_incremental_state_key(module_instance, key):
         INCREMENTAL_STATE_INSTANCE_ID[module_name] += 1
         module_instance._instance_id = INCREMENTAL_STATE_INSTANCE_ID[module_name]
 
-    return "{}.{}.{}".format(module_name, module_instance._instance_id, key)
+    return f"{module_name}.{module_instance._instance_id}.{key}"
 
 
 def get_incremental_state(module, incremental_state, key):

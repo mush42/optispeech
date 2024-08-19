@@ -11,7 +11,6 @@ _TOKENIZERS = {}
 
 
 class BaseTokenizer(ABC):
-
     name: str
     input_symbols: dict[str, int]
     special_symbols: dict[str, int]
@@ -37,10 +36,12 @@ class BaseTokenizer(ABC):
         self.normalize_text = normalize_text
 
     @abstractmethod
-    def __call__(self, text: str, language: str, *, split_sentences: bool = True) -> tuple[list[int] | list[list[int]], str]:
+    def __call__(
+        self, text: str, language: str, *, split_sentences: bool = True
+    ) -> tuple[list[int] | list[list[int]], str]:
         """Return input IDs."""
 
-    def preprocess_text(self, text: str, language: str=None) -> str:
+    def preprocess_text(self, text: str, language: str = None) -> str:
         return preprocess_text(text, language, normalize=self.normalize_text)
 
 
@@ -53,7 +54,9 @@ class IPATokenizer(BaseTokenizer):
         eos=symbols.EOS,
     )
 
-    def __call__(self, text: str, language: str, *, split_sentences: bool = True) -> tuple[list[int] | list[list[int]], str]:
+    def __call__(
+        self, text: str, language: str, *, split_sentences: bool = True
+    ) -> tuple[list[int] | list[list[int]], str]:
         phonemes, normalized_text = self.phonemize_text(text, language)
         if not split_sentences:
             phonemes = [phoneme for sentence_phonemes in phonemes for phoneme in sentence_phonemes]

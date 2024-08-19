@@ -20,16 +20,10 @@ from .._transformer.embedding import (
     ScaledPositionalEncoding,
 )
 from .._transformer.layer_norm import LayerNorm
-from .._transformer.multi_layer_conv import (
-    Conv1dLinear,
-    MultiLayeredConv1d,
-)
-from .._transformer.positionwise_feed_forward import (
-    PositionwiseFeedForward,
-)
+from .._transformer.multi_layer_conv import Conv1dLinear, MultiLayeredConv1d
+from .._transformer.positionwise_feed_forward import PositionwiseFeedForward
 from .._transformer.repeat import repeat
 from .._transformer.subsampling import Conv2dSubsampling
-
 from .convolution import ConvolutionModule
 from .encoder_layer import EncoderLayer
 from .nets_utils import get_activation
@@ -100,7 +94,7 @@ class Encoder(torch.nn.Module):
         conditioning_layer_dim=None,
     ):
         """Construct an Encoder object."""
-        super(Encoder, self).__init__()
+        super().__init__()
 
         activation = get_activation(activation_type)
         if pos_enc_layer_type == "abs_pos":
@@ -143,9 +137,7 @@ class Encoder(torch.nn.Module):
                 pos_enc_class(attention_dim, positional_dropout_rate),
             )
         elif input_layer is None:
-            self.embed = torch.nn.Sequential(
-                pos_enc_class(attention_dim, positional_dropout_rate)
-            )
+            self.embed = torch.nn.Sequential(pos_enc_class(attention_dim, positional_dropout_rate))
         else:
             raise ValueError("unknown input_layer: " + input_layer)
         self.normalize_before = normalize_before
@@ -233,9 +225,7 @@ class Encoder(torch.nn.Module):
         self.use_conditioning = True if ctc_softmax is not None else False
         if self.use_conditioning:
             self.ctc_softmax = ctc_softmax
-            self.conditioning_layer = torch.nn.Linear(
-                conditioning_layer_dim, attention_dim
-            )
+            self.conditioning_layer = torch.nn.Linear(conditioning_layer_dim, attention_dim)
 
     def forward(self, xs, masks):
         """Encode input sequence.
@@ -261,10 +251,7 @@ class Encoder(torch.nn.Module):
             for layer_idx, encoder_layer in enumerate(self.encoders):
                 xs, masks = encoder_layer(xs, masks)
 
-                if (
-                    self.intermediate_layers is not None
-                    and layer_idx + 1 in self.intermediate_layers
-                ):
+                if self.intermediate_layers is not None and layer_idx + 1 in self.intermediate_layers:
                     # intermediate branches also require normalization.
                     encoder_output = xs
                     if isinstance(encoder_output, tuple):

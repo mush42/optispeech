@@ -21,7 +21,7 @@ class DurationPredictorLoss(torch.nn.Module):
             reduction (str): Reduction type in loss calculation.
 
         """
-        super(DurationPredictorLoss, self).__init__()
+        super().__init__()
         self.criterion = torch.nn.MSELoss(reduction=reduction)
         self.clip_val = clip_val
 

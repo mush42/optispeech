@@ -19,7 +19,7 @@ DEFAULT_SEED = 1234
 
 def export_as_onnx(model, out_filename, opset):
     is_multi_speaker = model.hparams.data_args.num_speakers > 1
-    is_multi_language = len(model.hparams.data_args.text_processor.languages) >1
+    is_multi_language = len(model.hparams.data_args.text_processor.languages) > 1
 
     dummy_input_length = 50
     x = torch.randint(low=0, high=20, size=(1, dummy_input_length), dtype=torch.long)
@@ -31,14 +31,18 @@ def export_as_onnx(model, out_filename, opset):
     e_factor = 1.0
     scales = torch.Tensor([d_factor, p_factor, e_factor])
 
-    dummy_input = [x, x_lengths, scales,]
+    dummy_input = [
+        x,
+        x_lengths,
+        scales,
+    ]
 
     input_names = [
         "x",
         "x_lengths",
         "scales",
     ]
-        
+
     output_names = ["wav", "wav_lengths", "durations"]
 
     # Set dynamic shape for inputs/outputs
@@ -72,13 +76,7 @@ def export_as_onnx(model, out_filename, opset):
         p_factor = scales[1]
         e_factor = scales[2]
         outputs = model_gen.synthesise(
-            x,
-            x_lengths,
-            sids=sids,
-            lids=lids,
-            d_factor=d_factor,
-            p_factor=p_factor,
-            e_factor=e_factor
+            x, x_lengths, sids=sids, lids=lids, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor
         )
         return outputs["wav"], outputs["wav_lengths"], outputs["durations"]
 
@@ -108,7 +106,7 @@ def add_inference_metadata(onnxfile, model):
     languages = [lang for lang in text_processor.languages]
     text_processor.languages = languages
 
-    infer_dict =  dict(
+    infer_dict = dict(
         name=model.hparams.data_args.name,
         sample_rate=model.hparams.data_args.feature_extractor.sample_rate,
         inference_args=dict(model.hparams.inference_args),
