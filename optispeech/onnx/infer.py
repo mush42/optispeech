@@ -8,7 +8,7 @@ import numpy as np
 import onnxruntime
 import soundfile as sf
 
-from optispeech.dataset.text_processor import TextProcessor
+from optispeech.text import TextProcessor
 from optispeech.utils import get_script_logger, numpy_pad_sequences, numpy_unpad_sequences
 
 log = get_script_logger(__name__)

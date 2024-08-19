@@ -9,7 +9,7 @@ import torch
 from lightning import seed_everything
 
 from optispeech.model import OptiSpeech
-from optispeech.text import UNICODE_NORM_FORM, get_input_symbols
+from optispeech.text import UNICODE_NORM_FORM
 from optispeech.utils import get_script_logger
 
 log = get_script_logger(__name__)
@@ -99,10 +99,15 @@ def export_as_onnx(model, out_filename, opset):
 
 def add_inference_metadata(onnxfile, model):
     onnx_model = onnx.load(onnxfile)
-    input_symbols, special_symbols = get_input_symbols()
+
     text_processor = model.text_processor
-    languages = [lang.code for lang in text_processor.languages]
-    text_processor.languages = [dict(lang) for lang in text_processor.languages]
+    tokenizer = text_processor.tokenizer
+
+    input_symbols = tokenizer.input_symbols
+    special_symbols = tokenizer.special_symbols
+    languages = [lang for lang in text_processor.languages]
+    text_processor.languages = languages
+
     infer_dict =  dict(
         name=model.hparams.data_args.name,
         sample_rate=model.hparams.data_args.feature_extractor.sample_rate,

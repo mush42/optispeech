@@ -1,97 +1,50 @@
-from typing import List, Tuple, Union
-
-from piper_phonemize import phonemize_espeak
-
-from ..utils import intersperse
-from . import processors, symbols
-from .textnorm import UNICODE_NORM_FORM, collapse_whitespace, preprocess_text
+from .normalization import UNICODE_NORM_FORM
+from .tokenizers import BaseTokenizer
 
 
-def get_input_symbols():
-    special_symbols = dict(
-        pad=symbols.PAD,
-        bos=symbols.BOS,
-        eos=symbols.EOS,
-    )
-    return symbols.SYMBOL_TO_ID, special_symbols
+class TextProcessor:
 
-
-def process_and_phonemize_text(
-    text: str,
-    language: str,
-    tokenizer="default",
-    *,
-    add_blank: bool = True,
-    add_bos_eos: bool = False,
-    normalize_text: bool = True,
-    split_sentences: bool = False,
-) -> Tuple[Union[List[int], List[List[int]]], str]:
-    tok = tokenizer.lower()
-    if tok == "default":
-        return process_and_phonemize_text_default(
-            text,
-            language,
-            add_blank=add_blank,
-            add_bos_eos=add_bos_eos,
-            normalize=normalize_text,
-            split_sentences=split_sentences,
+    def __init__(
+        self,
+        tokenizer_name: str,
+        add_blank: str,
+        add_bos_eos: str,
+        normalize_text: bool,
+        languages: list[str]
+    ):
+        self.tokenizer_name = tokenizer_name
+        self.add_blank = add_blank
+        self.add_bos_eos = add_bos_eos
+        self.normalize_text = normalize_text
+        self.languages = languages
+        tokenizer_cls = BaseTokenizer.get_tokenizer_by_name(tokenizer_name)
+        self.tokenizer = tokenizer_cls(
+             add_blank= add_blank,
+             add_bos_eos=add_bos_eos,
+             normalize_text=normalize_text
         )
-    elif tokenizer == "piper":
-        return process_and_phonemize_text_piper(
-            text,
-            language,
-            add_blank=add_blank,
-            add_bos_eos=add_bos_eos,
-            normalize=normalize_text,
-            split_sentences=split_sentences,
+        self.num_languages = len(languages)
+        self.is_multi_language = self.num_languages > 1
+        self.default_language = languages[0].strip().lower()
+
+    def __call__(self, text, lang, split_sentences: bool=False):
+        # handle special value
+        if lang is None:
+            lang = self.default_language
+        lang = lang.strip().lower()
+        if lang not in self.languages:
+            raise ValueError(f"Language {lang} does not exist in the supported language list.")
+        return self.tokenizer(text, language=lang, split_sentences=split_sentences)
+
+    @classmethod
+    def from_dict(cls, kwargs):
+        return cls(**kwargs)
+
+    def asdict(self):
+        return dict(
+            tokenizer_name=self.tokenizer_name,
+            add_blank=self.add_blank,
+            add_bos_eos=self.add_bos_eos,
+            normalize_text=self.normalize_text,
+            languages=self.languages,
         )
-    raise ValueError(f"Unknown tokenizer `{tokenizer}`")
-
-
-def process_and_phonemize_text_default(
-    text: str, language: str, *, add_blank: bool, add_bos_eos: bool, normalize: bool = True, split_sentences: bool
-) -> Tuple[Union[List[int], List[List[int]]], str]:
-    phonemes, normalized_text = phonemize_text(text, language, normalize=normalize)
-    if not split_sentences:
-        phonemes = [phoneme for sentence_phonemes in phonemes for phoneme in sentence_phonemes]
-        phonemes = list(collapse_whitespace("".join(phonemes)))
-        phoneme_ids = processors.phonemes_to_ids(phonemes)
-        if add_blank:
-            phoneme_ids = intersperse(phoneme_ids, 0)
-        if add_bos_eos:
-            phoneme_ids = [
-                symbols.BOS_ID,
-                *phoneme_ids,
-                symbols.EOS_ID,
-            ]
-    else:
-        phoneme_ids = []
-        for sent_ph in phonemes:
-            sent_phonemes = list(collapse_whitespace("".join(sent_ph)))
-            phids = processors.phonemes_to_ids(sent_phonemes)
-            if add_blank:
-                phids = intersperse(phids, 0)
-            if add_bos_eos:
-                phids = [symbols.BOS_ID, *phids, symbols.EOS_ID]
-            phoneme_ids.append(phids)
-    return phoneme_ids, normalized_text
-
-
-def process_and_phonemize_text_piper(
-    text: str, language: str, *, add_blank: bool, add_bos_eos: bool, normalize: bool = True, split_sentences: bool
-) -> Tuple[Union[List[int], List[List[int]]], str]:
-    phonemes, normalized_text = phonemize_text(text, language, normalize=normalize)
-    if not split_sentences:
-        phonemes = [phoneme for sentence_phonemes in phonemes for phoneme in sentence_phonemes]
-        phoneme_ids = processors.phonemes_to_ids_piper(phonemes)
-    else:
-        phoneme_ids = [processors.phonemes_to_ids_piper(ph) for ph in phonemes]
-    return phoneme_ids, normalized_text
-
-
-def phonemize_text(text: str, language: str, *, normalize: bool = True) -> str:
-    # Preprocess
-    text = preprocess_text(text, normalize=normalize)
-    # Phonemize
-    phonemes = phonemize_espeak(text, language)
-    return phonemes, text

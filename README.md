@@ -26,13 +26,14 @@ Note that this is still WIP. Final model designed decisions are still being made
 
 ## Installation
 
+We use [Rye](https://rye.astral.sh/) to   manage the python runtime and dependencies.
+
+[Install Rye first](https://rye.astral.sh/guide/installation/), then run the following:
+
 ```bash
 $ git clone https://github.com/mush42/optispeech
 $ cd optispeech
-$ python3 -m venv .venv
-$ source .venv/bin/activate
-$ pip3 install --upgrade pip setuptools wheels
-$ pip3 install -r requirements.txt
+$ rye sync
 ```
 
 ## Inference

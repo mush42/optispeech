@@ -1,7 +1,7 @@
-_target_: optispeech.dataset.text_processor.TextProcessor
-languages:
-  - code: en-us
-    tokenizer: default
-    normalize_text: true
+_target_: optispeech.text.TextProcessor
+tokenizer_name: ipa
 add_blank: false
 add_bos_eos: false
+normalize_text: true
+languages:
+  - en-us

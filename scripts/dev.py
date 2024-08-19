@@ -1,5 +1,13 @@
 """Module used during model development."""
 
+import os
+import sys
+import rootutils
+
+root_path = rootutils.setup_root(search_from=os.getcwd(), indicator=".project-root")
+sys.path.append(os.fspath(root_path))
+
+
 import hydra
 import torch
 from hydra import compose, initialize
@@ -7,15 +15,22 @@ from lightning.pytorch.trainer import Trainer
 from lightning.pytorch.utilities.model_summary import summarize
 from omegaconf import OmegaConf
 
-from optispeech.text import process_and_phonemize_text
+from optispeech.text import TextProcessor
 
 # Text processing pipeline
 SENTENCE = "The history of the Galaxy has got a little muddled, for a number of reasons."
-phids, __ = process_and_phonemize_text(SENTENCE, "en-us", tokenizer="default")
+text_processor = TextProcessor(
+    tokenizer_name="ipa",
+    add_blank=True,
+    add_bos_eos=True,
+    normalize_text=True,
+    languages=["en-us"]
+)
+phids, clean_text = text_processor(SENTENCE, "en-us")
 print(f"Length of phoneme ids: {len(phids)}")
 
 # Config pipeline
-with initialize(version_base=None, config_path="./configs"):
+with initialize(version_base=None, config_path="../configs"):
     dataset_cfg = compose(config_name="data/ryan.yaml")
     cfg = compose(config_name="model/optispeech.yaml")
     cfg.model.data_args = dict(

@@ -1,3 +1,10 @@
+import os
+import sys
+import rootutils
+
+root_path = rootutils.setup_root(search_from=os.getcwd(), indicator=".project-root")
+sys.path.append(os.fspath(root_path))
+
 import argparse
 import os
 import urllib.request

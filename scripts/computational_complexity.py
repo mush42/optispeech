@@ -1,5 +1,12 @@
 """Module used during model development."""
 
+import os
+import sys
+import rootutils
+
+root_path = rootutils.setup_root(search_from=os.getcwd(), indicator=".project-root")
+sys.path.append(os.fspath(root_path))
+
 import hydra
 import torch
 from calflops import calculate_flops
@@ -11,7 +18,7 @@ from omegaconf import OmegaConf
 model_name = "lightspeech"
 
 # Config pipeline
-with initialize(version_base=None, config_path="./configs"):
+with initialize(version_base=None, config_path="../configs"):
     dataset_cfg = compose(config_name="data/ryan.yaml")
     cfg = compose(config_name=f"model/{model_name}.yaml")
     cfg.model.data_args = dict(
