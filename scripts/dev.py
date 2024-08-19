@@ -40,7 +40,7 @@ with initialize(version_base=None, config_path="../configs"):
     )
 
 # Dataset pipeline
-dataset_cfg.data.batch_size = 2
+dataset_cfg.data.batch_size = 1
 dataset_cfg.data.num_workers = 0
 dataset_cfg.data.seed = 42
 dataset_cfg.data.pin_memory = False

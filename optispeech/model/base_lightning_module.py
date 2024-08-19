@@ -129,13 +129,13 @@ class BaseLightningModule(LightningModule, ABC):
         log_outputs.update(
             {
                 "total_loss/train_am_loss": gen_am_loss.item(),
-                "gen_subloss/train_alighn_loss": gen_outputs["align_loss"].item(),
                 "gen_subloss/train_duration_loss": gen_outputs["duration_loss"].item(),
                 "gen_subloss/train_pitch_loss": gen_outputs["pitch_loss"].item(),
+                "gen_subloss/train_energy_loss": gen_outputs["energy_loss"].item(),
             }
         )
-        if gen_outputs.get("energy_loss") != 0.0:
-            log_outputs["gen_subloss/train_energy_loss"] = gen_outputs["energy_loss"].item()
+        if gen_outputs.get("align_loss") is not None:
+            log_outputs["gen_subloss/train_align_loss"] = gen_outputs["align_loss"].item()
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         if train_discriminator:
             gen_adv_loss, log_dict = self.discriminator.forward_gen(wav, wav_hat)
@@ -179,7 +179,7 @@ class BaseLightningModule(LightningModule, ABC):
 
     def on_validation_epoch_start(self):
         if self.train_args.evaluate_utmos:
-            from optispeech.metrics.UTMOS import UTMOSScore
+            from optispeech.vendor.metrics.UTMOS import UTMOSScore
 
             if not hasattr(self, "utmos_model"):
                 self.utmos_model = UTMOSScore(device=self.device)
@@ -191,13 +191,13 @@ class BaseLightningModule(LightningModule, ABC):
         log_outputs.update(
             {
                 "total_loss/val_am_loss": gen_outputs["loss"].item(),
-                "gen_subloss/val_alighn_loss": gen_outputs["align_loss"].item(),
                 "gen_subloss/val_duration_loss": gen_outputs["duration_loss"].item(),
                 "gen_subloss/val_pitch_loss": gen_outputs["pitch_loss"].item(),
+                "gen_subloss/val_energy_loss": gen_outputs["energy_loss"].item(),
             }
         )
-        if gen_outputs.get("energy_loss") != 0.0:
-            log_outputs["gen_subloss/val_energy_loss"] = gen_outputs["energy_loss"].item()
+        if gen_outputs.get("align_loss") is not None:
+            log_outputs["gen_subloss/val_alighn_loss"] = gen_outputs["align_loss"].item()
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         gen_adv_loss, log_dict = self.discriminator.get_val_loss(wav, wav_hat)
         log_outputs["total_loss/val_gen_adv_loss"] = gen_adv_loss
@@ -206,7 +206,7 @@ class BaseLightningModule(LightningModule, ABC):
         audio_16_khz = torchaudio.functional.resample(wav, orig_freq=self.sample_rate, new_freq=16000)
         audio_hat_16khz = torchaudio.functional.resample(wav_hat, orig_freq=self.sample_rate, new_freq=16000)
         if self.train_args.evaluate_periodicity:
-            from optispeech.metrics.periodicity import calculate_periodicity_metrics
+            from optispeech.vendor.metrics.periodicity import calculate_periodicity_metrics
 
             periodicity_loss, perio_pitch_loss, f1_score = calculate_periodicity_metrics(audio_16_khz, audio_hat_16khz)
             log_outputs.update(

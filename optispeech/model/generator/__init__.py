@@ -7,13 +7,11 @@ from torch.nn import functional as F
 from optispeech.utils import denormalize, sequence_mask
 from optispeech.utils.segments import get_random_segments
 
-from .alignments import (
-    AlignmentModule,
-    GaussianUpsampling,
+from .alignment import (
+    MASAlignment,
     average_by_duration,
-    viterbi_decode,
 )
-from .loss import FastSpeech2Loss, ForwardSumLoss
+from .loss import FastSpeech2Loss
 
 
 class OptiSpeechGenerator(nn.Module):
@@ -50,10 +48,9 @@ class OptiSpeechGenerator(nn.Module):
         self.text_embedding = text_embedding(dim=dim)
         self.encoder = encoder(dim=dim)
         self.duration_predictor = duration_predictor(dim=dim)
-        self.alignment_module = AlignmentModule(adim=dim, odim=self.n_feats)
+        self.alignment_module = MASAlignment(dim, self.n_feats)
         self.pitch_predictor = pitch_predictor(dim=dim)
         self.energy_predictor = energy_predictor(dim=dim) if use_energy_predictor else None
-        self.feature_upsampler = GaussianUpsampling()
         self.decoder = decoder(dim=dim)
         self.wav_generator = wav_generator(input_channels=dim, n_fft=self.n_fft, hop_length=self.hop_length)
         if self.num_speakers > 1:
@@ -61,7 +58,6 @@ class OptiSpeechGenerator(nn.Module):
         if self.num_languages > 1:
             self.lid_embed = torch.nn.Embedding(self.num_languages, dim)
         self.loss_criterion = FastSpeech2Loss()
-        self.forwardsum_loss = ForwardSumLoss()
 
     def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies, sids, lids):
         """
@@ -110,14 +106,16 @@ class OptiSpeechGenerator(nn.Module):
             x = x + lid_embs.unsqueeze(1)
 
         # alignment
-        log_p_attn = self.alignment_module(
-            text=x,
-            feats=mel.transpose(1, 2),
-            text_lengths=x_lengths,
-            feats_lengths=mel_lengths,
-            x_masks=input_padding_mask,
+        duration_hat = self.duration_predictor(x, input_padding_mask)
+        duration_loss, durations, attn = self.alignment_module(
+            x=x,
+            y=mel,
+            x_lengths=x_lengths,
+            y_lengths=mel_lengths,
+            x_mask=x_mask,
+            y_mask=mel_mask,
+            predicted_log_durations=duration_hat
         )
-        durations, bin_loss = viterbi_decode(log_p_attn, x_lengths, mel_lengths)
 
         # Average pitch and energy values based on durations
         pitches = average_by_duration(durations, pitches.unsqueeze(-1), x_lengths, mel_lengths)
@@ -125,16 +123,10 @@ class OptiSpeechGenerator(nn.Module):
 
         # variance predictors
         x, pitch_hat = self.pitch_predictor(x, input_padding_mask, pitches)
-        if self.energy_predictor is not None:
-            x, energy_hat = self.energy_predictor(x, input_padding_mask, energies)
-        else:
-            energy_hat = None
-        duration_hat = self.duration_predictor(x, input_padding_mask)
+        x, energy_hat = self.energy_predictor(x, input_padding_mask, energies)
 
         # upsample to mel lengths
-        y = self.feature_upsampler(
-            hs=x, ds=durations, h_masks=mel_mask.squeeze(1).bool(), d_masks=x_mask.squeeze(1).bool()
-        )
+        y = torch.matmul(attn.transpose(1, 2), x)
 
         # Decoder
         y = self.decoder(y, target_padding_mask)
@@ -152,20 +144,15 @@ class OptiSpeechGenerator(nn.Module):
 
         # Losses
         loss_coeffs = self.loss_coeffs
-        duration_loss, pitch_loss, energy_loss = self.loss_criterion(
-            d_outs=duration_hat.unsqueeze(-1),
+        pitch_loss, energy_loss = self.loss_criterion(
             p_outs=pitch_hat.unsqueeze(-1),
             e_outs=energy_hat.unsqueeze(-1) if energy_hat is not None else energy_hat,
-            ds=durations.unsqueeze(-1),
             ps=pitches.unsqueeze(-1),
             es=energies.unsqueeze(-1) if energies is not None else None,
             ilens=x_lengths,
         )
-        forwardsum_loss = self.forwardsum_loss(log_p_attn, x_lengths, mel_lengths)
-        align_loss = forwardsum_loss + bin_loss
         loss = (
-            (align_loss * loss_coeffs.lambda_align)
-            + (duration_loss * loss_coeffs.lambda_duration)
+            (duration_loss * loss_coeffs.lambda_duration)
             + (pitch_loss * loss_coeffs.lambda_pitch)
             + (energy_loss * loss_coeffs.lambda_energy)
         )
@@ -174,9 +161,8 @@ class OptiSpeechGenerator(nn.Module):
             "wav_hat": wav_hat,
             "start_idx": start_idx,
             "segment_size": segment_size,
-            "attn": log_p_attn,
+            "attn": attn,
             "loss": loss,
-            "align_loss": align_loss,
             "duration_loss": duration_loss,
             "pitch_loss": pitch_loss,
             "energy_loss": energy_loss,
@@ -237,23 +223,16 @@ class OptiSpeechGenerator(nn.Module):
             x = x + lid_embs.unsqueeze(1)
 
         # duration predictor
-        durations = self.duration_predictor.infer(x, input_padding_mask, factor=d_factor)
+        durations = self.duration_predictor(x, input_padding_mask)
+        attn, y_lengths, y_mask = self.alignment_module.infer(durations, x_mask, d_factor)
+        target_padding_mask = ~y_mask.squeeze(1).bool()
 
         # variance predictors
         x, pitch = self.pitch_predictor.infer(x, input_padding_mask, p_factor)
-        if self.energy_predictor is not None:
-            x, energy = self.energy_predictor.infer(x, input_padding_mask, e_factor)
-        else:
-            energy = None
+        x, energy = self.energy_predictor.infer(x, input_padding_mask, e_factor)
 
-        y_lengths = durations.sum(dim=1)
-        y_max_length = y_lengths.max()
-        y_mask = torch.unsqueeze(sequence_mask(y_lengths, y_max_length), 1).type_as(x)
-        target_padding_mask = ~y_mask.squeeze(1).bool()
-
-        y = self.feature_upsampler(
-            hs=x, ds=durations, h_masks=y_mask.squeeze(1).bool(), d_masks=x_mask.squeeze(1).bool()
-        )
+        # Upsample
+        y = torch.matmul(attn.squeeze(1).transpose(1, 2).float(), x)
 
         # Decoder
         y = self.decoder(y, target_padding_mask)
@@ -277,6 +256,7 @@ class OptiSpeechGenerator(nn.Module):
             "durations": durations,
             "pitch": pitch,
             "energy": energy,
+            "attn": attn,
             "am_rtf": am_rtf,
             "v_rtf": v_rtf,
             "rtf": rtf,

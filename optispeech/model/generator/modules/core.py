@@ -108,30 +108,6 @@ class DurationPredictor(VariancePredictor):
         the outputs are calculated in log domain but in `inference`, those are calculated in linear domain.
     """
 
-    def __init__(self, *args, clip_val=1e-8, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.clip_val = clip_val
-
-    @torch.inference_mode()
-    def infer(self, x, mask, factor=1.0):
-        """
-        Inference duration in linear domain.
-        Args:
-            x (Tensor):  (B, Tmax, H).
-            mask (ByteTensor, optional): Batch of masks indicating padded part (B, Tmax).
-            factor (float, optional): durations scale to control speech rate.
-        Returns:
-            LongTensor: Batch of predicted durations in linear domain (B, Tmax).
-        """
-        log_durations = self(x, mask)
-        # linear domain
-        durations = torch.exp(log_durations) - self.clip_val
-        durations = torch.ceil(durations * factor)
-        # avoid negative values
-        durations = torch.clamp(durations.long(), min=0)
-        durations = durations.masked_fill(mask, 0)
-        return durations
-
 
 class PitchPredictor(torch.nn.Module):
     def __init__(self, *args, embed_kernel_size=9, embed_dropout=0.1, **kwargs):
