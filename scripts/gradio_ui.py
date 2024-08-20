@@ -101,21 +101,24 @@ def speak(
     ensure_model_loaded(load_latest_ckpt)
     # Avoid extremely long sentences
     text = text[:1280]
-    normalized_text, x, x_lengths, sids, lids = MODEL.prepare_input(text)
-    outputs = MODEL.synthesise(
-        x, x_lengths, sids=sids, lids=lids, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor
+    inputs = MODEL.prepare_input(
+        text,
+        d_factor=d_factor,
+        p_factor=p_factor,
+        e_factor=e_factor,
     )
+    outputs = MODEL.synthesise(inputs)
     info = "\n".join(
         [
-            f"Normalized text: {normalized_text}",
-            f"Latency (ms): {outputs['latency']}",
-            f"RTF: {outputs['rtf']}",
+            f"Normalized text: {inputs.clean_text}",
+            f"Latency (ms): {outputs.latency}",
+            f"RTF: {outputs.rtf}",
             f"training run name: {RUN_NAME}",
             f"checkpoint epoch: {CKPT_EPOCH}",
             f"checkpoint steps: {CKPT_GSTEP}",
         ]
     )
-    wav = outputs["wav"].squeeze()
+    wav = outputs.wav.squeeze()
     if isinstance(wav, torch.Tensor):
         wav = wav.cpu().numpy()
     return ((MODEL.sample_rate, wav), info)
