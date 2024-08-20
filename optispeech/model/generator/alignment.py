@@ -13,13 +13,13 @@ class MASAlignment(nn.Module):
 
     def __init__(self, dim, n_feats):
         super().__init__()
+        self.dim = dim
         self.n_feats = n_feats
-        self.x_proj = torch.nn.Linear(dim, n_feats)
+        self.input_proj = torch.nn.Linear(dim, n_feats)
 
     def forward(self, x, y, x_lengths, y_lengths, x_mask, y_mask, predicted_log_durations):
         attn_mask = x_mask.unsqueeze(-1) * y_mask.unsqueeze(2)
-        x = self.x_proj(x).transpose(1, 2)
-        # y = y.transpose(1, 2)
+        x = self.input_proj(x).transpose(1, 2)
         with torch.no_grad():
             const = -0.5 * math.log(2 * math.pi) * self.n_feats
             factor = -0.5 * torch.ones(x.shape, dtype=x.dtype, device=x.device)
