@@ -75,11 +75,8 @@ model = model.eval()
 
 # Text preprocessing and phonemization
 sentence = "A rainbow is a meteorological phenomenon that is caused by reflection, refraction and dispersion of light in water droplets resulting in a spectrum of light appearing in the sky."
-clean_text, x, x_lengths, sids, lids = model.prepare_input(args.text)
-
-
-# Simple inference
-synth_outputs = model.synthesize(x, x_lengths)
+inference_inputs = model.prepare_input(args.text)
+inference_outputs = model.synthesize(inference_inputs)
 
 # Controllable inference
 synth_outputs = model.synthesize(
@@ -92,8 +89,9 @@ synth_outputs = model.synthesize(
     e_factor=e_factor,
 )
 
-wav = synth_outputs["wav"]
-sf.write("output.wav", wav.squeeze().detach().cpu().numpy(), model.sample_rate)
+inference_outputs = inference_outputs.as_numpy()
+wav = inference_outputs.wav
+sf.write("output.wav", wav.squeeze(), model.sample_rate)
 ```
 
 ## Training

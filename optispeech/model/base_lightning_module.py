@@ -275,7 +275,7 @@ class BaseLightningModule(LightningModule, ABC):
             for i in range(2):
                 x = one_batch["x"][i].unsqueeze(0).to(self.device)
                 x_lengths = one_batch["x_lengths"][i].unsqueeze(0).to(self.device)
-                synth_out = self.synthesise(x=x[:, :x_lengths], x_lengths=x_lengths)
+                synth_out = self.generator.synthesise(x=x[:, :x_lengths], x_lengths=x_lengths)
                 wav_hat = synth_out["wav"].squeeze().float().detach().cpu().numpy()
                 mel_hat = self.data_args.feature_extractor.get_mel(wav_hat)
                 self.logger.experiment.add_image(

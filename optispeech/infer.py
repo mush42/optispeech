@@ -40,26 +40,22 @@ def main():
     model.to(device)
     model.eval()
 
-    clean_text, x, x_lengths, sids, lids = model.prepare_input(args.text)
-    log.info(f"Cleaned text: {clean_text}")
-
-    synth_outs = model.synthesise(
-        x=x,
-        x_lengths=x_lengths,
-        sids=sids,
-        lids=lids,
+    inference_inputs = model.prepare_input(
+        args.text,
         d_factor=args.d_factor,
         p_factor=args.p_factor,
         e_factor=args.e_factor,
     )
-    wavs = synth_outs["wav"]
-    wav_lengths = synth_outs["wav_lengths"]
-    print(f"RTF: {synth_outs['rtf']}")
-    print(f"Latency: {synth_outs['latency']}")
+    synth_outs = model.synthesise(inference_inputs)
+    log.info(f"Cleaned text: {inference_inputs.clean_text}")
+    log.info(f"RTF: {synth_outs.rtf}")
+    log.info(f"Latency: {synth_outs.latency}")
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    wavs = synth_outs.wav
+    wav_lengths = synth_outs.wav_lengths
     for i, wav in enumerate(unpad_sequence(wavs, wav_lengths, batch_first=True)):
         outfile = output_dir.joinpath(f"gen-{i + 1}")
         out_wav = outfile.with_suffix(".wav")

@@ -74,20 +74,17 @@ disc_mel_out = model.discriminator.forward_mel(wav, wav_hat)
 
 
 # Inference
-x = batch["x"]
-x_lengths = batch["x_lengths"]
-
-x = x[0].unsqueeze(0)
-x_lengths = x_lengths[0].unsqueeze(0)
-synth_outs = model.synthesise(x, x_lengths)
-print(f"RTF: {synth_outs['rtf']}")
-print(f"Latency: {synth_outs['latency']}")
+inference_input = model.prepare_input(SENTENCE)
+inference_input = inference_input.to(model.device)
+inference_output = model.synthesise(inference_input)
+print(f"RTF: {inference_output.rtf}")
+print(f"Latency: {inference_output.latency}")
 
 # ONNX Export and inference
 from optispeech.onnx.export import add_inference_metadata, export_as_onnx
 from optispeech.onnx.infer import OptiSpeechONNXModel
 
-output = "mc.onnx"
+# output = "mc.onnx"
 # export_as_onnx(model, output, 16)
 # add_inference_metadata(output, model)
 # onx = OptiSpeechONNXModel.from_onnx_file_path(output)

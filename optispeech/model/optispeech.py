@@ -4,6 +4,7 @@ import torch
 from torch import nn
 
 from optispeech.utils import pad_list
+from optispeech.values import InferenceInputs, InferenceOutputs
 
 from .base_lightning_module import BaseLightningModule
 
@@ -53,21 +54,42 @@ class OptiSpeech(BaseLightningModule):
         self.discriminator = discriminator(feature_extractor=data_args.feature_extractor)
 
     @torch.inference_mode()
-    def synthesise(self, x, x_lengths, sids=None, lids=None, d_factor=None, p_factor=None, e_factor=None):
-        x = x.to(self.device)
-        x_lengths = x_lengths.long().to("cpu")
+    def synthesise(self, inputs: InferenceInputs) -> InferenceOutputs:
+        inputs = inputs.as_torch()
+        inputs = inputs.to(self.device)
 
-        d_factor = d_factor or self.inference_args.d_factor
-        p_factor = p_factor or self.inference_args.p_factor
-        e_factor = e_factor or self.inference_args.e_factor
-
-        return self.generator.synthesise(
-            x=x, x_lengths=x_lengths, sids=sids, lids=lids, d_factor=d_factor, p_factor=p_factor, e_factor=e_factor
+        synth_outputs = self.generator.synthesise(
+            x=inputs.x,
+            x_lengths=inputs.x_lengths.to("cpu"),
+            sids=inputs.sids,
+            lids=inputs.lids,
+            d_factor=inputs.d_factor,
+            p_factor=inputs.p_factor,
+            e_factor=inputs.e_factor
+        )
+        return InferenceOutputs(
+            wav=synth_outputs["wav"],
+            wav_lengths=synth_outputs["wav_lengths"],
+            durations=synth_outputs["durations"],
+            pitch=synth_outputs["pitch"],
+            energy=synth_outputs["energy"],
+            latency=synth_outputs["latency"],
+            rtf=synth_outputs["rtf"],
+            am_rtf=synth_outputs["am_rtf"],
+            v_rtf=synth_outputs["v_rtf"],
         )
 
     def prepare_input(
-        self, text: str, language: str | None = None, speaker: str | int | None = None, split_sentences: bool = True
-    ):
+        self,
+        text: str,
+        *,
+        language: str | None = None,
+        speaker: str | int | None = None,
+        d_factor: float=None, 
+        p_factor: float=None,
+        e_factor: float=None,
+        split_sentences: bool = True,
+    ) -> InferenceInputs:
         """
         Convenient helper.
 
@@ -75,18 +97,13 @@ class OptiSpeech(BaseLightningModule):
             text (str): input text
             language (str|None): language of input text
             speaker (int|str|None): speaker name
+            d_factor (float|None): scaling value for duration
+            p_factor (float|None): scaling value for pitch
+            e_factor (float|None): scaling value for energy
             split_sentences (bool): split text into sentences (each sentence is an element in the batch)
 
         Returns:
-            clean_text (str): cleaned an normalized text
-            x (torch.LongTensor): input phoneme ids
-                shape: [B, max_text_length]
-            x_lengths (torch.LongTensor): input lengths
-                shape: [B]
-            sids (torch.LongTensor): speaker IDs
-                shape: [B]
-            lids (torch.LongTensor): language IDs
-                shape: [B]
+            InferenceInputs
         """
         languages = self.text_processor.languages
         if language is None:
@@ -122,10 +139,13 @@ class OptiSpeech(BaseLightningModule):
         sids = [sid] * x.shape[0] if sid is not None else None
         lids = [lid] * x.shape[0] if lid is not None else None
 
-        return (
-            clean_text,
-            x.long(),
-            x_lengths.long(),
-            sids,
-            lids,
+        return InferenceInputs(
+            clean_text=clean_text,
+            x=x.long(),
+            x_lengths=x_lengths.long(),
+            sids=sids,
+            lids=lids,
+            d_factor=d_factor or self.inference_args.d_factor,
+            p_factor=p_factor or self.inference_args.p_factor,
+            e_factor=e_factor or self.inference_args.e_factor
         )

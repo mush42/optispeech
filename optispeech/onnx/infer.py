@@ -14,6 +14,8 @@ from optispeech.utils import (
     numpy_pad_sequences,
     numpy_unpad_sequences,
 )
+from optispeech.values import InferenceInputs, InferenceOutputs
+
 
 log = get_script_logger(__name__)
 ONNX_CUDA_PROVIDERS = [("CUDAExecutionProvider", {"cudnn_conv_algo_search": "DEFAULT"}), "CPUExecutionProvider"]
@@ -57,8 +59,15 @@ class OptiSpeechONNXModel:
         return cls.from_onnx_session(session)
 
     def prepare_input(
-        self, text: str, lang: str | None = None, speaker: str | int | None = None, split_sentences: bool = True
-    ):
+        self,
+        text: str,
+        lang: str | None = None,
+        speaker: str | int | None = None,
+        d_factor: float|None=None,
+        p_factor: float|None=None,
+        e_factor: float|None=None,
+        split_sentences: bool = True
+    ) -> InferenceInputs:
         if self.is_multispeaker:
             if speaker is None:
                 sid = 0
@@ -92,13 +101,36 @@ class OptiSpeechONNXModel:
         x_lengths = np.array(x_lengths, dtype=np.int64)
         sids = [sid] * x.shape[0] if sid is not None else None
         lids = [lid] * x.shape[0] if lid is not None else None
-        return clean_text, x, x_lengths, sids, lids
+        return InferenceInputs(
+            clean_text=clean_text,
+            x=x,
+            x_lengths=x_lengths,
+            sids=sids,
+            lids=lids,
+            d_factor=d_factor or self.inference_args.d_factor,
+            p_factor=p_factor or self.inference_args.p_factor,
+            e_factor=e_factor or self.inference_args.e_factor
+        )
 
-    def synthesise(self, x, x_lengths, sids=None, lids=None, d_factor=None, p_factor=None, e_factor=None):
-        d_factor = d_factor or self.inference_args.d_factor
-        p_factor = p_factor or self.inference_args.p_factor
-        e_factor = e_factor or self.inference_args.e_factor
+    def synthesise(self, inference_inputs: InferenceInputs) -> InferenceOutputs:
+        inference_inputs = inference_inputs.as_numpy()
+        synth_outs = self.synthesise_with_values(
+            x=inference_inputs.x,
+            x_lengths=inference_inputs.x_lengths,
+            sids=inference_inputs.sids,
+            lids=inference_inputs.lids,
+            d_factor=inference_inputs.d_factor,
+            p_factor=inference_inputs.p_factor,
+            e_factor=inference_inputs.e_factor
+        )
+        return InferenceOutputs(
+            wav=synth_outs["wav"],
+            wav_lengths=synth_outs["wav_lengths"],
+            latency=synth_outs["latency"],
+            rtf=synth_outs["rtf"],
+        )
 
+    def synthesise_with_values(self, x, x_lengths, sids, lids, d_factor, p_factor, e_factor):
         inputs = dict(
             x=x,
             x_lengths=x_lengths,
@@ -111,13 +143,12 @@ class OptiSpeechONNXModel:
             assert lids is not None, "Language IDs are required for multi language models"
             inputs["lids"] = np.array(lids, dtype=np.int64)
         t0 = perf_counter()
-        wavs, wav_lengths, durations = self.session.run(None, inputs)
+        wav, wav_lengths, durations = self.session.run(None, inputs)
         t_infer = perf_counter() - t0
         t_audio = wav_lengths.sum() / self.sample_rate
         rtf = t_infer / t_audio
         latency = t_infer * 1000
-        wavs = numpy_unpad_sequences(wavs, wav_lengths)
-        return dict(wav=wavs[0], wavs=wavs, rtf=rtf, latency=latency)
+        return dict(wav=wav, wav_lengths=wav_lengths, rtf=rtf, latency=latency)
 
 
 def main():
@@ -147,24 +178,21 @@ def main():
     model = OptiSpeechONNXModel.from_onnx_file_path(args.onnx_path, onnx_providers=onnx_providers)
 
     # Process text
-    clean_text, x, x_lengths, sids, lids = model.prepare_input(args.text, split_sentences=not args.no_split)
-    log.info(f"Normalized text: {clean_text}")
-
-    # Perform inference
-    outputs = model.synthesise(
-        x=x,
-        x_lengths=x_lengths,
-        sids=sids,
-        lids=lids,
+    inputs = model.prepare_input(
+        args.text,
         d_factor=args.d_factor,
         p_factor=args.p_factor,
         e_factor=args.e_factor,
+        split_sentences=not args.no_split
     )
-    wavs = outputs["wavs"]
+    log.info(f"Normalized text: {inputs.clean_text}")
+    # Perform inference
+    outputs = model.synthesise(inputs)
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    wavs = numpy_unpad_sequences(outputs.wav, outputs.wav_lengths)
     for i, wav in enumerate(wavs):
         outfile = output_dir.joinpath(f"gen-{i + 1}")
         out_wav = outfile.with_suffix(".wav")
@@ -172,8 +200,8 @@ def main():
         sf.write(out_wav, wav, model.sample_rate)
         log.info(f"Wrote wav to: `{out_wav}`")
 
-    latency = outputs["latency"]
-    rtf = outputs["rtf"]
+    latency = outputs.latency
+    rtf = outputs.rtf
     log.info(f"OptiSpeech latency: {round(latency)} ms")
     log.info(f"OptiSpeech RTF: {rtf}")
 
