@@ -42,7 +42,7 @@ model.to(device)
 print(summarize(model, 2))
 
 
-x, x_lengths, clean_text = model.prepare_input(
+clean_text, x, x_lengths, sids, lids = model.prepare_input(
     "Maintaining regular medical check-ups and screenings, including blood pressure, cholesterol, and cancer screenings as recommended by healthcare providers, allows for early detection and proactive management of potential health issues."
 )
 model.forward = lambda *args: model.synthesise(x, x_lengths)

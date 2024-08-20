@@ -6,3 +6,4 @@ defaults:
   - override generator/duration_predictor: lite
   - override generator/pitch_predictor: lite
   - override generator/energy_predictor: lite
+  - override generator/wav_generator: wavenext_lite

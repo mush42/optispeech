@@ -1,0 +1,6 @@
+_target_: optispeech.model.generator.wavenext.WaveNeXt
+_partial_: true
+dim: 320
+intermediate_dim: 1152
+num_layers: 8
+drop_path: 0.2

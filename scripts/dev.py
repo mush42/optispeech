@@ -29,7 +29,7 @@ print(f"Length of phoneme ids: {len(phids)}")
 # Config pipeline
 with initialize(version_base=None, config_path="../configs"):
     dataset_cfg = compose(config_name="data/ryan.yaml")
-    cfg = compose(config_name="model/optispeech.yaml")
+    cfg = compose(config_name="model/lightspeech.yaml")
     cfg.model.data_args = dict(
         name=dataset_cfg.data.name,
         num_speakers=dataset_cfg.data.num_speakers,

@@ -40,12 +40,14 @@ def main():
     model.to(device)
     model.eval()
 
-    x, x_lengths, clean_text = model.prepare_input(args.text)
+    clean_text, x, x_lengths, sids, lids = model.prepare_input(args.text)
     log.info(f"Cleaned text: {clean_text}")
 
     synth_outs = model.synthesise(
         x=x,
         x_lengths=x_lengths,
+        sids=sids,
+        lids=lids,
         d_factor=args.d_factor,
         p_factor=args.p_factor,
         e_factor=args.e_factor,
