@@ -19,7 +19,7 @@ import torch
 import yaml
 
 from optispeech.model import OptiSpeech
-from optispeech.onnx import OptiSpeechONNXModel
+from optispeech.onnx.infer import OptiSpeechONNXModel
 
 APP_DESC = """
 ## About OptiSpeech
