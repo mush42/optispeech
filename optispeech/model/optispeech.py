@@ -57,7 +57,6 @@ class OptiSpeech(BaseLightningModule):
     def synthesise(self, inputs: InferenceInputs) -> InferenceOutputs:
         inputs = inputs.as_torch()
         inputs = inputs.to(self.device)
-
         synth_outputs = self.generator.synthesise(
             x=inputs.x,
             x_lengths=inputs.x_lengths.to("cpu"),
@@ -138,7 +137,7 @@ class OptiSpeech(BaseLightningModule):
         sids = [sid] * len(input_ids) if sid is not None else None
         lids = [lid] * len(input_ids) if lid is not None else None
 
-        return InferenceInputs.from_ids_and_lengths(
+        inputs = InferenceInputs.from_ids_and_lengths(
             ids=input_ids,
             lengths=lengths,
             clean_text=clean_text,
@@ -148,3 +147,6 @@ class OptiSpeech(BaseLightningModule):
             p_factor=p_factor or self.inference_args.p_factor,
             e_factor=e_factor or self.inference_args.e_factor
         )
+        inputs = inputs.as_torch()
+        inputs = inputs.to(self.device)
+        return inputs

@@ -42,10 +42,11 @@ model.to(device)
 print(summarize(model, 2))
 
 
-clean_text, x, x_lengths, sids, lids = model.prepare_input(
+inference_inputs = model.prepare_input(
     "Maintaining regular medical check-ups and screenings, including blood pressure, cholesterol, and cancer screenings as recommended by healthcare providers, allows for early detection and proactive management of potential health issues."
 )
-model.forward = lambda *args: model.synthesise(x, x_lengths)
+x, x_lengths = inference_inputs.x, inference_inputs.x_lengths
+model.forward = lambda *args: model.generator.synthesise(x, x_lengths)
 
 model_display_name = f"optispeech-{model_name}"
 flops, macs, params = calculate_flops(

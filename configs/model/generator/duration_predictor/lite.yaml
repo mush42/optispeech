@@ -2,7 +2,8 @@ defaults:
   - default
   - _self_
 
-num_layers: 5
+intermediate_dim: 320
+num_layers: 3
 kernel_size: 3
 conv_layer_class:
   _target_: optispeech.model.generator.modules.ConvSeparable
