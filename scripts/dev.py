@@ -88,3 +88,5 @@ from optispeech.onnx.infer import OptiSpeechONNXModel
 # export_as_onnx(model, output, 16)
 # add_inference_metadata(output, model)
 # onx = OptiSpeechONNXModel.from_onnx_file_path(output)
+# inference_input = onx.prepare_input(SENTENCE)
+# inference_output = onx.synthesise(inference_input)

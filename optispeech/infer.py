@@ -6,7 +6,6 @@ from time import perf_counter
 import numpy as np
 import soundfile as sf
 import torch
-from torch.nn.utils.rnn import pad_sequence, unpad_sequence
 
 from optispeech.model import OptiSpeech
 from optispeech.utils import pylogger
@@ -54,9 +53,7 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    wavs = synth_outs.wav
-    wav_lengths = synth_outs.wav_lengths
-    for i, wav in enumerate(unpad_sequence(wavs, wav_lengths, batch_first=True)):
+    for i, wav in enumerate(synth_outs.unbatched_wavs()):
         outfile = output_dir.joinpath(f"gen-{i + 1}")
         out_wav = outfile.with_suffix(".wav")
         wav = wav.squeeze().float().detach().cpu().numpy()

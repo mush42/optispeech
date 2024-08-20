@@ -3,6 +3,10 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 import numpy as np
+from torch.nn.utils.rnn import unpad_sequence as torch_unpad_sequence
+
+from optispeech.utils import numpy_pad_sequences, numpy_unpad_sequences
+
 
 _TORCH_AVAILABLE = True
 try:
@@ -77,6 +81,13 @@ class InferenceInputs(BaseValueContainer):
     p_factor: float = 1.0
     e_factor: float = 1.0
 
+    @classmethod
+    def from_ids_and_lengths(cls, ids: list[int], lengths: list[int], **kwargs) -> "Self":
+        x = numpy_pad_sequences(ids).astype(np.int64)
+        x_lengths = np.array(lengths, dtype=np.int64)
+        instance = cls(x=x, x_lengths=x_lengths, **kwargs)
+        return instance.as_numpy()
+
 
 @dataclass(kw_only=True)
 class InferenceOutputs(BaseValueContainer):
@@ -89,3 +100,11 @@ class InferenceOutputs(BaseValueContainer):
     energy: FloatArray|None = None
     am_rtf: float|None = None
     v_rtf: float|None = None
+
+    def unbatched_wavs(self) -> list[FloatArray]:
+        if isinstance(self.wav, np.ndarray):
+            return numpy_unpad_sequences(self.wav, self.wav_lengths)
+        elif _TORCH_AVAILABLE and isinstance(self.wav, torch.Tensor):
+            return torch_unpad_sequence(self.wav, self.wav_lengths, batch_first=True)
+        else:
+            raise RuntimeError("Unsupported operation")

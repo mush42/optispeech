@@ -128,21 +128,20 @@ class OptiSpeech(BaseLightningModule):
         else:
             lid = None
 
-        phoneme_ids, clean_text = self.text_processor(text, lang=language, split_sentences=split_sentences)
+        input_ids, clean_text = self.text_processor(text, lang=language, split_sentences=split_sentences)
         if split_sentences:
-            x_lengths = torch.LongTensor([len(phids) for phids in phoneme_ids])
-            x = pad_list([torch.LongTensor(phids) for phids in phoneme_ids], pad_value=0)
+            lengths = [len(phids) for phids in input_ids]
         else:
-            x_lengths = torch.LongTensor([1])
-            x = torch.LongTensor(phoneme_ids).unsqueeze(0)
+            lengths = [len(input_ids)]
+            input_ids = [input_ids]
 
-        sids = [sid] * x.shape[0] if sid is not None else None
-        lids = [lid] * x.shape[0] if lid is not None else None
+        sids = [sid] * len(input_ids) if sid is not None else None
+        lids = [lid] * len(input_ids) if lid is not None else None
 
-        return InferenceInputs(
+        return InferenceInputs.from_ids_and_lengths(
+            ids=input_ids,
+            lengths=lengths,
             clean_text=clean_text,
-            x=x.long(),
-            x_lengths=x_lengths.long(),
             sids=sids,
             lids=lids,
             d_factor=d_factor or self.inference_args.d_factor,

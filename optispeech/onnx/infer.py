@@ -9,11 +9,7 @@ import onnxruntime
 import soundfile as sf
 
 from optispeech.text import TextProcessor
-from optispeech.utils import (
-    get_script_logger,
-    numpy_pad_sequences,
-    numpy_unpad_sequences,
-)
+from optispeech.utils import get_script_logger
 from optispeech.values import InferenceInputs, InferenceOutputs
 
 
@@ -92,24 +88,22 @@ class OptiSpeechONNXModel:
         phids, clean_text = self.text_processor(text=text, lang=lang, split_sentences=split_sentences)
         if not split_sentences:
             phids = [phids]
-        x = []
-        x_lengths = []
+        input_ids = []
+        lengths = []
         for phid in phids:
-            x.append(phid)
-            x_lengths.append(len(phid))
-        x = numpy_pad_sequences(x).astype(np.int64)
-        x_lengths = np.array(x_lengths, dtype=np.int64)
-        sids = [sid] * x.shape[0] if sid is not None else None
-        lids = [lid] * x.shape[0] if lid is not None else None
-        return InferenceInputs(
+            input_ids.append(phid)
+            lengths.append(len(phid))
+        sids = [sid] * len(input_ids) if sid is not None else None
+        lids = [lid] * len(input_ids) if lid is not None else None
+        return InferenceInputs.from_ids_and_lengths(
+            ids=input_ids,
+            lengths=lengths,
             clean_text=clean_text,
-            x=x,
-            x_lengths=x_lengths,
             sids=sids,
             lids=lids,
-            d_factor=d_factor or self.inference_args.d_factor,
-            p_factor=p_factor or self.inference_args.p_factor,
-            e_factor=e_factor or self.inference_args.e_factor
+            d_factor=d_factor or self.inference_args["d_factor"],
+            p_factor=p_factor or self.inference_args["p_factor"],
+            e_factor=e_factor or self.inference_args["e_factor"],
         )
 
     def synthesise(self, inference_inputs: InferenceInputs) -> InferenceOutputs:
@@ -192,8 +186,7 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    wavs = numpy_unpad_sequences(outputs.wav, outputs.wav_lengths)
-    for i, wav in enumerate(wavs):
+    for i, wav in enumerate(outputs.unbatched_wavs()):
         outfile = output_dir.joinpath(f"gen-{i + 1}")
         out_wav = outfile.with_suffix(".wav")
         wav = wav.squeeze()
