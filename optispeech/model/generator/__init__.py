@@ -77,7 +77,6 @@ class OptiSpeechGenerator(nn.Module):
 
         Returns:
             loss: (torch.Tensor): scaler representing total loss
-            alignment_loss: (torch.Tensor): scaler representing alignment loss
             duration_loss: (torch.Tensor): scaler representing durations loss
             pitch_loss: (torch.Tensor): scaler representing pitch loss
             energy_loss: (torch.Tensor): scaler representing energy loss
