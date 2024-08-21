@@ -9,6 +9,11 @@ train_filelist_path: /home/momer/datasets/processed/catherine-en_us/train.txt
 valid_filelist_path: /home/momer/datasets/processed/catherine-en_us/val.txt
 batch_size: 64
 num_workers: 8
+feature_extractor:
+  preemphasis_filter_coef: 0.6
+  lowpass_freq: 8000
+  highpass_freq: 190
+  gain_db: 15
 data_statistics:  # Computed for this dataset with the params of the above feature extractor
   pitch_min: 56.891888
   pitch_max: 853.330444
