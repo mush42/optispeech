@@ -1,2 +1,2 @@
 from .feature_extractors import CommonFeatureExtractor
-from .text_wav_datamodule import TextWavDataModule, TextWavDataset
+from .text_wav_datamodule import TextWavDataModule, TextWavDataset, do_preprocess_utterance
