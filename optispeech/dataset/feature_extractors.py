@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Callable, Optional
 
 import librosa
 import numpy as np
@@ -29,6 +29,7 @@ class FeatureExtractor:
         f_min: int,
         f_max: int,
         center: bool,
+        pitch_extractor: Callable,
         preemphasis_filter_coef: Optional[float] = None,
         lowpass_freq: Optional[int] = None,
         highpass_freq: Optional[int] = None,
@@ -44,6 +45,7 @@ class FeatureExtractor:
         self.f_min = f_min
         self.f_max = f_max
         self.center = center
+        self.pitch_extractor = pitch_extractor
         self.preemphasis_filter_coef = preemphasis_filter_coef
         self.lowpass_freq = lowpass_freq
         self.highpass_freq = highpass_freq
@@ -127,8 +129,9 @@ class FeatureExtractor:
 
     def get_pitch(self, wav, mel_length) -> np.ndarray:
         wav = wav.astype(np.double)
-
-        pitch, t = pw.dio(wav, self.sample_rate, frame_period=self.hop_length / self.sample_rate * 1000)
+        pitch, t = self.pitch_extractor(
+            wav, self.sample_rate, frame_period=self.hop_length / self.sample_rate * 1000
+        )
         pitch = pw.stonemask(wav, pitch, t, self.sample_rate)
 
         # A cool function taken from fairseq

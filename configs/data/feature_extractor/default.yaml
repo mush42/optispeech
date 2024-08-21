@@ -7,6 +7,9 @@ win_length: 1200
 f_min: 80
 f_max: 8000
 center: false
+pitch_extractor:
+  _target_: pyworld.harvest # dio
+  _partial_: true
 preemphasis_filter_coef: null # apply preemphasis filter
 lowpass_freq: null
 highpass_freq: null
