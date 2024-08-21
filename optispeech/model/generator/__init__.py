@@ -105,7 +105,8 @@ class OptiSpeechGenerator(nn.Module):
             x = x + lid_embs.unsqueeze(1)
 
         # alignment
-        duration_hat = self.duration_predictor(x, input_padding_mask)
+        x_dp = torch.detach(x)
+        duration_hat = self.duration_predictor(x_dp, input_padding_mask)
         attn, duration_loss, durations = self.alignment_module(
             x=x,
             y=mel,
