@@ -106,7 +106,7 @@ class OptiSpeechGenerator(nn.Module):
 
         # alignment
         duration_hat = self.duration_predictor(x, input_padding_mask)
-        duration_loss, durations, attn = self.alignment_module(
+        attn, duration_loss, durations = self.alignment_module(
             x=x,
             y=mel,
             x_lengths=x_lengths,
@@ -126,6 +126,7 @@ class OptiSpeechGenerator(nn.Module):
 
         # upsample to mel lengths
         y = torch.matmul(attn.transpose(1, 2), x)
+        y = y * mel_mask.transpose(1, 2)
 
         # Decoder
         y = self.decoder(y, target_padding_mask)
@@ -232,6 +233,7 @@ class OptiSpeechGenerator(nn.Module):
 
         # Upsample
         y = torch.matmul(attn.squeeze(1).transpose(1, 2).float(), x)
+        y = y * y_mask.transpose(1, 2)
 
         # Decoder
         y = self.decoder(y, target_padding_mask)

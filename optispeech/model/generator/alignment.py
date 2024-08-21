@@ -29,12 +29,10 @@ class MASAlignment(nn.Module):
             log_prior = y_square - y_double + x_square + const
             attn = monotonic_align.maximum_path(log_prior, attn_mask.squeeze(1))
             attn = attn.detach()  # b, t_text, T_mel
-        target_log_durations = torch.log(1e-8 + torch.sum(attn.unsqueeze(1), -1)) * x_mask
+        target_durations = torch.sum(attn.unsqueeze(1), -1)
+        target_log_durations = torch.log(target_durations + 1e-8) * x_mask
         duration_loss = get_duration_loss(predicted_log_durations, target_log_durations, x_lengths)
-        # Target durations for averaging pitch/energy
-        w = torch.exp(target_log_durations.detach()) * x_mask
-        target_durations = torch.ceil(w).squeeze(1)
-        return duration_loss, target_durations, attn
+        return attn, duration_loss, target_durations.squeeze(1).long()
 
     @torch.inference_mode()
     def infer(self, predicted_log_durations, x_mask, d_factor):
