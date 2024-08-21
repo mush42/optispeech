@@ -130,6 +130,13 @@ def main():
         default=cpu_count() // 2,
         help="Number of worker processes to use",
     )
+    parser.add_argument(
+        "-b",
+        "--batch-size",
+        type=int,
+        default=8,
+        help="Batch size",
+    )
     args = parser.parse_args()
 
     with initialize(version_base=None, config_path="../../configs/data"):
@@ -195,7 +202,7 @@ def main():
             lids=lids,
         )
         with Pool(processes=n_workers) as pool:
-            iterator = pool.imap_unordered(worker_func, inrows)
+            iterator = pool.imap_unordered(worker_func, inrows, args.batch_size)
             for retval in tqdm(iterator, total=len(inrows), desc="processing", unit="utterance"):
                 if isinstance(retval, Exception):
                     filestem, exception = retval
