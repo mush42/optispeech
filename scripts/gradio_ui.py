@@ -24,7 +24,7 @@ from optispeech.onnx.infer import OptiSpeechONNXModel
 APP_DESC = """
 ## About OptiSpeech
 
-**OptiSpeech** is ment to be an **efficient**, **fast** and **lightweight** text-to-speech model for **on-device** text-to-speech.
+**[OptiSpeech](https://github.com/mush42/optispeech/)** is ment to be an **efficient**, **fast** and **lightweight** text-to-speech model for **on-device** text-to-speech.
 
 ## Notes
 
