@@ -157,8 +157,10 @@ if __name__ == "__main__":
     parser.add_argument("checkpoints_dir")
     parser.add_argument("--onnx", action="store_true")
     parser.add_argument("-s", "--share", action="store_true", help="Generate gradio share link")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to serve the app on.")
+    parser.add_argument("--port", type=int, default=7860, help="Port to serve the app on.")
     args = parser.parse_args()
     CHECKPOINTS_DIR = args.checkpoints_dir
     ONNX_INFERENCE = args.onnx
     gui = create_interface()
-    gui.launch(server_name="0.0.0.0", server_port=7860, share=args.share)
+    gui.launch(server_name=args.host, server_port=args.port, share=args.share)
