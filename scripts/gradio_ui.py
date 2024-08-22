@@ -103,6 +103,7 @@ def speak(
         d_factor=d_factor,
         p_factor=p_factor,
         e_factor=e_factor,
+        split_sentences=False
     )
     outputs = MODEL.synthesise(inputs)
     info = "\n".join(
