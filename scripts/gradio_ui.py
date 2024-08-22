@@ -164,7 +164,7 @@ def create_gui(args):
     CHECKPOINTS_DIR = args.checkpoints_dir
     ONNX_INFERENCE = args.onnx
     gui = _do_create_interface(args.enable_load_latest, args.char_limit)
-    gui.queue(default_concurrency_limit=4)
+    # gui.queue()
     return gui
 
 
