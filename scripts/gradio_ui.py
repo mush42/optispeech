@@ -149,7 +149,12 @@ def _do_create_interface(enable_load_latest=True, char_limit=400):
         speak_btn = gr.Button("Speak")
         audio = gr.Audio(label="Generated audio")
         info = gr.Text(label="Info", interactive=False)
-        speak_btn.click(fn=speak, inputs=[text, d_factor, p_factor, e_factor, load_latest_ckpt], outputs=[audio, info])
+        speak_btn.click(
+            fn=speak,
+            inputs=[text, d_factor, p_factor, e_factor, load_latest_ckpt],
+            outputs=[audio, info],
+            concurrency_count=4
+        )
         random_sent_btn.click(fn=lambda txt: random.choice(RANDOM_SENTENCES), inputs=text, outputs=text)
     return gui
 
