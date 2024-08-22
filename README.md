@@ -13,7 +13,7 @@
 
 # OptiSpeech: Lightweight End-to-End text-to-speech model
 
-**OptiSpeech** is ment to be an ultra **efficient**, **lightweight** and **fast** text-to-speech model for **on-device** text-to-speech.
+**OptiSpeech** is ment to be an **efficient**, **lightweight** and **fast** text-to-speech model for **on-device** text-to-speech.
 
 I would like to thank [Pneuma Solutions](https://pneumasolutions.com/) for providing GPU resources for training this model. Their support significantly accelerated my development process.
 </div>
@@ -75,19 +75,8 @@ model = model.eval()
 
 # Text preprocessing and phonemization
 sentence = "A rainbow is a meteorological phenomenon that is caused by reflection, refraction and dispersion of light in water droplets resulting in a spectrum of light appearing in the sky."
-inference_inputs = model.prepare_input(args.text)
+inference_inputs = model.prepare_input(sentence)
 inference_outputs = model.synthesize(inference_inputs)
-
-# Controllable inference
-synth_outputs = model.synthesize(
-    x,
-    x_lengths,
-    sids=sids,
-    lids=lids,
-    d_factor=d_factor,
-    p_factor=p_factor,
-    e_factor=e_factor,
-)
 
 inference_outputs = inference_outputs.as_numpy()
 wav = inference_outputs.wav

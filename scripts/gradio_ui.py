@@ -7,6 +7,7 @@ root_path = rootutils.setup_root(search_from=os.getcwd(), indicator=".project-ro
 sys.path.append(os.fspath(root_path))
 
 import argparse
+import io
 import random
 import urllib.request
 from functools import partial
@@ -15,6 +16,7 @@ from typing import Tuple
 
 import gradio as gr
 import numpy as np
+import soundfile as sf
 import torch
 import yaml
 
@@ -118,7 +120,10 @@ def speak(
     wav = outputs.wav.squeeze()
     if isinstance(wav, torch.Tensor):
         wav = wav.cpu().numpy()
-    return ((MODEL.sample_rate, wav), info)
+    out = io.BytesIO()
+    sf.write(out, wav, MODEL.sample_rate, format="wav")
+    wav_bytes = out.getvalue()
+    return (wav_bytes, info)
 
 
 def _do_create_interface(enable_load_latest=True, char_limit=400):

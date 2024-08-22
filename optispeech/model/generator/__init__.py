@@ -1,6 +1,5 @@
 from time import perf_counter
 
-import librosa
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -263,9 +262,6 @@ class OptiSpeechGenerator(nn.Module):
         v_t0 = perf_counter()
         # Generate wav
         wav = self.wav_generator(y.transpose(1, 2), target_padding_mask)
-        wav = torch.from_numpy(
-            librosa.util.normalize(wav.cpu().numpy())
-        )
         wav_lengths = y_lengths * self.hop_length
         v_infer = (perf_counter() - v_t0) * 1000
 
