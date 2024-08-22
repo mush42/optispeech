@@ -153,7 +153,7 @@ def _do_create_interface(enable_load_latest=True, char_limit=400):
             fn=speak,
             inputs=[text, d_factor, p_factor, e_factor, load_latest_ckpt],
             outputs=[audio, info],
-            concurrency_count=4
+            concurrency_limit=4
         )
         random_sent_btn.click(fn=lambda txt: random.choice(RANDOM_SENTENCES), inputs=text, outputs=text)
     return gui
@@ -164,6 +164,7 @@ def create_gui(args):
     CHECKPOINTS_DIR = args.checkpoints_dir
     ONNX_INFERENCE = args.onnx
     gui = _do_create_interface(args.enable_load_latest, args.char_limit)
+    gui.queue(default_concurrency_limit=4)
     return gui
 
 
