@@ -26,17 +26,13 @@ APP_DESC = """
 
 **[OptiSpeech](https://github.com/mush42/optispeech/)** is ment to be an **efficient**, **fast** and **lightweight** text-to-speech model for **on-device** text-to-speech.
 
-## Notes
-
-- The input text is limmited to 1280 chars to prevent overloading the system. Longer input will be truncated.
-- The inference time will be higher  in the first run or when the `Load latest checkpoint` checkbox is checked.
-- The values of **Latency** and **RTF (Real Time Factor)** will vary depending on the machine you run inference on.
-
+Developed by [Musharraf (@mush42)](https://github.com/mush42).
 """.strip()
 
 RAND_SENTS_URL = "https://gist.github.com/mush42/17ec8752de20f595941e44df1d3fc5c4/raw/946c8c1e5d11e3753ae8771476138602a0f6002c/tts-demo-sentences.txt"
 try:
     with urllib.request.urlopen(RAND_SENTS_URL) as response:
+        pass
         RANDOM_SENTENCES = response.read().decode("utf-8").splitlines()
 except Exception as e:
     print(e)
@@ -45,6 +41,7 @@ except Exception as e:
     ]
 random.shuffle(RANDOM_SENTENCES)
 DEVICE = torch.device("cpu")
+CHAR_LIMIT = 400
 CHECKPOINTS_DIR = None
 CKPT_PATH = CKPT_EPOCH = CKPT_GSTEP = None
 ONNX_INFERENCE = False
@@ -97,10 +94,10 @@ def get_inference_arg_value(name):
 def speak(
     text: str, d_factor: float, p_factor: float, e_factor: float, load_latest_ckpt=False
 ) -> Tuple[np.ndarray, int]:
-    global MODEL, CKPT_PATH, CKPT_EPOCH, CKPT_GSTEP, RUN_NAME
+    global CHAR_LIMIT, MODEL, CKPT_PATH, CKPT_EPOCH, CKPT_GSTEP, RUN_NAME
     ensure_model_loaded(load_latest_ckpt)
     # Avoid extremely long sentences
-    text = text[:1280]
+    text = text[:CHAR_LIMIT]
     inputs = MODEL.prepare_input(
         text,
         d_factor=d_factor,
@@ -124,10 +121,15 @@ def speak(
     return ((MODEL.sample_rate, wav), info)
 
 
-def create_interface():
+def _do_create_interface(enable_load_latest=True, char_limit=400):
+    global CHAR_LIMIT
+    CHAR_LIMIT = char_limit
     gui = gr.Blocks(title="OptiSpeech demo")
     with gui:
         gr.Markdown(APP_DESC)
+        gr.Markdown(
+            f"The input text is limmited to {char_limit} chars to prevent overloading the system. Longer input will be truncated."
+        )
         with gr.Row():
             with gr.Column():
                 text = gr.Text(label="Enter sentence")
@@ -143,7 +145,7 @@ def create_interface():
                 e_factor = gr.Slider(
                     value=partial(get_inference_arg_value, "e_factor"), minimum=0.1, maximum=10.0, label="Energy factor"
                 )
-                load_latest_ckpt = gr.Checkbox(value=False, label="Load latest model version")
+                load_latest_ckpt = gr.Checkbox(value=False, label="Load latest model version", visible=enable_load_latest)
         speak_btn = gr.Button("Speak")
         audio = gr.Audio(label="Generated audio")
         info = gr.Text(label="Info", interactive=False)
@@ -152,15 +154,47 @@ def create_interface():
     return gui
 
 
-if __name__ == "__main__":
+def create_gui(args):
+    global CHECKPOINTS_DIR, ONNX_INFERENCE
+    CHECKPOINTS_DIR = args.checkpoints_dir
+    ONNX_INFERENCE = args.onnx
+    gui = _do_create_interface(args.enable_load_latest, args.char_limit)
+    return gui
+
+
+def from_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("checkpoints_dir")
     parser.add_argument("--onnx", action="store_true")
     parser.add_argument("-s", "--share", action="store_true", help="Generate gradio share link")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to serve the app on.")
     parser.add_argument("--port", type=int, default=7860, help="Port to serve the app on.")
+    parser.add_argument("--enable-load-latest", action="store_false", help="Enable load latest model feature.")
+    parser.add_argument("--char_limit", type=int, default=1200, help="Inference char limit.")
     args = parser.parse_args()
-    CHECKPOINTS_DIR = args.checkpoints_dir
-    ONNX_INFERENCE = args.onnx
-    gui = create_interface()
+    gui = create_gui(args)
+    return gui, args
+
+
+def from_env():
+    args = argparse.Namespace()
+    args.checkpoints_dir = os.getenv("OP_CHECKPOINTS_DIR")
+    args.onnx = os.getenv("OP_IS_ONNX", False)
+    args.share = os.getenv("OP_SHARE", False)
+    args.host = os.getenv("OP_HOST", "0.0.0.0")
+    args.port = os.getenv("OP_PORT", 7860)
+    args.enable_load_latest = os.getenv("OP_ENABLE_LOAD_LATEST", False)
+    args.char_limit = os.getenv("OP_CHAR_LIMIT", 400)
+    gui = create_gui(args)
+    return gui, args
+
+
+if __name__ == "__main__":
+    gui, args = from_args()
     gui.launch(server_name=args.host, server_port=args.port, share=args.share)
+else:
+    from fastapi import FastAPI
+
+    app = FastAPI()
+    gui, __ = from_env()
+    app = gr.mount_gradio_app(app, gui, path="/")
