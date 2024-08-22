@@ -163,8 +163,8 @@ def create_gui(args):
     global CHECKPOINTS_DIR, ONNX_INFERENCE
     CHECKPOINTS_DIR = args.checkpoints_dir
     ONNX_INFERENCE = args.onnx
-    gui = _do_create_interface(args.enable_load_latest, args.char_limit)
-    # gui.queue()
+    gui = _do_create_interface(not args.no_load_latest, args.char_limit)
+    gui.queue()
     return gui
 
 
@@ -175,7 +175,7 @@ def from_args():
     parser.add_argument("-s", "--share", action="store_true", help="Generate gradio share link")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to serve the app on.")
     parser.add_argument("--port", type=int, default=7860, help="Port to serve the app on.")
-    parser.add_argument("--enable-load-latest", action="store_false", help="Enable load latest model feature.")
+    parser.add_argument("--no_load_latest", action="store_true", help="Enable load latest model feature.")
     parser.add_argument("--char_limit", type=int, default=1200, help="Inference char limit.")
     args = parser.parse_args()
     gui = create_gui(args)
@@ -189,7 +189,7 @@ def from_env():
     args.share = os.getenv("OP_SHARE", False)
     args.host = os.getenv("OP_HOST", "0.0.0.0")
     args.port = os.getenv("OP_PORT", 7860)
-    args.enable_load_latest = os.getenv("OP_ENABLE_LOAD_LATEST", False)
+    args.no_load_latest = os.getenv("OP_NO_LOAD_LATEST", True)
     args.char_limit = os.getenv("OP_CHAR_LIMIT", 400)
     gui = create_gui(args)
     return gui, args
