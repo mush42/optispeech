@@ -13,7 +13,7 @@ _partial_: true
 segment_size: 64
 use_energy_predictor: true
 loss_coeffs:
-  lambda_align: 2.0
+  lambda_align: 5.0
   lambda_duration: 1.0
   lambda_pitch: 1.0
   lambda_energy: 1.0
