@@ -48,6 +48,10 @@ requires-python = ">= 3.10"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[project.scripts]
+process-dataset = 'optispeech.tools.preprocess_dataset:main'
+gen-stats = 'optispeech.tools.generate_data_statistics:main'
+
 [tool.rye]
 managed = true
 dev-dependencies = [

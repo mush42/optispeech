@@ -29,6 +29,7 @@ class BaseLightningModule(LightningModule, ABC):
             mel=batch["mel"].to(self.device),
             mel_lengths=batch["mel_lengths"].to("cpu").to(self.device),
             pitches=batch["pitches"].to(self.device),
+            uvs=batch["uvs"].to(self.device),
             energies=batch["energies"].to(self.device),
             sids=sids.to(self.device) if sids is not None else None,
             lids=lids.to(self.device) if lids is not None else None,
@@ -132,10 +133,10 @@ class BaseLightningModule(LightningModule, ABC):
                 "gen_subloss/train_alighn_loss": gen_outputs["align_loss"].item(),
                 "gen_subloss/train_duration_loss": gen_outputs["duration_loss"].item(),
                 "gen_subloss/train_pitch_loss": gen_outputs["pitch_loss"].item(),
+                "gen_subloss/train_uv_loss": gen_outputs["uv_loss"].item(),
+                "gen_subloss/train_energy_loss": gen_outputs["energy_loss"].item(),
             }
         )
-        if gen_outputs.get("energy_loss") != 0.0:
-            log_outputs["gen_subloss/train_energy_loss"] = gen_outputs["energy_loss"].item()
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         if train_discriminator:
             gen_adv_loss, log_dict = self.discriminator.forward_gen(wav, wav_hat)
@@ -194,10 +195,10 @@ class BaseLightningModule(LightningModule, ABC):
                 "gen_subloss/val_alighn_loss": gen_outputs["align_loss"].item(),
                 "gen_subloss/val_duration_loss": gen_outputs["duration_loss"].item(),
                 "gen_subloss/val_pitch_loss": gen_outputs["pitch_loss"].item(),
+                "gen_subloss/val_uv_loss": gen_outputs["uv_loss"].item(),
+                "gen_subloss/val_energy_loss": gen_outputs["energy_loss"].item(),
             }
         )
-        if gen_outputs.get("energy_loss") != 0.0:
-            log_outputs["gen_subloss/val_energy_loss"] = gen_outputs["energy_loss"].item()
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         gen_adv_loss, log_dict = self.discriminator.get_val_loss(wav, wav_hat)
         log_outputs["total_loss/val_gen_adv_loss"] = gen_adv_loss

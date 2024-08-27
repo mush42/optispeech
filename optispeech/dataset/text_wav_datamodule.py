@@ -87,6 +87,7 @@ class TextWavDataModule(LightningDataModule):
             filelist_path=self.hparams.train_filelist_path,
             text_processor=self.hparams.text_processor,
             feature_extractor=self.feature_extractor,
+            data_statistics=self.hparams.data_statistics,
             seed=self.hparams.seed,
         )
         self.validset = TextWavDataset(  # pylint: disable=attribute-defined-outside-init
@@ -94,6 +95,7 @@ class TextWavDataModule(LightningDataModule):
             filelist_path=self.hparams.valid_filelist_path,
             text_processor=self.hparams.text_processor,
             feature_extractor=self.feature_extractor,
+            data_statistics=self.hparams.data_statistics,
             seed=self.hparams.seed,
         )
 
@@ -137,11 +139,13 @@ class TextWavDataset(torch.utils.data.Dataset):
         filelist_path,
         text_processor,
         feature_extractor,
+        data_statistics,
         seed=None,
     ):
         self.num_speakers = num_speakers
         self.text_processor = text_processor
         self.feature_extractor = feature_extractor
+        self.data_statistics = data_statistics
         self.file_paths = parse_filelist(filelist_path)
         self.data_dir = Path(filelist_path).parent.joinpath("data")
         random.seed(seed)
@@ -159,12 +163,14 @@ class TextWavDataset(torch.utils.data.Dataset):
             lid = data.get("lid")
             phoneme_ids = torch.LongTensor(phoneme_ids)
         data = np.load(arrays_filepath, allow_pickle=False)
+        pitch, uv = self.process_pitch(data["pitch"])
         return dict(
             x=phoneme_ids,
             wav=torch.from_numpy(data["wav"]),
             mel=torch.from_numpy(data["mel"]),
             energy=torch.from_numpy(data["energy"]),
-            pitch=torch.from_numpy(data["pitch"]),
+            pitch=pitch,
+            uv=uv,
             sid=sid,
             lid=lid,
             text=text,
@@ -179,6 +185,14 @@ class TextWavDataset(torch.utils.data.Dataset):
             text=text,
             lang=lang
         )
+
+    def process_pitch(self, pitch):
+        pitch_ = (pitch - self.data_statistics.pitch_mean) / self.data_statistics.pitch_std
+        pitch_[pitch == 0] = np.interp(np.where(pitch == 0)[0], np.where(pitch > 0)[0], pitch_[pitch > 0])
+        uv = (torch.FloatTensor(pitch) == 0).float()
+        pitch = pitch_
+        pitch = torch.FloatTensor(pitch)
+        return pitch, uv
 
     def __getitem__(self, index):
         filepath = self.file_paths[index]
@@ -207,6 +221,7 @@ class TextWavBatchCollate:
         mel = torch.zeros((B, self.n_feats, mel_max_length), dtype=torch.float32)
 
         pitches = torch.zeros((B, mel_max_length), dtype=torch.float)
+        uvs = torch.full((B, mel_max_length), -100, dtype=torch.float)
         energies = torch.zeros((B, mel_max_length), dtype=torch.float)
 
         x_lengths, wav_lengths, mel_lengths = [], [], []
@@ -222,6 +237,7 @@ class TextWavBatchCollate:
             mel[i, :, : item["mel"].shape[-1]] = mel_
             energies[i, : item["energy"].shape[-1]] = item["energy"].float()
             pitches[i, : item["pitch"].shape[-1]] = item["pitch"].float()
+            uvs[i, : item["uv"].shape[-1]] = item["uv"].float()
             if item["sid"] is not None:
                 sids.append(item["sid"])
             if item["lid"] is not None:
@@ -244,7 +260,6 @@ class TextWavBatchCollate:
             wav = wav.clamp(-1, 1)
             mel = normalize(mel, self.data_statistics["mel_mean"], self.data_statistics["mel_std"])
             energies = normalize(energies, self.data_statistics["energy_mean"], self.data_statistics["energy_std"])
-            pitches = normalize(pitches, self.data_statistics["pitch_mean"], self.data_statistics["pitch_std"])
 
         return dict(
             x=x,
@@ -253,8 +268,9 @@ class TextWavBatchCollate:
             x_lengths=x_lengths,
             wav_lengths=wav_lengths,
             mel_lengths=mel_lengths,
-            energies=energies,
             pitches=pitches,
+            uvs=uvs,
+            energies=energies,
             sids=sids,
             lids=lids,
             x_texts=x_texts,

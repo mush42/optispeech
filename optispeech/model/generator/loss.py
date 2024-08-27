@@ -71,6 +71,7 @@ class FastSpeech2Loss(torch.nn.Module):
 
         # define criterions
         reduction = "none" if self.use_weighted_masking else "mean"
+        self.bce_criterion = torch.nn.BCELoss(reduction=reduction)
         self.mse_criterion = torch.nn.MSELoss(reduction=reduction)
         self.duration_criterion = DurationPredictorLoss(reduction=reduction)
 
@@ -78,62 +79,74 @@ class FastSpeech2Loss(torch.nn.Module):
         self,
         d_outs: torch.Tensor,
         p_outs: torch.Tensor,
+        uv_outs: torch.Tensor,
         e_outs: torch.Tensor,
         ds: torch.Tensor,
         ps: torch.Tensor,
+        uvs: torch.Tensor,
         es: torch.Tensor,
         ilens: torch.Tensor,
+        olens: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Calculate forward propagation.
 
         Args:
             d_outs (LongTensor): Batch of outputs of duration predictor (B, T_text).
             p_outs (Tensor): Batch of outputs of pitch predictor (B, T_text, 1).
+            uv_outs (Tensor): Batch of outputs of binarized pitch predictor (B, T_mel, 1).
             e_outs (Tensor): Batch of outputs of energy predictor (B, T_text, 1).
             ds (LongTensor): Batch of durations (B, T_text).
             ps (Tensor): Batch of target token-averaged pitch (B, T_text, 1).
+            uvs (Tensor): Batch of target unvoiced indicators (B, T_mel, 1).
             es (Tensor): Batch of target token-averaged energy (B, T_text, 1).
             ilens (LongTensor): Batch of the lengths of each input (B,).
+            olens (LongTensor): Batch of the lengths of each mel (B,).
 
         Returns:
             Tensor: Duration predictor loss value.
             Tensor: Pitch predictor loss value.
+            Tensor: uv loss value.
             Tensor: Energy predictor loss value.
 
         """
         # apply mask to remove padded part
         if self.use_masking:
-            duration_masks = make_non_pad_mask(ilens).to(ds.device)
-            d_outs = d_outs.masked_select(duration_masks)
-            ds = ds.masked_select(duration_masks)
-            pitch_masks = make_non_pad_mask(ilens).unsqueeze(-1).to(ds.device)
-            p_outs = p_outs.masked_select(pitch_masks)
-            ps = ps.masked_select(pitch_masks)
-            if e_outs is not None:
-                e_outs = e_outs.masked_select(pitch_masks)
-                es = es.masked_select(pitch_masks)
+            text_masks = make_non_pad_mask(ilens).to(ds.device)
+            d_outs = d_outs.masked_select(text_masks)
+            ds = ds.masked_select(text_masks)
+            p_outs = p_outs.masked_select(text_masks)
+            ps = ps.masked_select(text_masks)
+            e_outs = e_outs.masked_select(text_masks)
+            es = es.masked_select(text_masks)
+            # UV
+            mel_masks = make_non_pad_mask(olens).unsqueeze(-1).to(ds.device)
+            uv_outs = uv_outs.masked_select(mel_masks)
+            uvs = uvs.masked_select(mel_masks)
+            
 
         # calculate loss
         duration_loss = self.duration_criterion(d_outs, ds)
         pitch_loss = self.mse_criterion(p_outs, ps)
-        energy_loss = torch.tensor(0.0)
-        if e_outs is not None:
-            energy_loss = self.mse_criterion(e_outs, es)
+        uv_loss = self.bce_criterion(uv_outs, uvs)
+        energy_loss = self.mse_criterion(e_outs, es)
 
         # make weighted mask and apply it
         if self.use_weighted_masking:
-            duration_masks = make_non_pad_mask(ilens).to(ds.device)
-            duration_weights = duration_masks.float() / duration_masks.sum(dim=1, keepdim=True).float()
-            duration_weights /= ds.size(0)
-
+            text_weights = text_masks.float() / text_masks.sum(dim=1, keepdim=True).float()
+            text_weights /= ds.size(0)
             # apply weight
-            duration_loss = duration_loss.mul(duration_weights).masked_select(duration_masks).sum()
-            pitch_masks = duration_masks.unsqueeze(-1)
-            pitch_weights = duration_weights.unsqueeze(-1)
+            duration_loss = duration_loss.mul(text_weights).masked_select(text_masks).sum()
+            pitch_masks = text_masks.unsqueeze(-1)
+            pitch_weights = text_weights.unsqueeze(-1)
             pitch_loss = pitch_loss.mul(pitch_weights).masked_select(pitch_masks).sum()
             energy_loss = energy_loss.mul(pitch_weights).masked_select(pitch_masks).sum()
+            # UV
+            mel_masks = make_non_pad_mask(olens).unsqueeze(-1).to(uvs.device)
+            mel_weights = mel_masks.float() / mel_masks.sum(dim=1, keepdim=True).float()
+            mel_weights /= uvs.size(0)
+            uv_loss = uv_loss.mul(mel_weights).masked_select(mel_masks).sum()
 
-        return duration_loss, pitch_loss, energy_loss
+        return duration_loss, pitch_loss, uv_loss, energy_loss
 
 
 class ForwardSumLoss(torch.nn.Module):

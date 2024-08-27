@@ -149,6 +149,7 @@ def main():
         filelist_path=os.devnull,
         text_processor=text_processor,
         feature_extractor=feature_extractor,
+        data_statistics=cfg.data_statistics
     )
 
     if args.format != "ljspeech":

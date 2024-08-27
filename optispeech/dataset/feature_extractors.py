@@ -5,7 +5,6 @@ import numpy as np
 import pyworld as pw
 import torch
 from librosa.filters import mel as librosa_mel_fn
-from scipy.interpolate import interp1d
 from torchaudio.functional import gain, highpass_biquad, lowpass_biquad
 
 from optispeech.utils import pylogger, trim_or_pad_to_target_length
@@ -137,16 +136,6 @@ class FeatureExtractor:
         # A cool function taken from fairseq
         # https://github.com/facebookresearch/fairseq/blob/3f0f20f2d12403629224347664b3e75c13b2c8e0/examples/speech_synthesis/data_utils.py#L99
         pitch = trim_or_pad_to_target_length(pitch, mel_length)
-
-        # Interpolate to cover the unvoiced segments as well
-        nonzero_ids = np.where(pitch != 0)[0]
-        interp_fn = interp1d(
-            nonzero_ids,
-            pitch[nonzero_ids],
-            fill_value=(pitch[nonzero_ids[0]], pitch[nonzero_ids[-1]]),
-            bounds_error=False,
-        )
-        pitch = interp_fn(np.arange(0, len(pitch)))
 
         return pitch
 

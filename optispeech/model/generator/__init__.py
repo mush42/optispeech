@@ -11,6 +11,7 @@ from .alignments import (
     AlignmentModule,
     GaussianUpsampling,
     average_by_duration,
+    expand_by_duration,
     viterbi_decode,
 )
 from .loss import FastSpeech2Loss, ForwardSumLoss
@@ -28,7 +29,6 @@ class OptiSpeechGenerator(nn.Module):
         energy_predictor,
         decoder,
         wav_generator,
-        use_energy_predictor,
         loss_coeffs,
         feature_extractor,
         num_speakers,
@@ -52,7 +52,7 @@ class OptiSpeechGenerator(nn.Module):
         self.duration_predictor = duration_predictor(dim=dim)
         self.alignment_module = AlignmentModule(adim=dim, odim=self.n_feats)
         self.pitch_predictor = pitch_predictor(dim=dim)
-        self.energy_predictor = energy_predictor(dim=dim) if use_energy_predictor else None
+        self.energy_predictor = energy_predictor(dim=dim)
         self.feature_upsampler = GaussianUpsampling()
         self.decoder = decoder(dim=dim)
         self.wav_generator = wav_generator(input_channels=dim, n_fft=self.n_fft, hop_length=self.hop_length)
@@ -63,7 +63,7 @@ class OptiSpeechGenerator(nn.Module):
         self.loss_criterion = FastSpeech2Loss()
         self.forwardsum_loss = ForwardSumLoss()
 
-    def forward(self, x, x_lengths, mel, mel_lengths, pitches, energies, sids, lids):
+    def forward(self, x, x_lengths, mel, mel_lengths, pitches, uvs, energies, sids, lids):
         """
         Args:
             x (torch.Tensor): batch of texts, converted to a tensor with phoneme embedding ids.
@@ -118,6 +118,7 @@ class OptiSpeechGenerator(nn.Module):
             x_masks=input_padding_mask,
         )
         durations, bin_loss = viterbi_decode(log_p_attn, x_lengths, mel_lengths)
+        duration_hat = self.duration_predictor(x, input_padding_mask)
 
         # Average pitch and energy values based on durations
         pitches = average_by_duration(durations, pitches.unsqueeze(-1), x_lengths, mel_lengths)
@@ -125,11 +126,9 @@ class OptiSpeechGenerator(nn.Module):
 
         # variance predictors
         x, pitch_hat = self.pitch_predictor(x, input_padding_mask, pitches)
-        if self.energy_predictor is not None:
-            x, energy_hat = self.energy_predictor(x, input_padding_mask, energies)
-        else:
-            energy_hat = None
-        duration_hat = self.duration_predictor(x, input_padding_mask)
+        expanded_pitch_hat, __= expand_by_duration(pitch_hat.unsqueeze(-1), durations)
+        uv_hat = (expanded_pitch_hat == 0.0).float()
+        x, energy_hat = self.energy_predictor(x, input_padding_mask, energies)
 
         # upsample to mel lengths
         y = self.feature_upsampler(
@@ -152,14 +151,17 @@ class OptiSpeechGenerator(nn.Module):
 
         # Losses
         loss_coeffs = self.loss_coeffs
-        duration_loss, pitch_loss, energy_loss = self.loss_criterion(
+        duration_loss, pitch_loss, uv_loss, energy_loss = self.loss_criterion(
             d_outs=duration_hat.unsqueeze(-1),
             p_outs=pitch_hat.unsqueeze(-1),
-            e_outs=energy_hat.unsqueeze(-1) if energy_hat is not None else energy_hat,
+            uv_outs=uv_hat,
+            e_outs=energy_hat.unsqueeze(-1),
             ds=durations.unsqueeze(-1),
             ps=pitches.unsqueeze(-1),
-            es=energies.unsqueeze(-1) if energies is not None else None,
+            uvs=uvs.unsqueeze(-1),
+            es=energies.unsqueeze(-1),
             ilens=x_lengths,
+            olens=mel_lengths,
         )
         forwardsum_loss = self.forwardsum_loss(log_p_attn, x_lengths, mel_lengths)
         align_loss = forwardsum_loss + bin_loss
@@ -167,6 +169,7 @@ class OptiSpeechGenerator(nn.Module):
             (align_loss * loss_coeffs.lambda_align)
             + (duration_loss * loss_coeffs.lambda_duration)
             + (pitch_loss * loss_coeffs.lambda_pitch)
+            + (uv_loss * loss_coeffs.lambda_uv)
             + (energy_loss * loss_coeffs.lambda_energy)
         )
 
@@ -179,6 +182,7 @@ class OptiSpeechGenerator(nn.Module):
             "align_loss": align_loss,
             "duration_loss": duration_loss,
             "pitch_loss": pitch_loss,
+            "uv_loss": uv_loss,
             "energy_loss": energy_loss,
         }
 
