@@ -128,7 +128,11 @@ class FastSpeech2Loss(torch.nn.Module):
         duration_loss = self.duration_criterion(d_outs, ds)
         pitch_loss = self.mse_criterion(p_outs, ps)
         with torch.cuda.amp.autocast(enabled=False):
-            uv_loss = self.bce_criterion(uv_outs, uvs)
+            uv_loss = F.binary_cross_entropy_with_logits(
+                uv_outs.float().reshape(-1),
+                uvs.float().reshape(-1),
+                reduction="mean"
+            )
         energy_loss = self.mse_criterion(e_outs, es)
 
         # make weighted mask and apply it
