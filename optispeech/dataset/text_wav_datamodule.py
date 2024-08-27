@@ -100,6 +100,8 @@ class TextWavDataModule(LightningDataModule):
         )
 
     def train_dataloader(self, do_normalize=True):
+        # TODO: ugly hack 
+        self.trainset.do_normalize = do_normalize
         return DataLoader(
             dataset=self.trainset,
             batch_size=self.hparams.batch_size,
@@ -141,6 +143,7 @@ class TextWavDataset(torch.utils.data.Dataset):
         feature_extractor,
         data_statistics,
         seed=None,
+        do_normalize=True
     ):
         self.num_speakers = num_speakers
         self.text_processor = text_processor
@@ -150,6 +153,7 @@ class TextWavDataset(torch.utils.data.Dataset):
         self.data_dir = Path(filelist_path).parent.joinpath("data")
         random.seed(seed)
         random.shuffle(self.file_paths)
+        self.do_normalize = do_normalize
 
     def get_datapoint(self, filepath):
         input_file = Path(filepath)
@@ -163,7 +167,12 @@ class TextWavDataset(torch.utils.data.Dataset):
             lid = data.get("lid")
             phoneme_ids = torch.LongTensor(phoneme_ids)
         data = np.load(arrays_filepath, allow_pickle=False)
-        pitch, uv = self.process_pitch(data["pitch"])
+        if self.do_normalize: # always true except when calculating stats
+            pitch, uv = self.process_pitch(data["pitch"])
+        else:
+            pitch = torch.from_numpy(data["pitch"])
+            # Special value returned only when calculating stats
+            uv = torch.zeros_like(pitch)
         return dict(
             x=phoneme_ids,
             wav=torch.from_numpy(data["wav"]),
