@@ -126,7 +126,7 @@ class OptiSpeechGenerator(nn.Module):
 
         # Majority voting per input token for UV.
         uvs_sum = sum_by_duration(durations, uvs.unsqueeze(-1), x_lengths, mel_lengths)
-        uv_target = (uvs_sum > durations).float()
+        uv_target = (uvs_sum > (durations / 2)).float()
 
         # variance predictors
         x, pitch_hat = self.pitch_predictor(x, input_padding_mask, pitches)
