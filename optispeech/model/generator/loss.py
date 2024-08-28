@@ -71,7 +71,6 @@ class FastSpeech2Loss(torch.nn.Module):
 
         # define criterions
         reduction = "none" if self.use_weighted_masking else "mean"
-        self.bce_criterion = torch.nn.BCELoss(reduction=reduction)
         self.mse_criterion = torch.nn.MSELoss(reduction=reduction)
         self.duration_criterion = DurationPredictorLoss(reduction=reduction)
 
@@ -116,24 +115,21 @@ class FastSpeech2Loss(torch.nn.Module):
             ds = ds.masked_select(text_masks)
             p_outs = p_outs.masked_select(text_masks)
             ps = ps.masked_select(text_masks)
+            uv_outs = uv_outs.masked_select(text_masks)
+            uvs = uvs.masked_select(text_masks)
             e_outs = e_outs.masked_select(text_masks)
             es = es.masked_select(text_masks)
-            # UV
-            mel_masks = make_non_pad_mask(olens).unsqueeze(-1).to(ds.device)
-            uv_outs = uv_outs.masked_select(mel_masks)
-            uvs = uvs.masked_select(mel_masks)
-            
 
         # calculate loss
         duration_loss = self.duration_criterion(d_outs, ds)
         pitch_loss = self.mse_criterion(p_outs, ps)
+        energy_loss = self.mse_criterion(e_outs, es)
         with torch.cuda.amp.autocast(enabled=False):
             uv_loss = F.binary_cross_entropy_with_logits(
                 uv_outs.float().reshape(-1),
                 uvs.float().reshape(-1),
                 reduction="mean"
             )
-        energy_loss = self.mse_criterion(e_outs, es)
 
         # make weighted mask and apply it
         if self.use_weighted_masking:
@@ -144,12 +140,8 @@ class FastSpeech2Loss(torch.nn.Module):
             pitch_masks = text_masks.unsqueeze(-1)
             pitch_weights = text_weights.unsqueeze(-1)
             pitch_loss = pitch_loss.mul(pitch_weights).masked_select(pitch_masks).sum()
+            uv_loss = uv_loss.mul(pitch_weights).masked_select(pitch_masks).sum()
             energy_loss = energy_loss.mul(pitch_weights).masked_select(pitch_masks).sum()
-            # UV
-            mel_masks = make_non_pad_mask(olens).unsqueeze(-1).to(uvs.device)
-            mel_weights = mel_masks.float() / mel_masks.sum(dim=1, keepdim=True).float()
-            mel_weights /= uvs.size(0)
-            uv_loss = uv_loss.mul(mel_weights).masked_select(mel_masks).sum()
 
         return duration_loss, pitch_loss, uv_loss, energy_loss
 

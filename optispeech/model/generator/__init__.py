@@ -11,7 +11,7 @@ from .alignments import (
     AlignmentModule,
     GaussianUpsampling,
     average_by_duration,
-    expand_by_duration,
+    sum_by_duration,
     viterbi_decode,
 )
 from .loss import FastSpeech2Loss, ForwardSumLoss
@@ -118,16 +118,19 @@ class OptiSpeechGenerator(nn.Module):
             x_masks=input_padding_mask,
         )
         durations, bin_loss = viterbi_decode(log_p_attn, x_lengths, mel_lengths)
-        duration_hat = self.duration_predictor(x, input_padding_mask)
+        duration_hat = self.duration_predictor(x.detach(), input_padding_mask)
 
         # Average pitch and energy values based on durations
         pitches = average_by_duration(durations, pitches.unsqueeze(-1), x_lengths, mel_lengths)
         energies = average_by_duration(durations, energies.unsqueeze(-1), x_lengths, mel_lengths)
 
+        # Majority voting per input token for UV.
+        uvs_sum = sum_by_duration(durations, uvs.unsqueeze(-1), x_lengths, mel_lengths)
+        uv_target = (uvs_sum > durations).float()
+
         # variance predictors
         x, pitch_hat = self.pitch_predictor(x, input_padding_mask, pitches)
-        expanded_pitch_hat, __= expand_by_duration(pitch_hat.unsqueeze(-1), durations)
-        uv_hat = (expanded_pitch_hat == 0.0).float()
+        uv_hat = (pitch_hat == 0.0).float()
         x, energy_hat = self.energy_predictor(x, input_padding_mask, energies)
 
         # upsample to mel lengths
@@ -154,11 +157,11 @@ class OptiSpeechGenerator(nn.Module):
         duration_loss, pitch_loss, uv_loss, energy_loss = self.loss_criterion(
             d_outs=duration_hat.unsqueeze(-1),
             p_outs=pitch_hat.unsqueeze(-1),
-            uv_outs=uv_hat,
+            uv_outs=uv_hat.unsqueeze(-1),
             e_outs=energy_hat.unsqueeze(-1),
             ds=durations.unsqueeze(-1),
             ps=pitches.unsqueeze(-1),
-            uvs=uvs.unsqueeze(-1),
+            uvs=uv_target.unsqueeze(-1),
             es=energies.unsqueeze(-1),
             ilens=x_lengths,
             olens=mel_lengths,
