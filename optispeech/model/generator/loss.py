@@ -124,7 +124,7 @@ class FastSpeech2Loss(torch.nn.Module):
         duration_loss = self.duration_criterion(d_outs, ds)
         pitch_loss = self.mse_criterion(p_outs, ps)
         energy_loss = self.mse_criterion(e_outs, es)
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast('cuda', enabled=False):
             uv_loss = F.binary_cross_entropy_with_logits(
                 uv_outs.float().reshape(-1),
                 uvs.float().reshape(-1),
