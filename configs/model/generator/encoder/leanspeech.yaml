@@ -1,0 +1,5 @@
+_target_: optispeech.model.generator.modules.leanspeech.LeanSpeechBackbone
+_partial_: true
+kernel_size: 9
+num_layers: 4
+drop_path: 0.2
