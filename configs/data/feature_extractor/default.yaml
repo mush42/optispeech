@@ -1,4 +1,4 @@
-_target_: optispeech.dataset.CommonFeatureExtractor
+_target_: optispeech.dataset.feature_extractors.CommonFeatureExtractor
 sample_rate: 24000
 n_feats: 100
 n_fft: 2048
@@ -8,8 +8,9 @@ f_min: 80
 f_max: 8000
 center: false
 pitch_extractor:
-  _target_: pyworld.dio # harvest
+  _target_: optispeech.dataset.feature_extractors.pitch_extractors.DIOPitchExtractor
   _partial_: true
+  interpolate: true
 preemphasis_filter_coef: null # apply preemphasis filter
 lowpass_freq: null
 highpass_freq: null

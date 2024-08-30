@@ -2,16 +2,14 @@ from typing import Callable, Optional
 
 import librosa
 import numpy as np
-import pyworld as pw
 import torch
 from librosa.filters import mel as librosa_mel_fn
-from scipy.interpolate import interp1d
 from torchaudio.functional import gain, highpass_biquad, lowpass_biquad
 
 from optispeech.utils import pylogger, trim_or_pad_to_target_length
 from optispeech.utils.audio import spectral_normalize_torch
-
 from .norm_audio import make_silence_detector, trim_audio
+
 
 log = pylogger.get_pylogger(__name__)
 
@@ -45,7 +43,12 @@ class FeatureExtractor:
         self.f_min = f_min
         self.f_max = f_max
         self.center = center
-        self.pitch_extractor = pitch_extractor
+        self.pitch_extractor = pitch_extractor(
+            sample_rate=self.sample_rate,
+            hop_length=self.hop_length,
+            f_min=self.f_min,
+            f_max=f_max
+        )
         self.preemphasis_filter_coef = preemphasis_filter_coef
         self.lowpass_freq = lowpass_freq
         self.highpass_freq = highpass_freq
@@ -128,28 +131,7 @@ class FeatureExtractor:
         return energy.cpu().numpy()
 
     def get_pitch(self, wav, mel_length) -> np.ndarray:
-        wav = wav.astype(np.double)
-        pitch, t = self.pitch_extractor(
-            wav, self.sample_rate, frame_period=self.hop_length / self.sample_rate * 1000
-        )
-        pitch = pw.stonemask(wav, pitch, t, self.sample_rate)
-
-        # A cool function taken from fairseq
-        # https://github.com/facebookresearch/fairseq/blob/3f0f20f2d12403629224347664b3e75c13b2c8e0/examples/speech_synthesis/data_utils.py#L99
-        pitch = trim_or_pad_to_target_length(pitch, mel_length)
-
-        # Interpolate to cover the unvoiced segments as well
-        nonzero_ids = np.where(pitch != 0)[0]
-        interp_fn = interp1d(
-            nonzero_ids,
-            pitch[nonzero_ids],
-            fill_value=(pitch[nonzero_ids[0]], pitch[nonzero_ids[-1]]),
-            bounds_error=False,
-        )
-        pitch = interp_fn(np.arange(0, len(pitch)))
-
-        return pitch
-
+        return self.pitch_extractor(wav, mel_length)
 
 class CommonFeatureExtractor(FeatureExtractor):
     """Compatible with most popular neural vocoders."""
