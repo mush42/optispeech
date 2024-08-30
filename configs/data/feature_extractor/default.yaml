@@ -8,7 +8,7 @@ f_min: 80
 f_max: 8000
 center: false
 pitch_extractor:
-  _target_: pyworld.harvest # dio
+  _target_: pyworld.dio # harvest
   _partial_: true
 preemphasis_filter_coef: null # apply preemphasis filter
 lowpass_freq: null
