@@ -1,6 +1,6 @@
 _target_: optispeech.dataset.feature_extractors.CommonFeatureExtractor
 sample_rate: 24000
-n_feats: 100
+n_feats: 80
 n_fft: 2048
 hop_length: 300
 win_length: 1200
