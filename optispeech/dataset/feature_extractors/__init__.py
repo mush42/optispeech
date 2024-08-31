@@ -45,9 +45,12 @@ class FeatureExtractor:
         self.center = center
         self.pitch_extractor = pitch_extractor(
             sample_rate=self.sample_rate,
+            n_feats=self.n_feats,
             hop_length=self.hop_length,
+            n_fft=n_fft,
+            win_length=win_length,
             f_min=self.f_min,
-            f_max=f_max
+            f_max=self.f_max,
         )
         self.preemphasis_filter_coef = preemphasis_filter_coef
         self.lowpass_freq = lowpass_freq

@@ -4,10 +4,12 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
+import torchaudio
 import penn
 import pyworld as pw
 from scipy.interpolate import interp1d
 
+from optispeech.vendor.jdc import load_F0_model
 from optispeech.utils import pylogger, trim_or_pad_to_target_length
 
 
@@ -17,7 +19,10 @@ log = pylogger.get_pylogger(__name__)
 @dataclass
 class BasePitchExtractor(ABC):
     sample_rate: int
+    n_feats: int
     hop_length: int
+    n_fft: int
+    win_length: int
     f_min: int
     f_max: int
     interpolate: bool = True
@@ -81,3 +86,30 @@ class PENNPitchExtractor(BasePitchExtractor):
         pitch = pitch.detach().cpu().numpy().squeeze()
         pitch = trim_or_pad_to_target_length(pitch, mel_length)
         return pitch
+
+
+@dataclass
+class JDCPitchExtractor(BasePitchExtractor):
+
+    def __post_init__(self):
+        self._jdc_model = load_F0_model()
+        self.mel_feat = torchaudio.transforms.MelSpectrogram(
+            n_mels=self.n_feats,
+            n_fft=self.n_fft,
+            win_length=self.win_length,
+            hop_length=self.hop_length,
+        )
+        self.mean, self.std = -4, 4
+
+    def extract_mel(self, wave):
+        wave_tensor = torch.from_numpy(wave).float()
+        mel_tensor = self.mel_feat(wave_tensor)
+        mel_tensor = (torch.log(1e-5 + mel_tensor.unsqueeze(0)) - self.mean) / self.std
+        return mel_tensor
+
+    def __call__(self, wav, mel_length):
+        mel = self.extract_mel(wav)
+        F0_real, _, _ = self._jdc_model(mel.unsqueeze(1))
+        return F0_real
+
+
