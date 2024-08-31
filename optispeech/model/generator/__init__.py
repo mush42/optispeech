@@ -109,6 +109,8 @@ class OptiSpeechGenerator(nn.Module):
             lid_embs = self.lid_embed(lids.view(-1))
             x = x + lid_embs.unsqueeze(1)
 
+        duration_hat = self.duration_predictor(x.detach(), input_padding_mask)
+
         # alignment
         log_p_attn = self.alignment_module(
             text=x,
@@ -129,7 +131,6 @@ class OptiSpeechGenerator(nn.Module):
             x, energy_hat = self.energy_predictor(x, input_padding_mask, energies)
         else:
             energy_hat = None
-        duration_hat = self.duration_predictor(x, input_padding_mask)
 
         # upsample to mel lengths
         y = self.feature_upsampler(
