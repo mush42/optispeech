@@ -115,7 +115,7 @@ class JDCPitchExtractor(BasePitchExtractor):
     def __call__(self, wav, mel_length):
         mel = self.extract_mel(wav).to(self.device)
         F0_real, _, _ = self.jdc_model(mel.unsqueeze(1))
-        return F0_real
+        return F0_real.detach().cpu().numpy()
 
     def __getstate__(self):
         return dataclasses.asdict(self)
