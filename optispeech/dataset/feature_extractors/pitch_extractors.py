@@ -94,8 +94,10 @@ class JDCPitchExtractor(BasePitchExtractor):
 
     def __post_init__(self):
         self.jdc_model = load_F0_model()
+        self.device = "cpu"
         if torch.cuda.is_available():
             self.jdc_model.to('cuda')
+            self.device = "cuda"
         self.mel_feat = torchaudio.transforms.MelSpectrogram(
             n_mels=self.n_feats,
             n_fft=self.n_fft,
@@ -111,7 +113,7 @@ class JDCPitchExtractor(BasePitchExtractor):
         return mel_tensor
 
     def __call__(self, wav, mel_length):
-        mel = self.extract_mel(wav)
+        mel = self.extract_mel(wav).to(self.device)
         F0_real, _, _ = self.jdc_model(mel.unsqueeze(1))
         return F0_real
 
