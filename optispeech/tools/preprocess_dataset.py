@@ -4,7 +4,7 @@ import functools
 import json
 import os
 from collections import Counter
-from multiprocessing import cpu_count
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
 
 import hydra
@@ -201,13 +201,14 @@ def main():
             sids=sids,
             lids=lids,
         )
-        iterator = map(worker_func, inrows)
-        for retval in tqdm(iterator, total=len(inrows), desc="processing", unit="utterance"):
-            if isinstance(retval, Exception):
-                filestem, exception = retval
-                log.error(f"Failed to process item {filestem}. Error: {exception}")
-            else:
-                out_filelist.append(data_dir.joinpath(retval))
+        with Pool(processes=n_workers) as pool:
+            iterator = pool.imap_unordered(worker_func, inrows, args.batch_size)
+            for retval in tqdm(iterator, total=len(inrows), desc="processing", unit="utterance"):
+                if isinstance(retval, Exception):
+                    filestem, exception = retval
+                    log.error(f"Failed to process item {filestem}. Error: {exception}")
+                else:
+                    out_filelist.append(data_dir.joinpath(retval))
         out_txt = output_dir.joinpath(out_filename)
         with open(out_txt, "w", encoding="utf-8", newline="\n") as file:
             filelist = [os.fspath(fn.resolve()) for fn in out_filelist]
