@@ -92,7 +92,9 @@ class PENNPitchExtractor(BasePitchExtractor):
 class JDCPitchExtractor(BasePitchExtractor):
 
     def __post_init__(self):
-        self._jdc_model = load_F0_model()
+        self.jdc_model = load_F0_model()
+        if torch.cuda.is_available():
+            self.jdc_model.to('cuda')
         self.mel_feat = torchaudio.transforms.MelSpectrogram(
             n_mels=self.n_feats,
             n_fft=self.n_fft,
@@ -109,7 +111,7 @@ class JDCPitchExtractor(BasePitchExtractor):
 
     def __call__(self, wav, mel_length):
         mel = self.extract_mel(wav)
-        F0_real, _, _ = self._jdc_model(mel.unsqueeze(1))
+        F0_real, _, _ = self.jdc_model(mel.unsqueeze(1))
         return F0_real
 
 
