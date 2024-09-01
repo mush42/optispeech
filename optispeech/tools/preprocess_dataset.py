@@ -230,7 +230,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import multiprocessing
-    # Needed for cuda
-    multiprocessing.set_start_method("spawn", force=True)
     main()

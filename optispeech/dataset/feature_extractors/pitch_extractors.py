@@ -1,3 +1,4 @@
+import dataclasses
 import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -114,4 +115,10 @@ class JDCPitchExtractor(BasePitchExtractor):
         F0_real, _, _ = self.jdc_model(mel.unsqueeze(1))
         return F0_real
 
+    def __getstate__(self):
+        return dataclasses.asdict(self)
 
+    def __setstate__(self, state):
+        for (attr, value) in state.items():
+            setattr(self, attr, value)
+        self.__post_init__()
