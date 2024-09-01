@@ -2,6 +2,7 @@ import argparse
 import csv
 import functools
 import json
+import multiprocessing
 import os
 from collections import Counter
 from multiprocessing import Pool, cpu_count
@@ -16,6 +17,9 @@ from tqdm import tqdm
 from optispeech.dataset import TextWavDataset, do_preprocess_utterance
 from optispeech.utils import get_script_logger
 
+
+# Needed for cuda
+multiprocessing.set_start_method("spawn")
 
 log = get_script_logger(__name__)
 
