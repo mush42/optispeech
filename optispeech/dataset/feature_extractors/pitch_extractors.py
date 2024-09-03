@@ -99,10 +99,10 @@ class JDCPitchExtractor(BasePitchExtractor):
             self.jdc_model.to('cuda')
             self.device = "cuda"
         self.mel_feat = torchaudio.transforms.MelSpectrogram(
-            n_mels=self.n_feats,
-            n_fft=self.n_fft,
-            win_length=self.win_length,
-            hop_length=self.hop_length,
+            n_mels=80,
+            n_fft=2048,
+            win_length=1200,
+            hop_length=300,
         )
         self.mean, self.std = -4, 4
 
