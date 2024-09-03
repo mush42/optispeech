@@ -49,8 +49,9 @@ def process_row(row, feature_extractor, text_processor, wav_path, data_dir, sids
     except Exception as e:
         formatted_exception = traceback.format_exception(e)
         return filestem, Exception(f"Failed to process file: {audio_path.name}", formatted_exception)
-    write_data(data_dir, audio_path.stem, data, sid, lid)
-    return audio_path.stem
+    else:
+        write_data(data_dir, audio_path.stem, data, sid, lid)
+        return audio_path.stem, True
 
 
 def write_data(data_dir, file_stem, data, sid, lid):
