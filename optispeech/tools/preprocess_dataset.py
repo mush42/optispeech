@@ -204,13 +204,11 @@ def main():
             lids=lids,
         )
         iterator = map(worker_func, inrows)
-        for retval in tqdm(iterator, total=len(inrows), desc="processing", unit="utterance"):
+        for (filestem, retval) in tqdm(iterator, total=len(inrows), desc="processing", unit="utterance"):
             if isinstance(retval, Exception):
-                filestem, exception = retval
                 log.error(f"Failed to process item {filestem}. Error: {exception.args[0]}.\nCaused by: {exception.args[1]}")
-                continue
             else:
-                out_filelist.append(data_dir.joinpath(retval))
+                out_filelist.append(data_dir.joinpath(filestem))
         out_txt = output_dir.joinpath(out_filename)
         with open(out_txt, "w", encoding="utf-8", newline="\n") as file:
             filelist = [os.fspath(fn.resolve()) for fn in out_filelist]
