@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 import numpy as np
-from torch.nn.utils.rnn import unpad_sequence as torch_unpad_sequence
 
 from optispeech.utils import numpy_pad_sequences, numpy_unpad_sequences
 
@@ -11,7 +10,8 @@ from optispeech.utils import numpy_pad_sequences, numpy_unpad_sequences
 _TORCH_AVAILABLE = True
 try:
     import torch
-except ModuleNotFoundError:
+    from torch.nn.utils.rnn import unpad_sequence as torch_unpad_sequence
+except ImportError:
     _TORCH_AVAILABLE = False
 
 if _TORCH_AVAILABLE:
