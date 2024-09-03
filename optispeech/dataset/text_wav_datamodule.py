@@ -144,6 +144,7 @@ class TextWavDataset(torch.utils.data.Dataset):
         self.feature_extractor = feature_extractor
         self.file_paths = parse_filelist(filelist_path)
         self.data_dir = Path(filelist_path).parent.joinpath("data")
+        self.uv_threshold = self.feature_extractor.f_min // 3.5
         random.seed(seed)
         random.shuffle(self.file_paths)
 
@@ -159,12 +160,15 @@ class TextWavDataset(torch.utils.data.Dataset):
             lid = data.get("lid")
             phoneme_ids = torch.LongTensor(phoneme_ids)
         data = np.load(arrays_filepath, allow_pickle=False)
+        # TODO: Maybe revisit this later
+        pitch = torch.from_numpy(data["pitch"])
+        pitch[pitch <= self.uv_threshold] = 0.0
         return dict(
             x=phoneme_ids,
             wav=torch.from_numpy(data["wav"]),
             mel=torch.from_numpy(data["mel"]),
             energy=torch.from_numpy(data["energy"]),
-            pitch=torch.from_numpy(data["pitch"]),
+            pitch=pitch,
             sid=sid,
             lid=lid,
             text=text,
