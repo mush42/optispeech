@@ -3,6 +3,7 @@ import csv
 import functools
 import json
 import os
+import traceback
 from collections import Counter
 from multiprocessing import cpu_count
 from pathlib import Path
@@ -45,8 +46,9 @@ def process_row(row, feature_extractor, text_processor, wav_path, data_dir, sids
             text=text,
             lang=lang
         )
-    except Exception:
-        return filestem, Exception(f"Failed to process file: {audio_path.name}", exc_info=True)
+    except Exception as e:
+        formatted_exception = traceback.format_exception(e)
+        return filestem, Exception(f"Failed to process file: {audio_path.name}", formatted_exception)
     write_data(data_dir, audio_path.stem, data, sid, lid)
     return audio_path.stem
 
@@ -205,7 +207,8 @@ def main():
         for retval in tqdm(iterator, total=len(inrows), desc="processing", unit="utterance"):
             if isinstance(retval, Exception):
                 filestem, exception = retval
-                log.error(f"Failed to process item {filestem}. Error: {exception}")
+                log.error(f"Failed to process item {filestem}. Error: {exception.args[0]}.\nCaused by: {exception.args[1]}")
+                continue
             else:
                 out_filelist.append(data_dir.joinpath(retval))
         out_txt = output_dir.joinpath(out_filename)

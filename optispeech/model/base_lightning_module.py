@@ -179,7 +179,7 @@ class BaseLightningModule(LightningModule, ABC):
 
     def on_validation_epoch_start(self):
         if self.train_args.evaluate_utmos:
-            from optispeech.metrics.UTMOS import UTMOSScore
+            from optispeech.vendor.metrics.UTMOS import UTMOSScore
 
             if not hasattr(self, "utmos_model"):
                 self.utmos_model = UTMOSScore(device=self.device)
@@ -206,7 +206,7 @@ class BaseLightningModule(LightningModule, ABC):
         audio_16_khz = torchaudio.functional.resample(wav, orig_freq=self.sample_rate, new_freq=16000)
         audio_hat_16khz = torchaudio.functional.resample(wav_hat, orig_freq=self.sample_rate, new_freq=16000)
         if self.train_args.evaluate_periodicity:
-            from optispeech.metrics.periodicity import calculate_periodicity_metrics
+            from optispeech.vendor.metrics.periodicity import calculate_periodicity_metrics
 
             periodicity_loss, perio_pitch_loss, f1_score = calculate_periodicity_metrics(audio_16_khz, audio_hat_16khz)
             log_outputs.update(

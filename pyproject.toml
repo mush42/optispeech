@@ -7,6 +7,7 @@ dependencies = [
     "torchvision>=0.15.0",
     "lightning>=2.0.0",
     "torchmetrics>=0.11.4",
+    "penn==0.0.14",
     "piper-phonemize>=1.1.0",
     "pyworld>=0.3.4",
     "pesq>=0.0.4",
