@@ -207,7 +207,7 @@ def main():
         iterator = map(worker_func, inrows)
         for (filestem, retval) in tqdm(iterator, total=len(inrows), desc="processing", unit="utterance"):
             if isinstance(retval, Exception):
-                log.error(f"Failed to process item {filestem}. Error: {retval.args[0]}.\nCaused by: {retval.args[1]}")
+                log.error(f"Failed to process item {filestem}. Error: {retval.args[0]}.\nCaused by: " + "".join(retval.args[1]))
             else:
                 out_filelist.append(data_dir.joinpath(filestem))
         out_txt = output_dir.joinpath(out_filename)
