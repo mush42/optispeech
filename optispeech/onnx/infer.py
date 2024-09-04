@@ -1,5 +1,6 @@
 import argparse
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
@@ -8,12 +9,11 @@ import numpy as np
 import onnxruntime
 import soundfile as sf
 
-from optispeech.text import TextProcessor
-from optispeech.utils import get_script_logger
-from optispeech.values import InferenceInputs, InferenceOutputs
+from ..text import TextProcessor
+from ..values import InferenceInputs, InferenceOutputs
 
 
-log = get_script_logger(__name__)
+log = logging.getLogger("infer")
 ONNX_CUDA_PROVIDERS = [("CUDAExecutionProvider", {"cudnn_conv_algo_search": "DEFAULT"}), "CPUExecutionProvider"]
 ONNX_CPU_PROVIDERS = [
     "CPUExecutionProvider",
@@ -146,6 +146,8 @@ class OptiSpeechONNXModel:
 
 
 def main():
+    logging.basicConfig()
+    
     parser = argparse.ArgumentParser(description=" ONNX inference of OptiSpeech")
 
     parser.add_argument(

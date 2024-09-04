@@ -19,65 +19,6 @@ log = pylogger.get_pylogger(__name__)
 matplotlib.use("Agg")
 
 
-def numpy_pad_sequences(sequences, maxlen=None, value=0):
-    """Pads a list of sequences to the same length using broadcasting.
-
-    Args:
-      sequences: A list of Python lists with variable lengths.
-      maxlen: The maximum length to pad the sequences to. If not specified,
-        the maximum length of all sequences in the list will be used.
-      value: The value to use for padding (default 0).
-
-    Returns:
-      A numpy array with shape [batch_size, maxlen] where the sequences are padded
-      with the specified value.
-    """
-
-    # Get the maximum length if not specified
-    if maxlen is None:
-        maxlen = max(len(seq) for seq in sequences)
-
-    # Create a numpy array with the specified value and broadcast
-    padded_seqs = np.full((len(sequences), maxlen), value)
-    for i, seq in enumerate(sequences):
-        padded_seqs[i, : len(seq)] = seq
-
-    return padded_seqs
-
-
-def numpy_unpad_sequences(sequences, lengths):
-    """Unpads a list of sequences based on a list of lengths.
-
-    Args:
-      sequences: A numpy array with shape [batch_size, feature_dim, max_len].
-      lengths: A numpy array with shape [batch_size] representing the lengths
-        of each sequence in the batch.
-
-    Returns:
-      A list of unpadded sequences. The i-th element of the list corresponds
-      to the i-th sequence in the batch. Each sequence is a numpy array with
-      variable length.
-    """
-
-    # Check if lengths argument is a list or 1D numpy array
-    if not isinstance(lengths, np.ndarray) or len(lengths.shape) != 1:
-        raise ValueError("lengths must be a 1D numpy array")
-
-    # Check if sequence lengths are within bounds
-    if np.any(lengths < 0) or np.any(lengths > sequences.shape[-1]):
-        raise ValueError("lengths must be between 0 and max_len")
-
-    # Get the batch size
-    batch_size = sequences.shape[0]
-
-    # Extract unpadded sequences
-    unpadded_seqs = []
-    for i in range(batch_size):
-        unpadded_seqs.append(sequences[i, : lengths[i]])
-
-    return unpadded_seqs
-
-
 def extras(cfg: DictConfig) -> None:
     """Applies optional utilities before the task is started.
 
