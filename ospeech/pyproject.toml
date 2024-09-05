@@ -1,0 +1,40 @@
+[project]
+name = "ospeech"
+version = "1.1.0"
+description = "Minimum dependency inference library for OptiSpeech TTS models"
+authors = [
+    { name = "mush42", email = "ibnomer2011@hotmail.com" }
+]
+dependencies = [
+    "onnxruntime>=1.19.2",
+    "numpy<2.0.0",
+    "soundfile>=0.12.1",
+]
+readme = "README.md"
+requires-python = ">= 3.10"
+
+[project.optional-dependencies]
+espeak = [
+    "piper_phonemize==1.1.0",
+]
+gradio = [
+    "gradio>=4.42.0",
+]
+
+[project.scripts]
+ospeech = 'ospeech.__main__:main'
+ospeech-gradio = 'ospeech.gradio_ui:main'
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["ospeech"]
