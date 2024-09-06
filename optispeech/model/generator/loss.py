@@ -71,7 +71,7 @@ class FastSpeech2Loss(torch.nn.Module):
 
         # define criterions
         reduction = "none" if self.use_weighted_masking else "mean"
-        self.mse_criterion = torch.nn.MSELoss(reduction=reduction)
+        self.regression_criterion = torch.nn.SmoothL1Loss(reduction=reduction)
         self.duration_criterion = DurationPredictorLoss(reduction=reduction)
 
     def forward(
@@ -115,10 +115,10 @@ class FastSpeech2Loss(torch.nn.Module):
 
         # calculate loss
         duration_loss = self.duration_criterion(d_outs, ds)
-        pitch_loss = self.mse_criterion(p_outs, ps)
+        pitch_loss = self.regression_criterion(p_outs, ps)
         energy_loss = torch.tensor(0.0)
         if e_outs is not None:
-            energy_loss = self.mse_criterion(e_outs, es)
+            energy_loss = self.regression_criterion(e_outs, es)
 
         # make weighted mask and apply it
         if self.use_weighted_masking:

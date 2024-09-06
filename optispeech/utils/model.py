@@ -179,6 +179,10 @@ def safe_log(x: torch.Tensor, clip_val: float = 1e-7) -> torch.Tensor:
     return torch.log(torch.clip(x, min=float(clip_val)))
 
 
+def safe_log_numpy(x: np.ndarray, clip_val: float = 1e-8) -> np.ndarray:
+    return np.log(np.clip(x, clip_val, None))
+
+
 def symlog(x: torch.Tensor) -> torch.Tensor:
     return torch.sign(x) * torch.log1p(x.abs())
 

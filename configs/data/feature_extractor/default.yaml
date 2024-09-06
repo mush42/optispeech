@@ -8,7 +8,7 @@ f_min: 80
 f_max: 8000
 center: false
 pitch_extractor:
-  _target_: optispeech.dataset.feature_extractors.pitch_extractors.DIOPitchExtractor
+  _target_: optispeech.dataset.feature_extractors.pitch_extractors.EnsemblePitchExtractor
   _partial_: true
   batch_size: 2048
   interpolate: true

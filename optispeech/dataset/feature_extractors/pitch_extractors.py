@@ -32,9 +32,33 @@ class BasePitchExtractor(ABC):
     batch_size: int
     interpolate: bool = True
 
+    def __post_init__(self):
+        pass
+
     @abstractmethod
     def __call__(self, wav: np.ndarray, mel_length: int) -> np.ndarray:
         """Extract pitch."""
+
+    def __getstate__(self):
+        return dataclasses.asdict(self)
+
+    def __setstate__(self, state):
+        for (attr, value) in state.items():
+            setattr(self, attr, value)
+        self.__post_init__()
+
+    @staticmethod
+    def perform_interpolation(pitch):
+        # interpolate to cover the unvoiced segments as well
+        nonzero_ids = np.where(pitch != 0)[0]
+        interp_fn = interp1d(
+            nonzero_ids,
+            pitch[nonzero_ids],
+            fill_value=(pitch[nonzero_ids[0]], pitch[nonzero_ids[-1]]),
+            bounds_error=False,
+        )
+        pitch = interp_fn(np.arange(0, len(pitch)))
+        return pitch
 
 
 @dataclass
@@ -52,15 +76,7 @@ class DIOPitchExtractor(BasePitchExtractor):
         pitch = pw.stonemask(wav, pitch, t, self.sample_rate)
         pitch = trim_or_pad_to_target_length(pitch, mel_length)
         if self.interpolate:
-            # Interpolate to cover the unvoiced segments as well
-            nonzero_ids = np.where(pitch != 0)[0]
-            interp_fn = interp1d(
-                    nonzero_ids,
-                    pitch[nonzero_ids],
-                    fill_value=(pitch[nonzero_ids[0]], pitch[nonzero_ids[-1]]),
-                    bounds_error=False,
-            )
-            pitch = interp_fn(np.arange(0, len(pitch)))
+            pitch = self.perform_interpolation(pitch)
         return pitch
 
 
@@ -120,17 +136,10 @@ class JDCPitchExtractor(BasePitchExtractor):
     def __call__(self, wav, mel_length):
         mel = self.extract_mel(wav).to(self.device)
         F0_real, _, _ = self.jdc_model(mel.unsqueeze(1))
+        F0_real[F0_real < 21] = 0.0
         pitch = F0_real.detach().cpu().numpy()
         pitch = trim_or_pad_to_target_length(pitch, mel_length)
         return pitch
-
-    def __getstate__(self):
-        return dataclasses.asdict(self)
-
-    def __setstate__(self, state):
-        for (attr, value) in state.items():
-            setattr(self, attr, value)
-        self.__post_init__()
 
 
 @dataclass
@@ -139,49 +148,105 @@ class CrepePitchExtractor(BasePitchExtractor):
     
     def __post_init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        # 5 ms hop-length
-        self.pe_hop_length = self.hop_length
-        self.pe_win_length = int(self.win_length / self.hop_length)
         self.pe_fmin = self.f_min
         # Upper limit for Crepe
-        self.pe_fmax = min(self.f_max, 1024)
+        self.pe_fmax = min(self.f_max, 1536)
         self.crepe_model_type = "full"
-        # Fallback pitch extractor
-        self._dio_pitch_extractor = DIOPitchExtractor(**dataclasses.asdict(self))
 
     def __call__(self, wav, mel_length):
-        audio = torch.from_numpy(wav).unsqueeze(0)
-        pitch, periodicity = torchcrepe.predict(
-            audio=audio.to(self.device),
-            sample_rate=self.sample_rate,
-            hop_length=self.pe_hop_length,
-            fmin=self.pe_fmin,
-            fmax=self.pe_fmax,
-            model=self.crepe_model_type,
-            return_periodicity=True,
-            batch_size=self.batch_size,
-            device=self.device,
+        hop_length_new = int((self.hop_length / self.sample_rate) * 16000.0)
+        f0 = self.get_f0_features_using_crepe(
+            audio=wav,
+            mel_len=mel_length,
+            fs=self.sample_rate,
+            hop_length=self.hop_length,
+            hop_length_new=hop_length_new,
+            f0_min=self.pe_fmin,
+            f0_max=self.pe_fmax,
         )
-        periodicity_filter= torchcrepe.threshold.Silence(-60.0)
-        periodicity = periodicity_filter(periodicity, audio, self.sample_rate, self.pe_hop_length)
-        periodicity = torchcrepe.filter.median(periodicity, self.pe_win_length)
-        periodicity = periodicity[:, :pitch.shape[-1]]
-        pitch = torchcrepe.threshold.At(.21)(pitch, periodicity)
-        if self.interpolate:
-            # Smooth quantization artifacts
-            pitch = torchcrepe.filter.mean(pitch, self.pe_win_length)
-        if bool(pitch.isnan().all()):
-            warnings.warn("Failed to extract pitch using `crepe`. Falling back to `dio`.", category=RuntimeWarning)
-            return self._dio_pitch_extractor(wav, mel_length)
-        pitch = pitch.nan_to_num()
-        pitch = pitch.detach().cpu().numpy().squeeze()
-        pitch = trim_or_pad_to_target_length(pitch, mel_length)
+        f0 = f0.detach().cpu().numpy().squeeze()
+        pitch = trim_or_pad_to_target_length(f0, mel_length)
         return pitch
 
-    def __getstate__(self):
-        return dataclasses.asdict(self)
+    @staticmethod
+    def get_f0_features_using_crepe(
+        audio, mel_len, fs, hop_length, hop_length_new, f0_min, f0_max, threshold=0.3
+    ):
+        """Using torchcrepe to extract the f0 feature.
+        Args:
+            audio
+            mel_len
+            fs
+            hop_length
+            hop_length_new
+            f0_min
+            f0_max
+            threshold(default=0.3)
+        Returns:
+            f0: numpy array of shape (frame_len,)
+        """
+        # Currently, crepe only supports 16khz audio
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        audio_16k = librosa.resample(audio, orig_sr=fs, target_sr=16000)
+        audio_16k_torch = torch.FloatTensor(audio_16k).unsqueeze(0).to(device)
 
-    def __setstate__(self, state):
-        for (attr, value) in state.items():
-            setattr(self, attr, value)
-        self.__post_init__()
+        # Get the raw pitch
+        f0, pd = torchcrepe.predict(
+            audio_16k_torch,
+            16000,
+            hop_length_new,
+            f0_min,
+            f0_max,
+            pad=True,
+            model="full",
+            batch_size=1024,
+            device=device,
+            return_periodicity=True,
+        )
+
+        # Filter, de-silence, set up threshold for unvoiced part
+        pd = torchcrepe.filter.median(pd, 3)
+        pd = torchcrepe.threshold.Silence(-60.0)(pd, audio_16k_torch, 16000, hop_length_new)
+        f0 = torchcrepe.threshold.At(threshold)(f0, pd)
+        f0 = torchcrepe.filter.mean(f0, 3)
+        
+        # Convert unvoiced part to 0hz
+        f0 = torch.where(torch.isnan(f0), torch.full_like(f0, 0), f0)
+        return f0
+
+
+@dataclass
+class EnsemblePitchExtractor(BasePitchExtractor):
+    # cls -> voiced-reliability score
+    extractor_classes = {
+        DIOPitchExtractor: 0.75,
+        PENNPitchExtractor: 0.08,
+        JDCPitchExtractor: 0.15,
+        CrepePitchExtractor: 0.02,
+    }
+
+    def __post_init__(self):
+        extractor_kw = dataclasses.asdict(self)
+        self._extractors = [
+            (ex_cls(**extractor_kw), score)
+            for (ex_cls, score) in self.extractor_classes.items()
+        ]
+        self.uv_threshold = self.f_min // 3.5
+
+    def __call__(self, wav, mel_length):
+        preds = []
+        weights = []
+        for (extractor, score) in self._extractors:
+            weights.append(score)
+            ptch = extractor(wav, mel_length)
+            preds.append(ptch)
+        pitch = np.stack(preds, 0)
+        uv_detector = pitch[2] # JDC
+        uv_mask = uv_detector <= self.uv_threshold
+        pitch = np.average(pitch, axis=0, weights=weights)
+        pitch[uv_mask] = 0.0
+        if self.interpolate:
+            pitch = self.perform_interpolation(pitch)
+        return pitch
+
+
