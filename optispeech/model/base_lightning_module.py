@@ -72,7 +72,7 @@ class BaseLightningModule(LightningModule, ABC):
     def on_train_start(self) -> None:
         if self._opti_reset_optim_and_lr:
             log.info("Resetting optimizers and lr schedulers.")
-            model.configure_optimizers()
+            self.configure_optimizers()
 
     def on_train_epoch_start(self) -> None:
         if self.current_epoch == self.trainer.max_epochs - 1:
