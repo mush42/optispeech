@@ -35,7 +35,7 @@ class BaseValueContainer:
         data = self.as_dict()
         kwargs = {}
         for name, value in self.as_dict().items():
-            if isinstance(value, np.ndarray) or isinstance(value, torch.Tensor):
+            if _TORCH_AVAILABLE and isinstance(value, np.ndarray) or isinstance(value, torch.Tensor):
                 kwargs[name] = torch.as_tensor(value)
             else:
                 kwargs[name] = value
@@ -46,9 +46,9 @@ class BaseValueContainer:
         data = self.as_dict()
         kwargs = {}
         for name, value in self.as_dict().items():
-            if isinstance(value, np.ndarray) or isinstance(value, torch.Tensor):
-                if _TORCH_AVAILABLE:
-                    value = value.detach().cpu() if isinstance(value, torch.Tensor) else value
+            if _TORCH_AVAILABLE and isinstance(value, torch.Tensor):
+                value = value.detach().cpu().numpy()
+            elif isinstance(value, np.ndarray):
                 kwargs[name] = np.asarray(value)
             else:
                 kwargs[name] = value

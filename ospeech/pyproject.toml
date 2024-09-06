@@ -1,6 +1,6 @@
 [project]
 name = "ospeech"
-version = "1.1.0"
+version = "1.2.0"
 description = "Minimum dependency inference library for OptiSpeech TTS models"
 authors = [
     { name = "mush42", email = "ibnomer2011@hotmail.com" }
@@ -9,6 +9,8 @@ dependencies = [
     "onnxruntime>=1.19.2",
     "numpy<2.0.0",
     "soundfile>=0.12.1",
+    "mureq>=0.2.0",
+    "tqdm>=4.66.5",
 ]
 readme = "README.md"
 requires-python = ">= 3.10"
@@ -23,6 +25,7 @@ gradio = [
 
 [project.scripts]
 ospeech = 'ospeech.__main__:main'
+ospeech-models = 'ospeech.models:main'
 ospeech-gradio = 'ospeech.gradio_ui:main'
 
 [build-system]
