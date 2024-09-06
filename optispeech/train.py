@@ -76,8 +76,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     if cfg.get("train"):
         if cfg.get("reset_optim_and_lr"):
-            log.info("Resetting optimizers and lr schedulers.")
-            model.configure_optimizers()()
+            model._opti_reset_optim_and_lr = True
         log.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
 

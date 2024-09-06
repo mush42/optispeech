@@ -69,6 +69,11 @@ class BaseLightningModule(LightningModule, ABC):
             [{"scheduler": scheduler_gen, "interval": "step"}, {"scheduler": scheduler_disc, "interval": "step"}],
         )
 
+    def on_train_start(self) -> None:
+        if self._opti_reset_optim_and_lr:
+            log.info("Resetting optimizers and lr schedulers.")
+            model.configure_optimizers()
+
     def on_train_epoch_start(self) -> None:
         if self.current_epoch == self.trainer.max_epochs - 1:
             # Workaround to always save the last epoch until the bug is fixed in lightning (https://github.com/Lightning-AI/lightning/issues/4539)
