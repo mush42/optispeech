@@ -1,0 +1,27 @@
+defaults:
+  - ljspeech
+  - _self_
+
+# Dataset URL: https://ast-astrec.nict.go.jp/en/release/hi-fi-captain/
+_target_: optispeech.dataset.TextWavDataModule
+name: mike
+train_filelist_path: data/mike/train.txt
+valid_filelist_path: data/mike/val.txt
+batch_size: 64
+num_workers: 8
+feature_extractor:
+  preemphasis_filter_coef: 0.5
+  lowpass_freq: 7600
+  highpass_freq: 100
+  gain_db: 10
+data_statistics:  # Computed for this dataset with the params of the above feature extractor
+  pitch_min: 1e-06
+  pitch_max: 622.776062
+  pitch_mean: 168.61853
+  pitch_std: 108.118469
+  energy_min: 0.052268
+  energy_max: 457.190826
+  energy_mean: 76.248787
+  energy_std: 66.543098
+  mel_mean: -4.363451
+  mel_std: 2.479436
