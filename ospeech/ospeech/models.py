@@ -80,6 +80,9 @@ def list_command():
 
 
 def download_command(id, dir):
+    if not os.path.isdir(dir):
+        print(f"The output directory {dir} does not exist.")
+        return
     models = get_models()
     try:
         model = next(filter(lambda m: m.id == id, models))
@@ -111,11 +114,11 @@ def download_command(id, dir):
 def main():
     parser = argparse.ArgumentParser(description="List and download ospeech models from HuggingFace.")
     subparsers = parser.add_subparsers(dest='command')
-    ls_parser = subparsers.add_parser('ls', help='List items')
+    ls_parser = subparsers.add_parser('ls', help='List available models')
     ls_parser.set_defaults(func=list_command)
     dl_parser = subparsers.add_parser('dl', help='Download ospeech models from HuggingFace')
     dl_parser.add_argument('id', type=str, help='Model ID. Run ospeech ls to list available models.')
-    dl_parser.add_argument('dir', type=str, help='Directory to download the item to')
+    dl_parser.add_argument('dir', type=str, help='Directory to download the model to')
     dl_parser.set_defaults(func=download_command)
     args = parser.parse_args()
     if 'func' in args:

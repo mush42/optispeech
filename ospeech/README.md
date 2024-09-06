@@ -8,10 +8,16 @@ Minimum dependency inference library for [OptiSpeech TTS model](https://github.c
 
 ## Install
 
-This package is pip installable:
+This package can be installed using `pip`:
 
 ```
 $ pip install ospeech
+```
+
+If you want to run the `ospeech` command from anywhere, try:
+
+```
+$ pipx install ospeech
 ```
 
 Most models are trained with IPA phonemized text. To use these models, install `ospeech` with the `espeak` feature, which pulls-in [piper-phonemize](https://github.com/rhasspy/piper-phonemize):
@@ -27,6 +33,42 @@ pip install ospeech[gradio]
 ```
 
 ## Usage
+
+### Obtaining models
+
+```
+$ ospeech-models --help
+usage: ospeech-models [-h] {ls,dl} ...
+
+List and download ospeech models from HuggingFace.
+
+positional arguments:
+  {ls,dl}
+    ls        List available models
+    dl        Download ospeech models from HuggingFace
+
+options:
+  -h, --help  show this help message and exit
+```
+To list available models:
+
+```
+$ ospeech-models ls
+Lang  | Speaker                 | ID
+---------------------------------------------------------------------
+en-us | lightspeech-hfc-female  | en-us-lightspeech-hfc-female
+en-us | convnext-tts-hfc-female | en-us-convnext-tts-hfc-female
+---------------------------------------------------------------------
+```
+
+Using the model ID, use the following command to download a model:
+
+```
+$ ospeech-models dl en-us-lightspeech-hfc-female .
+Downloading `en-us-lightspeech-hfc-female.onnx`
+Downloading:   100%|                                                                           | 38/38 [00:02<?, ?MB/s]
+```
+
 
 ### Command line usage
 

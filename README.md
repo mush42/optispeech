@@ -26,6 +26,12 @@ Note that this is still WIP. Final model designed decisions are still being made
 
 ## Installation
 
+### Inference-only
+
+If you want an inference-only minimum -dependency package that doesn't require `pytorch`, you can use [ospeech](https://github.com/mush42/optispeech/tree/main/ospeech/)
+
+### Training and development
+
 We use [Rye](https://rye.astral.sh/) to   manage the python runtime and dependencies.
 
 [Install Rye first](https://rye.astral.sh/guide/installation/), then run the following:
