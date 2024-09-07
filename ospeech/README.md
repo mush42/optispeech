@@ -122,8 +122,8 @@ model_path = "./optispeech-en-us-lightspeech.onnx"
 sentence = "OptiSpeech is awesome!"
 
 model = OptiSpeechONNXModel.from_onnx_file_path(model_path)
-model_inputs= onx.prepare_input(sentence)
-outputs = onx.synthesise(model_inputs)
+model_inputs= model.prepare_input(sentence)
+outputs = model.synthesise(model_inputs)
 
 for (idx, wav) in enumerate(outputs):
     # Wav is a float array
