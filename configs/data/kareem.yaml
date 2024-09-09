@@ -24,13 +24,13 @@ feature_extractor:
   highpass_freq: 120
   gain_db: 5
 data_statistics:  # Computed for this dataset with the params of the above feature extractor
-  pitch_min: 52.359699
-  pitch_max: 578.278748
-  pitch_mean: 116.430351
-  pitch_std: 30.037754
-  energy_min: 0.001014
-  energy_max: 317.315796
-  energy_mean: 50.565712
-  energy_std: 47.362179
-  mel_mean: -4.533822
-  mel_std: 2.697954
+  pitch_min: 54.711254
+  pitch_max: 536.345154
+  pitch_mean: 118.016678
+  pitch_std: 24.928354
+  energy_min: 0.001545
+  energy_max: 239.482224
+  energy_mean: 53.158081
+  energy_std: 40.304005
+  mel_mean: -4.001431
+  mel_std: 2.344032

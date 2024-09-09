@@ -14,7 +14,7 @@ class TextProcessor:
         self.normalize_text = normalize_text
         self.languages = languages
         if isinstance(self.tokenizer_ref, str):
-            tokenizer_cls = BaseTokenizer.get_tokenizer_by_name(tokenizer_name)
+            tokenizer_cls = BaseTokenizer.get_tokenizer_by_name(self.tokenizer_ref)
         else:
             # The user passed a class which is partially initialized by hydra
             tokenizer_cls = self.tokenizer_ref

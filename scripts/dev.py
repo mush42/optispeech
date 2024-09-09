@@ -21,7 +21,7 @@ from optispeech.text import TextProcessor
 # Text processing pipeline
 SENTENCE = "The history of the Galaxy has got a little muddled, for a number of reasons."
 text_processor = TextProcessor(
-    tokenizer_name="ipa", add_blank=True, add_bos_eos=True, normalize_text=True, languages=["en-us"]
+    tokenizer="ipa", add_blank=True, add_bos_eos=True, normalize_text=True, languages=["en-us"]
 )
 phids, clean_text = text_processor(SENTENCE, "en-us")
 print(f"Length of phoneme ids: {len(phids)}")
@@ -29,7 +29,7 @@ print(f"Length of phoneme ids: {len(phids)}")
 # Config pipeline
 with initialize(version_base=None, config_path="../configs"):
     dataset_cfg = compose(config_name="data/hfc_female-en_us.yaml")
-    cfg = compose(config_name="model/convnext_tts.yaml")
+    cfg = compose(config_name="model/lightspeech.yaml")
     cfg.model.data_args = dict(
         name=dataset_cfg.data.name,
         num_speakers=dataset_cfg.data.num_speakers,
