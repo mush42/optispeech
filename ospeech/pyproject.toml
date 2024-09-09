@@ -1,6 +1,6 @@
 [project]
 name = "ospeech"
-version = "1.3.0"
+version = "1.4.0"
 description = "Minimum dependency inference library for OptiSpeech TTS models"
 authors = [
     { name = "mush42", email = "ibnomer2011@hotmail.com" }
@@ -17,7 +17,7 @@ requires-python = ">= 3.10"
 
 [project.optional-dependencies]
 espeak = [
-    "piper_phonemize==1.1.0",
+    "piper_phonemize>=1.1.0",
 ]
 gradio = [
     "gradio>=4.42.0",
