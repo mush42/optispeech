@@ -1,0 +1,15 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=kareem-lightspeech
+
+defaults:
+  - override /data: kareem.yaml
+  - override /model: lightspeech.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["kareem", "single_speaker", "male", "ar",]
+
+run_name: kareem-lightspeech
