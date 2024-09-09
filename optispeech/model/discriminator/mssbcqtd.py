@@ -20,6 +20,61 @@ from nnAudio import features
 LRELU_SLOPE = 0.1
 
 
+class MultiScaleSubbandCQTDiscriminator(nn.Module):
+    """
+    Multi-Scale Sub-Band Constant-Q Transform Discriminator for High-Fidelity Vocoder
+    https://arxiv.org/abs/2311.14957
+    Implementation taken from [amphian](https://github.com/open-mmlab/Amphion)
+    """
+    def __init__(
+        self,
+        sample_rate,
+        in_channels=1,
+        out_channels=1,
+        filters=32,
+        max_filters=1024,
+        filters_scale=1,
+        dilations=[1, 2, 4],
+        hop_lengths=[512, 256, 256],
+        n_octaves=[9, 9, 9],
+        bins_per_octaves=[24, 36, 48],
+    ):
+        super(MultiScaleSubbandCQTDiscriminator, self).__init__()
+        self.discriminators = nn.ModuleList(
+            [
+                DiscriminatorCQT(
+                    sample_rate=sample_rate,
+                    hop_length=hop_lengths[i],
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    filters=filters,
+                    max_filters=max_filters,
+                    filters_scale=filters_scale,
+                    dilations=dilations,
+                    n_octaves=n_octaves[i],
+                    bins_per_octave=bins_per_octaves[i],
+                )
+                for i in range(len(hop_lengths))
+            ]
+        )
+
+    def forward(self, y, y_hat):
+        y_d_rs = []
+        y_d_gs = []
+        fmap_rs = []
+        fmap_gs = []
+
+        for disc in self.discriminators:
+            y_d_r, fmap_r = disc(y)
+            y_d_g, fmap_g = disc(y_hat)
+            y_d_rs.append(y_d_r)
+            fmap_rs.append(fmap_r)
+            y_d_gs.append(y_d_g)
+            fmap_gs.append(fmap_g)
+
+        return y_d_rs, y_d_gs, fmap_rs, fmap_gs
+
+
 class DiscriminatorCQT(nn.Module):
     def __init__(
         self,
@@ -159,63 +214,6 @@ class DiscriminatorCQT(nn.Module):
         latent_z = self.conv_post(latent_z)
 
         return latent_z, fmap
-
-
-class MultiScaleSubbandCQTDiscriminator(nn.Module):
-    """
-    Multi-Scale Sub-Band Constant-Q Transform Discriminator for High-Fidelity Vocoder
-    https://arxiv.org/abs/2311.14957
-    Taken from [amphian](https://github.com/open-mmlab/Amphion)
-    """
-    def __init__(
-        self,
-        sample_rate,
-        hop_length,
-        in_channels=1,
-        out_channels=1,
-        filters=32,
-        max_filters=1024,
-        filters_scale=1,
-        dilations=[1, 2, 4],
-        hop_lengths=[512, 256, 256],
-        n_octaves=[9, 9, 9],
-        bins_per_octaves=[24, 36, 48],
-    ):
-        super(MultiScaleSubbandCQTDiscriminator, self).__init__()
-        self.discriminators = nn.ModuleList(
-            [
-                DiscriminatorCQT(
-                    sample_rate=sample_rate,
-                    hop_length=hop_lengths[i],
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    filters=filters,
-                    max_filters=max_filters,
-                    filters_scale=filters_scale,
-                    dilations=dilations,
-                    n_octaves=n_octaves[i],
-                    bins_per_octave=bins_per_octaves[i],
-                )
-                for i in range(len(hop_lengths))
-            ]
-        )
-
-    def forward(self, y, y_hat):
-        y_d_rs = []
-        y_d_gs = []
-        fmap_rs = []
-        fmap_gs = []
-
-        for disc in self.discriminators:
-            y_d_r, fmap_r = disc(y)
-            y_d_g, fmap_g = disc(y_hat)
-            y_d_rs.append(y_d_r)
-            fmap_rs.append(fmap_r)
-            y_d_gs.append(y_d_g)
-            fmap_gs.append(fmap_g)
-
-        return y_d_rs, y_d_gs, fmap_rs, fmap_gs
-
 
 
 CONV_NORMALIZATIONS = frozenset(
