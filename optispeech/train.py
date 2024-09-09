@@ -74,9 +74,15 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         log.info("Logging hyperparameters!")
         utils.log_hyperparameters(object_dict)
 
+    ckpt_path = cfg.get("ckpt_path")
+    if (ckpt_path is not None) and resume_from_partial_match:
+        model_cls = type(model)
+        model = model_cls.load_from_checkpoint(ckpt_path, map_location="cpu", strict=False)
+        ckpt_path = None
+
     if cfg.get("train"):
         log.info("Starting training!")
-        trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+        trainer.fit(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
 
     train_metrics = trainer.callback_metrics
 
