@@ -75,8 +75,10 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         utils.log_hyperparameters(object_dict)
 
     ckpt_path = cfg.get("ckpt_path")
-    if (ckpt_path is not None) and cfg.get("disable_strict_loading"):
-        model.strict_loading = False
+    if (ckpt_path is not None) and cfg.get("resume_from_partial_match"):
+        model_cls = type(model)
+        model = model_cls.load_from_checkpoint(ckpt_path, map_location="cpu", strict=False, **model.hparams)
+        ckpt_path = None
 
     if cfg.get("train"):
         log.info("Starting training!")

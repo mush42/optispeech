@@ -46,7 +46,9 @@ test: false
 
 # simply provide checkpoint path to resume training
 ckpt_path: null
-disable_strict_loading: false
+
+# simply provide checkpoint path to resume training
+resume_from_partial_match: false
 
 # seed for random number generators in pytorch, numpy and python.random
 seed: 1234
