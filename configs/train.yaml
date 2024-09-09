@@ -47,8 +47,5 @@ test: false
 # simply provide checkpoint path to resume training
 ckpt_path: null
 
-# Reset optimizers and lr-schedulers
-reset_optim_and_lr: false
-
 # seed for random number generators in pytorch, numpy and python.random
 seed: 1234

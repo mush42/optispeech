@@ -75,8 +75,6 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         utils.log_hyperparameters(object_dict)
 
     if cfg.get("train"):
-        if cfg.get("reset_optim_and_lr"):
-            model._opti_reset_optim_and_lr = True
         log.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
 
