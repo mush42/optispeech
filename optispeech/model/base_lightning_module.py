@@ -70,7 +70,7 @@ class BaseLightningModule(LightningModule, ABC):
         )
 
     def on_train_start(self) -> None:
-        if self._opti_reset_optim_and_lr:
+        if getattr(self, "_opti_reset_optim_and_lr", False):
             log.info("Resetting optimizers and lr schedulers.")
             self.configure_optimizers()
 
