@@ -52,6 +52,7 @@ build-backend = "hatchling.build"
 
 [tool.rye]
 managed = true
+universal = true
 dev-dependencies = [
     "cython>=3.0.11",
     "black>=24.8.0",
