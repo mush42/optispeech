@@ -20,7 +20,12 @@ I would like to thank [Pneuma Solutions](https://pneumasolutions.com/) for provi
 
 ## Audio sample
 
+
+https://github.com/user-attachments/assets/e5001404-100f-4453-b979-8ea7d4b44659
+
+
 https://github.com/user-attachments/assets/7a0d7ff8-a02c-4e8a-a38f-3b083c7c28d4
+
 
 Note that this is still WIP. Final model designed decisions are still being made.
 
