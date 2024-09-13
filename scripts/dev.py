@@ -46,9 +46,6 @@ dataset_cfg.data.seed = 42
 dataset_cfg.data.pin_memory = False
 dataset = hydra.utils.instantiate(dataset_cfg.data)
 dataset.setup()
-# Feature extraction
-audio_path = "data/audio.wav"
-feats = dataset.trainset.preprocess_utterance(audio_path, "Audio file.", "en-us")
 td = dataset.train_dataloader()
 vd = dataset.val_dataloader()
 batch = next(iter(vd))
@@ -79,6 +76,12 @@ inference_input = inference_input.to(model.device)
 inference_output = model.synthesise(inference_input)
 print(f"RTF: {inference_output.rtf}")
 print(f"Latency: {inference_output.latency}")
+del model
+
+# Feature extraction
+dataset.feature_extractor.initialize_components()
+audio_path = "data/audio.wav"
+feats = dataset.trainset.preprocess_utterance(audio_path, "Audio file.", "en-us")
 
 # ONNX Export and inference
 from optispeech.onnx.export import add_inference_metadata, export_as_onnx

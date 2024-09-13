@@ -28,6 +28,7 @@ def do_preprocess_utterance(
     text: str,
     lang: str|None
 ):
+    feature_extractor.initialize_components()
     if text_processor.is_multi_language:
         assert lang is not None, "Language not provided for multi-language model"
     lang = lang if not text_processor.is_multi_language else None

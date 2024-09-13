@@ -43,29 +43,37 @@ class FeatureExtractor:
         self.f_min = f_min
         self.f_max = f_max
         self.center = center
-        self.pitch_extractor = pitch_extractor(
-            sample_rate=self.sample_rate,
-            n_feats=self.n_feats,
-            hop_length=self.hop_length,
-            n_fft=n_fft,
-            win_length=win_length,
-            f_min=self.f_min,
-            f_max=self.f_max,
-        )
         self.preemphasis_filter_coef = preemphasis_filter_coef
         self.lowpass_freq = lowpass_freq
         self.highpass_freq = highpass_freq
         self.gain_db = gain_db
         self.trim_silence = trim_silence
         self.trim_silence_args = trim_silence_args
+        self.pitch_extractor_initializer = pitch_extractor
+        # These may load additional models we don't need during training
+        self.pitch_extractor = None
         self._silence_detector = None
 
+    def initialize_components(self):
+        if self.pitch_extractor is not None:
+            return
+        self.pitch_extractor = self.pitch_extractor_initializer(
+            sample_rate=self.sample_rate,
+            n_feats=self.n_feats,
+            hop_length=self.hop_length,
+            n_fft=self.n_fft,
+            win_length=self.win_length,
+            f_min=self.f_min,
+            f_max=self.f_max,
+        )
+        self._silence_detector = make_silence_detector()
+    
     def __call__(self, audio_path):
+        if self.pitch_extractor is None:
+            raise RuntimeError("Feature extractor not fully initialized. call `feature_extractor.initialize_components()` first.")
         if not self.trim_silence:
             wav, __sr = librosa.load(audio_path, sr=self.sample_rate)
         else:
-            if self._silence_detector is None:
-                self._silence_detector = make_silence_detector()
             wav, __sr = trim_audio(
                 audio_path=audio_path,
                 detector=self._silence_detector,
