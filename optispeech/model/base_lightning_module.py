@@ -141,8 +141,8 @@ class BaseLightningModule(LightningModule, ABC):
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         if train_discriminator:
             gen_adv_loss, log_dict = self.discriminator.forward_gen(wav, wav_hat)
-            log_outputs["total_loss/train_gen_adv_loss"] = gen_adv_loss
-            log_outputs.update({f"gen_adv_loss/train_{key}": val for (key, val) in log_dict.items()})
+            log_outputs["total_loss/train_gen_adv_loss"] = gen_adv_loss.item()
+            log_outputs.update({f"gen_adv_loss/train_{key}": val.item() for (key, val) in log_dict.items()})
         else:
             gen_adv_loss = 0.0
         loss = gen_am_loss + gen_adv_loss
@@ -168,7 +168,7 @@ class BaseLightningModule(LightningModule, ABC):
             wav, wav_hat = wav_outputs
         loss, log_dict = self.discriminator.forward_disc(wav, wav_hat)
         log_outputs["total_loss/discriminator"] = loss
-        log_outputs.update({f"discriminator/{key}": val for key, val in log_dict.items()})
+        log_outputs.update({f"discriminator/{key}": val.item() for key, val in log_dict.items()})
         self.log_dict(
             log_outputs,
             prog_bar=True,
@@ -202,8 +202,8 @@ class BaseLightningModule(LightningModule, ABC):
             log_outputs["gen_subloss/val_energy_loss"] = gen_outputs["energy_loss"].item()
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         gen_adv_loss, log_dict = self.discriminator.get_val_loss(wav, wav_hat)
-        log_outputs["total_loss/val_gen_adv_loss"] = gen_adv_loss
-        log_outputs.update({f"gen_adv_loss/val_{key}": value for key, value in log_dict.items()})
+        log_outputs["total_loss/val_gen_adv_loss"] = gen_adv_loss.item()
+        log_outputs.update({f"gen_adv_loss/val_{key}": value.item() for key, value in log_dict.items()})
         # perceptual eval
         audio_16_khz = torchaudio.functional.resample(wav, orig_freq=self.sample_rate, new_freq=16000)
         audio_hat_16khz = torchaudio.functional.resample(wav_hat, orig_freq=self.sample_rate, new_freq=16000)
@@ -213,9 +213,9 @@ class BaseLightningModule(LightningModule, ABC):
             periodicity_loss, perio_pitch_loss, f1_score = calculate_periodicity_metrics(audio_16_khz, audio_hat_16khz)
             log_outputs.update(
                 {
-                    "val/periodicity_loss": periodicity_loss,
-                    "val/perio_pitch_loss": perio_pitch_loss,
-                    "val/f1_score": f1_score,
+                    "val/periodicity_loss": periodicity_loss.item(),
+                    "val/perio_pitch_loss": perio_pitch_loss.item(),
+                    "val/f1_score": f1_score.item(),
                 }
             )
         if self.train_args.evaluate_utmos:
@@ -235,7 +235,7 @@ class BaseLightningModule(LightningModule, ABC):
         else:
             pesq_loss = torch.zeros(1, device=self.device)
         total_loss = gen_am_loss + gen_adv_loss + utmos_loss + pesq_loss
-        log_outputs["total_loss/val_total"] = total_loss
+        log_outputs["total_loss/val_total"] = total_loss.item()
         self.log_dict(
             log_outputs,
             prog_bar=True,
@@ -262,17 +262,6 @@ class BaseLightningModule(LightningModule, ABC):
                         self.current_epoch,
                         dataformats="HWC",
                     )
-            # Plot alignment
-            gen_outputs = self._process_batch(one_batch)
-            attns = gen_outputs["attn"]
-            for i in range(2):
-                attn = attns[i]
-                self.logger.experiment.add_image(
-                    f"alignment/{i}",
-                    plot_attention(attn.squeeze().float().cpu()),
-                    self.current_epoch,
-                    dataformats="HWC",
-                )
             log.debug("Synthesising...")
             for i in range(2):
                 x = one_batch["x"][i].unsqueeze(0).to(self.device)
