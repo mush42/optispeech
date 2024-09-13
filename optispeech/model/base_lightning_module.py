@@ -253,7 +253,7 @@ class BaseLightningModule(LightningModule, ABC):
                 for i in range(2):
                     gt_wav = one_batch["wav"][i].squeeze()
                     self.logger.experiment.add_audio(
-                        f"wav/original_{i}", gt_wav.float().data.cpu().numpy(), self.global_step, self.sample_rate
+                        f"wav/original_{i}", gt_wav, self.global_step, self.sample_rate
                     )
                     mel = one_batch["mel"][i].unsqueeze(0).to(self.device)
                     self.logger.experiment.add_image(
