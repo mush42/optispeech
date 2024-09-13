@@ -28,7 +28,6 @@ class OptiSpeechGenerator(nn.Module):
         energy_predictor,
         decoder,
         wav_generator,
-        use_energy_predictor,
         loss_coeffs,
         feature_extractor,
         num_speakers,
@@ -52,7 +51,7 @@ class OptiSpeechGenerator(nn.Module):
         self.duration_predictor = duration_predictor(dim=dim)
         self.alignment_module = AlignmentModule(adim=dim, odim=self.n_feats)
         self.pitch_predictor = pitch_predictor(dim=dim)
-        self.energy_predictor = energy_predictor(dim=dim) if use_energy_predictor else None
+        self.energy_predictor = energy_predictor(dim=dim)
         self.feature_upsampler = GaussianUpsampling()
         self.decoder = decoder(dim=dim)
         self.wav_generator = wav_generator(input_channels=dim, n_fft=self.n_fft, hop_length=self.hop_length)
@@ -96,7 +95,7 @@ class OptiSpeechGenerator(nn.Module):
         target_padding_mask = ~mel_mask.squeeze(1).bool().to(x.device)
 
         # text embedding
-        x, embed = self.text_embedding(x)
+        x, __ = self.text_embedding(x)
 
         # Encoder
         x = self.encoder(x, input_padding_mask)
@@ -109,8 +108,6 @@ class OptiSpeechGenerator(nn.Module):
             lid_embs = self.lid_embed(lids.view(-1))
             x = x + lid_embs.unsqueeze(1)
 
-        duration_hat = self.duration_predictor(x.detach(), input_padding_mask)
-
         # alignment
         log_p_attn = self.alignment_module(
             text=x,
@@ -120,6 +117,7 @@ class OptiSpeechGenerator(nn.Module):
             x_masks=input_padding_mask,
         )
         durations, bin_loss = viterbi_decode(log_p_attn, x_lengths, mel_lengths)
+        duration_hat = self.duration_predictor(x.detach(), input_padding_mask)
 
         # Average pitch and energy values based on durations
         pitches = average_by_duration(durations, pitches.unsqueeze(-1), x_lengths, mel_lengths)
@@ -127,10 +125,7 @@ class OptiSpeechGenerator(nn.Module):
 
         # variance predictors
         x, pitch_hat = self.pitch_predictor(x, input_padding_mask, pitches)
-        if self.energy_predictor is not None:
-            x, energy_hat = self.energy_predictor(x, input_padding_mask, energies)
-        else:
-            energy_hat = None
+        x, energy_hat = self.energy_predictor(x, input_padding_mask, energies)
 
         # upsample to mel lengths
         y = self.feature_upsampler(
@@ -156,10 +151,10 @@ class OptiSpeechGenerator(nn.Module):
         duration_loss, pitch_loss, energy_loss = self.loss_criterion(
             d_outs=duration_hat.unsqueeze(-1),
             p_outs=pitch_hat.unsqueeze(-1),
-            e_outs=energy_hat.unsqueeze(-1) if energy_hat is not None else energy_hat,
+            e_outs=energy_hat.unsqueeze(-1),
             ds=durations.unsqueeze(-1),
             ps=pitches.unsqueeze(-1),
-            es=energies.unsqueeze(-1) if energies is not None else None,
+            es=energies.unsqueeze(-1),
             ilens=x_lengths,
         )
         forwardsum_loss = self.forwardsum_loss(log_p_attn, x_lengths, mel_lengths)
@@ -175,7 +170,6 @@ class OptiSpeechGenerator(nn.Module):
             "wav_hat": wav_hat,
             "start_idx": start_idx,
             "segment_size": segment_size,
-            "attn": log_p_attn,
             "loss": loss,
             "align_loss": align_loss,
             "duration_loss": duration_loss,

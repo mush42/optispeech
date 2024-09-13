@@ -52,11 +52,12 @@ class FastSpeech2Loss(torch.nn.Module):
     Taken from ESPnet2
     """
 
-    def __init__(self, use_masking: bool = True, use_weighted_masking: bool = False):
+    def __init__(self, regression_loss_type: str="mse", use_masking: bool = True, use_weighted_masking: bool = False):
         """
         Initialize feed-forward Transformer loss module.
 
         Args:
+            regression_loss_type: one of {"mse", "l1"}
             use_masking (bool): Whether to apply masking for padded part in loss
                 calculation.
             use_weighted_masking (bool): Whether to weighted masking in loss
@@ -71,7 +72,12 @@ class FastSpeech2Loss(torch.nn.Module):
 
         # define criterions
         reduction = "none" if self.use_weighted_masking else "mean"
-        self.regression_criterion = torch.nn.SmoothL1Loss(reduction=reduction)
+        if regression_loss_type == "mse":
+            self.regression_criterion = torch.nn.MSELoss(reduction=reduction)
+        elif regression_loss_type == "l1":
+            self.regression_criterion = torch.nn.SmoothL1Loss(reduction=reduction)
+        else:
+            raise ValueError(f"Unknown regression loss type: {regression_loss_type}")
         self.duration_criterion = DurationPredictorLoss(reduction=reduction)
 
     def forward(
@@ -103,33 +109,31 @@ class FastSpeech2Loss(torch.nn.Module):
         """
         # apply mask to remove padded part
         if self.use_masking:
-            duration_masks = make_non_pad_mask(ilens).to(ds.device)
+            with torch.no_grad():
+                duration_masks = make_non_pad_mask(ilens).to(ds.device)
+                pitch_masks = make_non_pad_mask(ilens).unsqueeze(-1).to(ds.device)
             d_outs = d_outs.masked_select(duration_masks)
             ds = ds.masked_select(duration_masks)
-            pitch_masks = make_non_pad_mask(ilens).unsqueeze(-1).to(ds.device)
             p_outs = p_outs.masked_select(pitch_masks)
             ps = ps.masked_select(pitch_masks)
-            if e_outs is not None:
-                e_outs = e_outs.masked_select(pitch_masks)
-                es = es.masked_select(pitch_masks)
+            e_outs = e_outs.masked_select(pitch_masks)
+            es = es.masked_select(pitch_masks)
 
         # calculate loss
         duration_loss = self.duration_criterion(d_outs, ds)
         pitch_loss = self.regression_criterion(p_outs, ps)
-        energy_loss = torch.tensor(0.0)
-        if e_outs is not None:
-            energy_loss = self.regression_criterion(e_outs, es)
+        energy_loss = self.regression_criterion(e_outs, es)
 
         # make weighted mask and apply it
         if self.use_weighted_masking:
-            duration_masks = make_non_pad_mask(ilens).to(ds.device)
-            duration_weights = duration_masks.float() / duration_masks.sum(dim=1, keepdim=True).float()
-            duration_weights /= ds.size(0)
-
+            with torch.no_grad():
+                duration_masks = make_non_pad_mask(ilens).to(ds.device)
+                duration_weights = duration_masks.float() / duration_masks.sum(dim=1, keepdim=True).float()
+                duration_weights /= ds.size(0)
+                pitch_masks = duration_masks.unsqueeze(-1)
+                pitch_weights = duration_weights.unsqueeze(-1)
             # apply weight
             duration_loss = duration_loss.mul(duration_weights).masked_select(duration_masks).sum()
-            pitch_masks = duration_masks.unsqueeze(-1)
-            pitch_weights = duration_weights.unsqueeze(-1)
             pitch_loss = pitch_loss.mul(pitch_weights).masked_select(pitch_masks).sum()
             energy_loss = energy_loss.mul(pitch_weights).masked_select(pitch_masks).sum()
 

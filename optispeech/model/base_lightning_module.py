@@ -26,9 +26,9 @@ class BaseLightningModule(LightningModule, ABC):
         lids = batch["lids"]
         gen_outputs = self.generator(
             x=batch["x"].to(self.device),
-            x_lengths=batch["x_lengths"].to("cpu"),
+            x_lengths=batch["x_lengths"].to(self.device),
             mel=batch["mel"].to(self.device),
-            mel_lengths=batch["mel_lengths"].to("cpu").to(self.device),
+            mel_lengths=batch["mel_lengths"].to(self.device),
             pitches=batch["pitches"].to(self.device),
             energies=batch["energies"].to(self.device),
             sids=sids.to(self.device) if sids is not None else None,
@@ -40,8 +40,7 @@ class BaseLightningModule(LightningModule, ABC):
             start_idxs=gen_outputs["start_idx"] * self.hop_length,
             segment_size=segment_size * self.hop_length,
         )
-        seg_gt_wav = torch.from_numpy(seg_gt_wav).type_as(gen_outputs["wav_hat"])
-        seg_gt_wav = seg_gt_wav.squeeze(1).type_as(gen_outputs["wav_hat"])
+        seg_gt_wav = torch.from_numpy(seg_gt_wav.squeeze(1)).type_as(gen_outputs["wav_hat"])
         gen_outputs["wav"] = seg_gt_wav
         return gen_outputs
 
@@ -134,10 +133,9 @@ class BaseLightningModule(LightningModule, ABC):
                 "gen_subloss/train_alighn_loss": gen_outputs["align_loss"].item(),
                 "gen_subloss/train_duration_loss": gen_outputs["duration_loss"].item(),
                 "gen_subloss/train_pitch_loss": gen_outputs["pitch_loss"].item(),
+                "gen_subloss/train_energy_loss": gen_outputs["energy_loss"].item(),
             }
         )
-        if gen_outputs.get("energy_loss") != 0.0:
-            log_outputs["gen_subloss/train_energy_loss"] = gen_outputs["energy_loss"].item()
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         if train_discriminator:
             gen_adv_loss, log_dict = self.discriminator.forward_gen(wav, wav_hat)
@@ -170,7 +168,7 @@ class BaseLightningModule(LightningModule, ABC):
         else:
             wav, wav_hat = wav_outputs
         loss, log_dict = self.discriminator.forward_disc(wav, wav_hat)
-        log_outputs["total_loss/discriminator"] = loss
+        log_outputs["total_loss/discriminator"] = loss.item()
         log_outputs.update({
             f"discriminator/{key}": value.item() if isinstance(value, torch.Tensor) else value
             for key, value in log_dict.items()
@@ -202,10 +200,9 @@ class BaseLightningModule(LightningModule, ABC):
                 "gen_subloss/val_alighn_loss": gen_outputs["align_loss"].item(),
                 "gen_subloss/val_duration_loss": gen_outputs["duration_loss"].item(),
                 "gen_subloss/val_pitch_loss": gen_outputs["pitch_loss"].item(),
+                "gen_subloss/val_energy_loss": gen_outputs["energy_loss"].item()
             }
         )
-        if gen_outputs.get("energy_loss") != 0.0:
-            log_outputs["gen_subloss/val_energy_loss"] = gen_outputs["energy_loss"].item()
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         gen_adv_loss, log_dict = self.discriminator.get_val_loss(wav, wav_hat)
         log_outputs["total_loss/val_gen_adv_loss"] = gen_adv_loss.item()
@@ -267,7 +264,7 @@ class BaseLightningModule(LightningModule, ABC):
                     mel = one_batch["mel"][i].unsqueeze(0).to(self.device)
                     self.logger.experiment.add_image(
                         f"mel/original_{i}",
-                        plot_tensor(mel.squeeze().float().cpu()),
+                        plot_tensor(mel.detach().squeeze().float().cpu()),
                         self.current_epoch,
                         dataformats="HWC",
                     )
