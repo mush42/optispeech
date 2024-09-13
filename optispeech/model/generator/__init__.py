@@ -33,6 +33,7 @@ class OptiSpeechGenerator(nn.Module):
         num_speakers,
         num_languages,
         data_statistics,
+        **kwargs
     ):
         super().__init__()
 
