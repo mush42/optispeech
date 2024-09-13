@@ -142,7 +142,10 @@ class BaseLightningModule(LightningModule, ABC):
         if train_discriminator:
             gen_adv_loss, log_dict = self.discriminator.forward_gen(wav, wav_hat)
             log_outputs["total_loss/train_gen_adv_loss"] = gen_adv_loss.item()
-            log_outputs.update({f"gen_adv_loss/train_{key}": val.item() for (key, val) in log_dict.items()})
+            log_outputs.update({
+            f"gen_adv_loss/train_{key}": value.item() if isinstance(value, torch.Tensor) else value
+                for (key, value) in log_dict.items()
+            })
         else:
             gen_adv_loss = 0.0
         loss = gen_am_loss + gen_adv_loss
@@ -168,7 +171,10 @@ class BaseLightningModule(LightningModule, ABC):
             wav, wav_hat = wav_outputs
         loss, log_dict = self.discriminator.forward_disc(wav, wav_hat)
         log_outputs["total_loss/discriminator"] = loss
-        log_outputs.update({f"discriminator/{key}": val.item() for key, val in log_dict.items()})
+        log_outputs.update({
+            f"discriminator/{key}": value.item() if isinstance(value, torch.Tensor) else value
+            for key, value in log_dict.items()
+        })
         self.log_dict(
             log_outputs,
             prog_bar=True,
@@ -203,7 +209,10 @@ class BaseLightningModule(LightningModule, ABC):
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
         gen_adv_loss, log_dict = self.discriminator.get_val_loss(wav, wav_hat)
         log_outputs["total_loss/val_gen_adv_loss"] = gen_adv_loss.item()
-        log_outputs.update({f"gen_adv_loss/val_{key}": value.item() for key, value in log_dict.items()})
+        log_outputs.update({
+            f"gen_adv_loss/val_{key}": value.item() if isinstance(value, torch.Tensor) else value
+            for key, value in log_dict.items()
+        })
         # perceptual eval
         audio_16_khz = torchaudio.functional.resample(wav, orig_freq=self.sample_rate, new_freq=16000)
         audio_hat_16khz = torchaudio.functional.resample(wav_hat, orig_freq=self.sample_rate, new_freq=16000)
