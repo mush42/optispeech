@@ -5,6 +5,7 @@
 
 from typing import Tuple
 
+import numpy as np
 import torch
 
 
@@ -54,6 +55,18 @@ def get_segments(
     """
     b, c, _ = x.size()
     segments = x.new_zeros(b, c, segment_size)
+    for i, start_idx in enumerate(start_idxs):
+        segments[i] = x[i, :, start_idx : start_idx + segment_size]
+    return segments
+
+
+def get_segments_numpy(
+    x: np.ndarray,
+    start_idxs: np.ndarray,
+    segment_size: int,
+) -> np.ndarray:
+    b, c, _ = x.shape
+    segments = np.zeros((b, c, segment_size), dtype=np.float32)
     for i, start_idx in enumerate(start_idxs):
         segments[i] = x[i, :, start_idx : start_idx + segment_size]
     return segments

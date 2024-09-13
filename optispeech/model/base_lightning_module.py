@@ -8,13 +8,14 @@ import math
 from abc import ABC
 from typing import Any, Dict
 
+import numpy as np
 import torch
 import torchaudio
 from lightning import LightningModule
 from lightning.pytorch.utilities import grad_norm
 
 from optispeech.utils import get_pylogger, plot_attention, plot_tensor
-from optispeech.utils.segments import get_segments
+from optispeech.utils.segments import get_segments, get_segments_numpy
 
 log = get_pylogger(__name__)
 
@@ -34,11 +35,12 @@ class BaseLightningModule(LightningModule, ABC):
             lids=lids.to(self.device) if lids is not None else None,
         )
         segment_size = gen_outputs["segment_size"]
-        seg_gt_wav = get_segments(
-            x=batch["wav"].unsqueeze(1),
+        seg_gt_wav = get_segments_numpy(
+            x=np.expand_dims(batch["wav"], 1),
             start_idxs=gen_outputs["start_idx"] * self.hop_length,
             segment_size=segment_size * self.hop_length,
         )
+        seg_gt_wav = torch.from_numpy(seg_gt_wav).type_as(gen_outputs["wav_hat"])
         seg_gt_wav = seg_gt_wav.squeeze(1).type_as(gen_outputs["wav_hat"])
         gen_outputs["wav"] = seg_gt_wav
         return gen_outputs

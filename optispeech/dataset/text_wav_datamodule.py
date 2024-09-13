@@ -207,7 +207,7 @@ class TextWavBatchCollate:
         wav_max_length = max([item["wav"].shape[-1] for item in batch])
 
         x = torch.zeros((B, x_max_length), dtype=torch.long)
-        wav = torch.zeros((B, wav_max_length), dtype=torch.float32)
+        wav = np.zeros((B, wav_max_length), dtype=np.float32)
         mel = torch.zeros((B, self.n_feats, mel_max_length), dtype=torch.float32)
 
         pitches = torch.zeros((B, mel_max_length), dtype=torch.float)
@@ -245,7 +245,7 @@ class TextWavBatchCollate:
             assert lids.shape[0] == B, "Not all language IDs are provided"
 
         if self.do_normalize:
-            wav = wav.clamp(-1, 1)
+            wav = wav.clip(-1, 1)
             mel = normalize(mel, self.data_statistics["mel_mean"], self.data_statistics["mel_std"])
             energies = normalize(energies, self.data_statistics["energy_mean"], self.data_statistics["energy_std"])
             pitches = normalize(pitches, self.data_statistics["pitch_mean"], self.data_statistics["pitch_std"])
