@@ -55,6 +55,7 @@ class FeatureExtractor:
         self._silence_detector = None
 
     def initialize_components(self):
+        raise NotImplementedError
         if self.pitch_extractor is not None:
             return
         self.pitch_extractor = self.pitch_extractor_initializer(
