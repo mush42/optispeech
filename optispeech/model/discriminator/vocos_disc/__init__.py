@@ -1,8 +1,6 @@
 import torch
 from torch import nn
 
-from optispeech.model.discriminator.mssbcqtd import MultiScaleSubbandCQTDiscriminator
-
 from ._discriminators import MultiPeriodDiscriminator, MultiResolutionDiscriminator
 from .loss import (
     DiscriminatorLoss,
@@ -26,6 +24,7 @@ class VocosDiscriminator(nn.Module):
         self.multiperioddisc = MultiPeriodDiscriminator()
         self.multiresddisc = MultiResolutionDiscriminator()
         if use_mssbcqtd:
+            from optispeech.model.discriminator.mssbcqtd import MultiScaleSubbandCQTDiscriminator
             self.mssbcqtd = MultiScaleSubbandCQTDiscriminator(
                 sample_rate=self.feature_extractor.sample_rate,
             )
