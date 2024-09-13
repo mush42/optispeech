@@ -18,19 +18,18 @@ text_processor:
   languages:
     - ar
 feature_extractor:
-  sample_rate: 22050
   preemphasis_filter_coef: 0.75
   lowpass_freq: 7600
   highpass_freq: 120
   gain_db: 5
 data_statistics:  # Computed for this dataset with the params of the above feature extractor
-  pitch_min: 54.711254
-  pitch_max: 536.345154
-  pitch_mean: 118.016678
-  pitch_std: 24.928354
-  energy_min: 0.001545
-  energy_max: 239.482224
-  energy_mean: 53.158081
-  energy_std: 40.304005
-  mel_mean: -4.001431
-  mel_std: 2.344032
+  pitch_min: 68.213005
+  pitch_max: 551.940063
+  pitch_mean: 139.014587
+  pitch_std: 22.160194
+  energy_min: 0.001012
+  energy_max: 275.245819
+  energy_mean: 44.998856
+  energy_std: 36.338604
+  mel_mean: -3.835635
+  mel_std: 2.044688
