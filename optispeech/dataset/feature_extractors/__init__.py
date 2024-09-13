@@ -72,7 +72,7 @@ class FeatureExtractor:
         if self.pitch_extractor is None:
             raise RuntimeError("Feature extractor not fully initialized. call `feature_extractor.initialize_components()` first.")
         if not self.trim_silence:
-            wav, __sr = librosa.load(audio_path, sr=self.sample_rate)
+            wav, __sr = librosa.load(audio_path, sr=self.sample_rate, mono=True)
         else:
             wav, __sr = trim_audio(
                 audio_path=audio_path,
