@@ -148,8 +148,14 @@ class BaseLightningModule(LightningModule, ABC):
             gen_adv_loss = 0.0
         loss = gen_am_loss + gen_adv_loss
         log_outputs["total_loss/generator"] = loss.item()
+        log_dict = {}
+        for (name, value) in log_outputs.items():
+            if isinstance(value, torch.Tensor):
+                log_dict[name] = value.detach().cpu()
+            else:
+                log_dict[name] = value
         self.log_dict(
-            log_outputs,
+            log_dict,
             prog_bar=True,
             on_step=True,
             on_epoch=True,
@@ -173,8 +179,14 @@ class BaseLightningModule(LightningModule, ABC):
             f"discriminator/{key}": value.item() if isinstance(value, torch.Tensor) else value
             for key, value in log_dict.items()
         })
+        log_dict = {}
+        for (name, value) in log_outputs.items():
+            if isinstance(value, torch.Tensor):
+                log_dict[name] = value.detach().cpu()
+            else:
+                log_dict[name] = value
         self.log_dict(
-            log_outputs,
+            log_dict,
             prog_bar=True,
             on_step=True,
             on_epoch=True,
@@ -242,8 +254,14 @@ class BaseLightningModule(LightningModule, ABC):
             pesq_loss = torch.zeros(1, device=self.device)
         total_loss = gen_am_loss + gen_adv_loss + utmos_loss + pesq_loss
         log_outputs["total_loss/val_total"] = total_loss.item()
+        log_dict = {}
+        for (name, value) in log_outputs.items():
+            if isinstance(value, torch.Tensor):
+                log_dict[name] = value.detach().cpu()
+            else:
+                log_dict[name] = value
         self.log_dict(
-            log_outputs,
+            log_dict,
             prog_bar=True,
             on_step=True,
             on_epoch=True,
