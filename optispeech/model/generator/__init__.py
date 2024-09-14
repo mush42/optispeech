@@ -172,10 +172,10 @@ class OptiSpeechGenerator(nn.Module):
             "start_idx": start_idx,
             "segment_size": segment_size,
             "loss": loss,
-            "align_loss": align_loss,
-            "duration_loss": duration_loss,
-            "pitch_loss": pitch_loss,
-            "energy_loss": energy_loss,
+            "align_loss": align_loss.detach().cpu(),
+            "duration_loss": duration_loss.detach().cpu(),
+            "pitch_loss": pitch_loss.detach().cpu(),
+            "energy_loss": energy_loss.detach().cpu(),
         }
 
     @torch.inference_mode()
@@ -268,11 +268,11 @@ class OptiSpeechGenerator(nn.Module):
         latency = am_infer + v_infer
 
         return {
-            "wav": wav,
-            "wav_lengths": wav_lengths,
-            "durations": durations,
-            "pitch": pitch,
-            "energy": energy,
+            "wav": wav.detach().cpu(),
+            "wav_lengths": wav_lengths.detach().cpu(),
+            "durations": durations.detach().cpu(),
+            "pitch": pitch.detach().cpu(),
+            "energy": energy.detach().cpu(),
             "am_rtf": am_rtf,
             "v_rtf": v_rtf,
             "rtf": rtf,

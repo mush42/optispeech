@@ -52,7 +52,7 @@ class FastSpeech2Loss(torch.nn.Module):
     Taken from ESPnet2
     """
 
-    def __init__(self, regression_loss_type: str="mse", use_masking: bool = True, use_weighted_masking: bool = False):
+    def __init__(self, regression_loss_type: str="l1", use_masking: bool = True, use_weighted_masking: bool = False):
         """
         Initialize feed-forward Transformer loss module.
 

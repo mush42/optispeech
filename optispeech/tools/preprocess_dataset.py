@@ -147,6 +147,7 @@ def main():
         cfg["seed"] = 1234
     text_processor = hydra.utils.instantiate(cfg.text_processor)
     feature_extractor = hydra.utils.instantiate(cfg.feature_extractor)
+    feature_extractor.initialize_components()
     dataset = TextWavDataset(
         num_speakers=cfg.num_speakers,
         filelist_path=os.devnull,
