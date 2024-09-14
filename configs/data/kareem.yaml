@@ -18,7 +18,7 @@ text_processor:
   languages:
     - ar
 feature_extractor:
-  preemphasis_filter_coef: 0.6
+  preemphasis_filter_coef: 0.5
   lowpass_freq: 7600
   highpass_freq: 75
 data_statistics:  # Computed for this dataset with the params of the above feature extractor

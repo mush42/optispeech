@@ -4,8 +4,8 @@ n_feats: 80
 n_fft: 2048
 hop_length: 300
 win_length: 1200
-f_min: 80
-f_max: 8000
+f_min: 0
+f_max: 7600
 center: false
 pitch_extractor:
   _target_: optispeech.dataset.feature_extractors.pitch_extractors.EnsemblePitchExtractor

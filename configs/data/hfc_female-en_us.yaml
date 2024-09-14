@@ -12,7 +12,7 @@ num_workers: 8
 feature_extractor:
   preemphasis_filter_coef: 0.5
   lowpass_freq: 7600
-  highpass_freq: 50
+  highpass_freq: 100
 data_statistics:  # Computed for this dataset with the params of the above feature extractor
   pitch_min: 1e-06
   pitch_max: 622.776062
