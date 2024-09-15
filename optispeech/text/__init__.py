@@ -38,7 +38,7 @@ class TextProcessor:
 
     def asdict(self):
         return dict(
-            tokenizer=self.tokenizer_ref,
+            tokenizer=self.tokenizer.name,
             add_blank=self.add_blank,
             add_bos_eos=self.add_bos_eos,
             normalize_text=self.normalize_text,
