@@ -19,8 +19,8 @@ def main():
         if src.is_file():
             shutil.copy2(src, dst)
         else:
-            if not dst.is_dir():
-                shutil.copytree(src, dst)
+            shutil.rmtree(dst)
+            shutil.copytree(src, dst)
 
 
 if __name__ == '__main__':
