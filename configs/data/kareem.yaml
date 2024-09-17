@@ -18,9 +18,13 @@ text_processor:
   languages:
     - ar
 feature_extractor:
-  preemphasis_filter_coef: 0.5
-  lowpass_freq: 7600
-  highpass_freq: 75
+  sample_rate: 24000
+  n_feats: 100
+  f_min: 75
+  f_max: 8000
+  preemphasis_filter_coef: 0.6
+  lowpass_freq: 8000
+  highpass_freq: 100
 data_statistics:  # Computed for this dataset with the params of the above feature extractor
   pitch_min: 64.059807
   pitch_max: 470.208069
