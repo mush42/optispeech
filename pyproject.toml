@@ -42,6 +42,14 @@ dependencies = [
     "requests>=2.32.3",
     "numpy==1.26",
     "torchcrepe>=0.0.23",
+    "LangSegment==0.3.5",
+    "cn2an",
+    "pypinyin",
+    "jieba_fast",
+    "wordsegment",
+    "g2p_en",
+    "pyopenjtalk",
+    "opencc",
 ]
 readme = "README.md"
 requires-python = ">= 3.10"

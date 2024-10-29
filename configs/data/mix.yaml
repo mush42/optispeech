@@ -1,0 +1,36 @@
+defaults:
+  - ljspeech
+  - _self_
+
+_target_: optispeech.dataset.TextWavDataModule
+name: mix
+train_filelist_path: data/mix/train.txt
+valid_filelist_path: data/mix/val.txt
+batch_size: 64
+num_workers: 8
+num_speakers: 2
+text_processor:
+  tokenizer:
+    _target_: optispeech.text2.MixTokenizer
+    _partial_: true
+  languages:
+    - mix
+feature_extractor:
+  sample_rate: 16000
+  n_feats: 100
+  f_min: 75
+  f_max: 8000
+  preemphasis_filter_coef: 0.6
+  lowpass_freq: 8000
+  highpass_freq: 100
+data_statistics:  # Computed for this dataset with the params of the above feature extractor
+  pitch_min: 64.64846
+  pitch_max: 498.240082
+  pitch_mean: 138.79863
+  pitch_std: 21.862898
+  energy_min: 0.026917
+  energy_max: 309.626709
+  energy_mean: 53.992496
+  energy_std: 41.48909
+  mel_mean: -3.810084
+  mel_std: 2.044531
