@@ -4,10 +4,10 @@ import librosa
 import numpy as np
 import torch
 from librosa.filters import mel as librosa_mel_fn
-from torchaudio.functional import gain, highpass_biquad, lowpass_biquad
+from torchaudio.functional import highpass_biquad, lowpass_biquad
 
 from optispeech.utils import pylogger, trim_or_pad_to_target_length
-from optispeech.utils.audio import spectral_normalize_torch
+from optispeech.utils.audio import normalize_loudness, spectral_normalize_torch
 from .norm_audio import make_silence_detector, trim_audio
 
 
@@ -31,7 +31,7 @@ class FeatureExtractor:
         preemphasis_filter_coef: Optional[float] = None,
         lowpass_freq: Optional[int] = None,
         highpass_freq: Optional[int] = None,
-        gain_db: Optional[int] = None,
+        loudness_norm_target_db: Optional[int] = None,
         trim_silence: bool = False,
         trim_silence_args: Optional[dict] = None,
     ):
@@ -46,7 +46,7 @@ class FeatureExtractor:
         self.preemphasis_filter_coef = preemphasis_filter_coef
         self.lowpass_freq = lowpass_freq
         self.highpass_freq = highpass_freq
-        self.gain_db = gain_db
+        self.loudness_norm_target_db = loudness_norm_target_db
         self.trim_silence = trim_silence
         self.trim_silence_args = trim_silence_args
         self.pitch_extractor_initializer = pitch_extractor
@@ -93,8 +93,13 @@ class FeatureExtractor:
             wav = highpass_biquad(
                 torch.from_numpy(wav.copy()), sample_rate=self.sample_rate, cutoff_freq=self.highpass_freq
             ).numpy()
-        if self.gain_db is not None:
-            wav = gain(torch.from_numpy(wav.copy()), gain_db=self.gain_db).numpy()
+        if self.loudness_norm_target_db is not None:
+            # Normalize loudness
+            wav = normalize_loudness(
+                audio=wav,
+                sample_rate=self.sample_rate,
+                target_db=self.loudness_norm_target_db
+            )
         # Peak normalization
         wav = librosa.util.normalize(wav)
         mel = self.get_mel(wav)

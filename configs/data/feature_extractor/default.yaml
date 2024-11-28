@@ -1,22 +1,22 @@
 _target_: optispeech.dataset.feature_extractors.CommonFeatureExtractor
 sample_rate: 24000
-n_feats: 80
-n_fft: 2048
+n_feats: 100
+n_fft: 1024
 hop_length: 300
-win_length: 1200
+win_length: 1024
 f_min: 0
-f_max: 7600
+f_max: 8000
 center: false
 pitch_extractor:
   # Recommended extractor is:  EnsemblePitchExtractor
-  _target_: optispeech.dataset.feature_extractors.pitch_extractors.EnsemblePitchExtractor
+  _target_: optispeech.dataset.feature_extractors.pitch_extractors.DIOPitchExtractor
   _partial_: true
   batch_size: 2048
   interpolate: true
 preemphasis_filter_coef: null # apply preemphasis filter
 lowpass_freq: null
 highpass_freq: null
-gain_db: null
+loudness_norm_target_db: -24
 trim_silence: false
 trim_silence_args:
   silence_threshold: 0.2

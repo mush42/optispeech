@@ -1,0 +1,9 @@
+_target_: optispeech.model.generator.vocoders.wavehax.WavehaxGenerator
+_partial_: true
+channels: 16
+mult_channels: 3
+kernel_size: [13, 7]
+num_blocks: 8
+prior_type: "noise"
+drop_prob: 0.0
+use_logmag_phase: false
