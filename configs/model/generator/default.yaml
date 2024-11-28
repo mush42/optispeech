@@ -6,7 +6,7 @@ defaults:
   - pitch_predictor: default
   - energy_predictor: default
   - decoder: transformer
-  - wav_generator: wavenext
+  - wav_generator: wavehax
 
 _target_: optispeech.model.generator.OptiSpeechGenerator
 _partial_: true

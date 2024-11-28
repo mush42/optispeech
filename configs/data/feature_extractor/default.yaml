@@ -9,14 +9,14 @@ f_max: 8000
 center: true
 pitch_extractor:
   # Recommended extractor is:  EnsemblePitchExtractor
-  _target_: optispeech.dataset.feature_extractors.pitch_extractors.EnsemblePitchExtractor
+  _target_: optispeech.dataset.feature_extractors.pitch_extractors.DIOPitchExtractor
   _partial_: true
   batch_size: 2048
   interpolate: true
 preemphasis_filter_coef: null # apply preemphasis filter
 lowpass_freq: null
 highpass_freq: null
-gain_db: null
+loudness_norm_target_db: -24
 trim_silence: false
 trim_silence_args:
   silence_threshold: 0.1

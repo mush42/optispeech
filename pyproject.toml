@@ -12,6 +12,7 @@ dependencies = [
     "piper-phonemize>=1.1.0",
     "pyworld>=0.3.4",
     "pesq>=0.0.4",
+    "pyloudnorm==0.1.1",
     "hydra-core>=1.3.2",
     "hydra-colorlog==1.2.0",
     "hydra-optuna-sweeper==1.2.0",

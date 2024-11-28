@@ -3,7 +3,7 @@ from typing import Optional
 import torch
 from torch import nn
 
-from .modules import ConvNeXtBackbone
+from optispeech.model.generator.modules import ConvNeXtBackbone
 
 
 class WaveNeXtHead(nn.Module):
@@ -30,7 +30,7 @@ class WaveNeXtHead(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass of the WaveNextHead module .
+        Forward pass of the WaveNextHead module.
 
         Args:
             x (Tensor): Input tensor of shape (B, L, H), where B is the batch size,
@@ -59,6 +59,7 @@ class WaveNeXt(nn.Module):
         # head
         n_fft: int,
         hop_length: int,
+        sample_rate: int,
         drop_path: float = 0.0,
         layer_scale_init_value: Optional[float] = None,
     ):
@@ -78,7 +79,7 @@ class WaveNeXt(nn.Module):
             hop_length=hop_length,
         )
 
-    def forward(self, x, padding_mask=None):
+    def forward(self, x, f0, padding_mask=None):
         x = self.embed(x)
         x = self.norm(x.transpose(1, 2))
         x = self.backbone(x, padding_mask)

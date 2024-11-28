@@ -79,9 +79,9 @@ print(f"Latency: {inference_output.latency}")
 del model
 
 # Feature extraction
-dataset.feature_extractor.initialize_components()
-audio_path = "data/audio.wav"
-feats = dataset.trainset.preprocess_utterance(audio_path, "Audio file.", "en-us")
+#dataset.feature_extractor.initialize_components()
+#audio_path = "data/audio.wav"
+#feats = dataset.trainset.preprocess_utterance(audio_path, "Audio file.", "en-us")
 
 # ONNX Export and inference
 from optispeech.onnx.export import add_inference_metadata, export_as_onnx
