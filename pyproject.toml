@@ -44,7 +44,7 @@ dependencies = [
     "torchcrepe>=0.0.23",
 ]
 readme = "README.md"
-requires-python = ">= 3.10"
+requires-python = ">= 3.11"
 
 [project.scripts]
 data-process = 'optispeech.tools.preprocess_dataset:main'

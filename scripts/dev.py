@@ -67,7 +67,7 @@ gen_out = model._process_batch(batch)
 wav, wav_hat = gen_out["wav"], gen_out["wav_hat"]
 disc_d_out = model.discriminator.forward_disc(wav, wav_hat)
 disc_g_out = model.discriminator.forward_gen(wav, wav_hat)
-disc_mel_out = model.discriminator.forward_mel(wav, wav_hat)
+disc_val_out = model.discriminator.forward_val(wav, wav_hat)
 
 
 # Inference

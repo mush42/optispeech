@@ -105,7 +105,7 @@ class BaseLightningModule(LightningModule, ABC):
         self.untoggle_optimizer(opt_g)
         # train discriminator
         if not train_discriminator:
-            # we're still in pretraining
+            # we're still in generator pretraining
             return
         self.toggle_optimizer(opt_d)
         if not self.train_args.cache_generator_outputs:
@@ -148,21 +148,15 @@ class BaseLightningModule(LightningModule, ABC):
             gen_adv_loss = 0.0
         loss = gen_am_loss + gen_adv_loss
         log_outputs["total_loss/generator"] = loss.item()
-        log_dict = {}
-        for (name, value) in log_outputs.items():
-            if isinstance(value, torch.Tensor):
-                log_dict[name] = value.detach().cpu()
-            else:
-                log_dict[name] = value
         self.log_dict(
-            log_dict,
+            log_outputs,
             prog_bar=True,
             on_step=True,
             on_epoch=True,
             sync_dist=True,
             batch_size=self.data_args.batch_size,
         )
-        return loss, (wav.detach(), wav_hat.detach())
+        return loss, (wav.detach(), wav_hat)
 
     def training_step_d(self, batch, wav_outputs=None):
         log_outputs = {}
@@ -179,14 +173,8 @@ class BaseLightningModule(LightningModule, ABC):
             f"discriminator/{key}": value.item() if isinstance(value, torch.Tensor) else value
             for key, value in log_dict.items()
         })
-        log_dict = {}
-        for (name, value) in log_outputs.items():
-            if isinstance(value, torch.Tensor):
-                log_dict[name] = value.detach().cpu()
-            else:
-                log_dict[name] = value
         self.log_dict(
-            log_dict,
+            log_outputs,
             prog_bar=True,
             on_step=True,
             on_epoch=True,
@@ -216,7 +204,7 @@ class BaseLightningModule(LightningModule, ABC):
             }
         )
         wav, wav_hat = gen_outputs["wav"], gen_outputs["wav_hat"]
-        gen_adv_loss, log_dict = self.discriminator.get_val_loss(wav, wav_hat)
+        gen_adv_loss, log_dict = self.discriminator.forward_val(wav, wav_hat)
         log_outputs["total_loss/val_gen_adv_loss"] = gen_adv_loss.item()
         log_outputs.update({
             f"gen_adv_loss/val_{key}": value.item() if isinstance(value, torch.Tensor) else value
@@ -254,14 +242,8 @@ class BaseLightningModule(LightningModule, ABC):
             pesq_loss = torch.zeros(1, device=self.device)
         total_loss = gen_am_loss + gen_adv_loss + utmos_loss + pesq_loss
         log_outputs["total_loss/val_total"] = total_loss.item()
-        log_dict = {}
-        for (name, value) in log_outputs.items():
-            if isinstance(value, torch.Tensor):
-                log_dict[name] = value.detach().cpu()
-            else:
-                log_dict[name] = value
         self.log_dict(
-            log_dict,
+            log_outputs,
             prog_bar=True,
             on_step=True,
             on_epoch=True,

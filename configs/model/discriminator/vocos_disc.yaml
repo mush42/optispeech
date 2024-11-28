@@ -1,6 +1,5 @@
-_target_: optispeech.model.discriminator.VocosDiscriminator
+_target_: optispeech.model.discriminator.vocos_disc.VocosDiscriminator
 _partial_: true
-use_mssbcqtd: false
 loss_coeffs:
   lambda_mrd: 1.0
   lambda_mel: 45.0
