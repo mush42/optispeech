@@ -15,11 +15,11 @@ from hydra import compose, initialize
 from lightning.pytorch.utilities.model_summary import summarize
 from omegaconf import OmegaConf
 
-model_name = "lightspeech"
+model_name = "optispeech"
 
 # Config pipeline
 with initialize(version_base=None, config_path="../configs"):
-    dataset_cfg = compose(config_name="data/ryan.yaml")
+    dataset_cfg = compose(config_name="data/hfc_female-en_us.yaml")
     cfg = compose(config_name=f"model/{model_name}.yaml")
     cfg.model.data_args = dict(
         name=dataset_cfg.data.name,
