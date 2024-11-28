@@ -278,3 +278,21 @@ def average_by_duration(ds, xs, text_lengths, feats_lengths):
     xs_avg = _average_by_duration(*args)
     xs_avg = torch.from_numpy(xs_avg).to(device)
     return xs_avg
+
+
+def expand_by_duration(x, durations):
+    dtype = x.dtype
+    lengths = durations.sum(dim=1)
+    max_len = lengths.max()
+    dur_cumsum = torch.cumsum(F.pad(durations, (1, 0, 0, 0), value=0.0), dim=1)
+    dur_cumsum = dur_cumsum[:, None, :]
+    dur_cumsum = dur_cumsum.to(dtype)
+    range_ = torch.arange(max_len, device=x.device)[None, :, None]
+    mult = (
+        (dur_cumsum[:, :, :-1] <= range_)
+        &(dur_cumsum[:, :, 1:] > range_)
+    )
+    mult = mult.to(dtype)
+    expanded = torch.matmul(mult, x)
+    return expanded, lengths
+
