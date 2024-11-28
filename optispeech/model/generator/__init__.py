@@ -11,6 +11,7 @@ from .alignments import (
     AlignmentModule,
     GaussianUpsampling,
     average_by_duration,
+    expand_by_duration,
     viterbi_decode,
 )
 from .loss import FastSpeech2Loss, ForwardSumLoss
@@ -268,10 +269,13 @@ class OptiSpeechGenerator(nn.Module):
 
         v_t0 = perf_counter()
         # Generate wav
-        f0_cond = pitch.unsqueeze(1)
+        f0_cond, _ = expand_by_duration(
+            pitch.unsqueeze(-1),
+            durations
+        )
         wav = self.wav_generator(
             y.transpose(1, 2),
-            f0=f0_cond,
+            f0=f0_cond.transpose(1, -1),
             padding_mask=target_padding_mask
         )
         wav_lengths = y_lengths * self.hop_length
