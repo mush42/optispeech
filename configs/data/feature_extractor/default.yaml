@@ -1,10 +1,10 @@
 _target_: optispeech.dataset.feature_extractors.CommonFeatureExtractor
 sample_rate: 24000
 n_feats: 80
-n_fft: 2048
-hop_length: 300
-win_length: 1200
-f_min: 0
+n_fft: 1024
+hop_length: 256
+win_length: 1024
+f_min: 80
 f_max: 7600
 center: false
 pitch_extractor:
@@ -19,7 +19,7 @@ highpass_freq: null
 gain_db: null
 trim_silence: false
 trim_silence_args:
-  silence_threshold: 0.2
+  silence_threshold: 0.1
   silence_samples_per_chunk: 480
-  silence_keep_chunks_before: 2
-  silence_keep_chunks_after: 2
+  silence_keep_chunks_before: 1
+  silence_keep_chunks_after: 1

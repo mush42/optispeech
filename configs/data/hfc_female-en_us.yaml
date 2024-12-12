@@ -7,12 +7,8 @@ _target_: optispeech.dataset.TextWavDataModule
 name: hi-fi_en-US_female
 train_filelist_path: data/hfc_female-en_us/train.txt
 valid_filelist_path: data/hfc_female-en_us/val.txt
-batch_size: 64
-num_workers: 8
 feature_extractor:
   preemphasis_filter_coef: 0.5
-  lowpass_freq: 7600
-  highpass_freq: 100
 data_statistics:  # Computed for this dataset with the params of the above feature extractor
   pitch_min: 1e-06
   pitch_max: 622.776062
