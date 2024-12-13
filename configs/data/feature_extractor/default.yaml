@@ -6,7 +6,7 @@ hop_length: 256
 win_length: 1024
 f_min: 80
 f_max: 8000
-center: false
+center: true
 pitch_extractor:
   # Recommended extractor is:  EnsemblePitchExtractor
   _target_: optispeech.dataset.feature_extractors.pitch_extractors.EnsemblePitchExtractor
