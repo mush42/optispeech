@@ -37,14 +37,14 @@ If you want an inference-only minimum -dependency package that doesn't require `
 
 ### Training and development
 
-We use [Rye](https://rye.astral.sh/) to   manage the python runtime and dependencies.
+We use [uv](https://github.com/astral-sh/uv) to   manage the python runtime and dependencies.
 
-[Install Rye first](https://rye.astral.sh/guide/installation/), then run the following:
+[Install `uv` first](https://docs.astral.sh/uv/getting-started/installation/), then run the following:
 
 ```bash
 $ git clone https://github.com/mush42/optispeech
 $ cd optispeech
-$ rye sync
+$ uv sync
 ```
 
 ## Inference
