@@ -4,9 +4,9 @@ defaults:
 
 # Dataset URL: https://ast-astrec.nict.go.jp/en/release/hi-fi-captain/
 _target_: optispeech.dataset.TextWavDataModule
-name: hi-fi_en-US_female
-train_filelist_path: data/hfc_female-en_us/train.txt
-valid_filelist_path: data/hfc_female-en_us/val.txt
+name: emily
+train_filelist_path: data/emily/train.txt
+valid_filelist_path: data/emily/val.txt
 feature_extractor:
   preemphasis_filter_coef: 0.5
 data_statistics:  # Computed for this dataset with the params of the above feature extractor

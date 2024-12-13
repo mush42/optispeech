@@ -4,6 +4,7 @@ defaults:
   - discriminator: vocos_disc
   - optimizer: adamw
   - scheduler: cosine_with_warmup
+  - vocoder: wavenext
 
 _target_: optispeech.model.OptiSpeech
 dim: 256

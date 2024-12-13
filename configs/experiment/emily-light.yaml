@@ -1,14 +1,16 @@
 # @package _global_
 
 # to execute this experiment run:
-# python train.py experiment=hfc_female-en_us
+# python train.py experiment=emily-light
 
 defaults:
-  - override /data: hfc_female-en_us.yaml
+  - override /data: emily.yaml
+  - override /model: light.yaml
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-tags: ["hfc", "single_speaker", "female", "en_US",]
+tags: ["emily", "light", "hfc", "single_speaker", "female", "en_US",]
 
-run_name: hfc_female-en_us
+run_name: emily-light
+

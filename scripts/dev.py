@@ -28,8 +28,8 @@ print(f"Length of phoneme ids: {len(phids)}")
 
 # Config pipeline
 with initialize(version_base=None, config_path="../configs"):
-    dataset_cfg = compose(config_name="data/hfc_female-en_us.yaml")
-    cfg = compose(config_name="model/lightspeech.yaml")
+    dataset_cfg = compose(config_name="data/emily.yaml")
+    cfg = compose(config_name="model/light.yaml")
     cfg.model.data_args = dict(
         name=dataset_cfg.data.name,
         num_speakers=dataset_cfg.data.num_speakers,

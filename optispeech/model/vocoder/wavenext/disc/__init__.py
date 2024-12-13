@@ -1,6 +1,7 @@
 import torch
 from torch import nn
-from optispeech.model.discriminator.base_vocoder_disc import BaseVocoderDiscriminator
+
+from optispeech.model.discriminator import BaseVocoderDiscriminator
 
 from ._discriminators import MultiPeriodDiscriminator, MultiResolutionDiscriminator
 from .loss import (

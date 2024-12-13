@@ -1,12 +1,11 @@
 defaults:
   - _self_
   - text_embedding: default
-  - encoder: transformer
+  - encoder: convnext
   - duration_predictor: default
   - pitch_predictor: default
   - energy_predictor: default
-  - decoder: transformer
-  - wav_generator: wavenext
+  - decoder: convnext
 
 _target_: optispeech.model.generator.OptiSpeechGenerator
 _partial_: true

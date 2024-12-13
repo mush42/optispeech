@@ -19,7 +19,7 @@ model_name = "optispeech"
 
 # Config pipeline
 with initialize(version_base=None, config_path="../configs"):
-    dataset_cfg = compose(config_name="data/hfc_female-en_us.yaml")
+    dataset_cfg = compose(config_name="data/emily.yaml")
     cfg = compose(config_name=f"model/{model_name}.yaml")
     cfg.model.data_args = dict(
         name=dataset_cfg.data.name,

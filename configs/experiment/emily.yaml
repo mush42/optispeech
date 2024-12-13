@@ -1,19 +1,14 @@
 # @package _global_
 
 # to execute this experiment run:
-# python train.py experiment=multispeaker
+# python train.py experiment=emily
 
 defaults:
-  - override /data: ljspeech.yaml
+  - override /data: emily.yaml
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-tags: ["ljspeech"]
+tags: ["emily", "hfc", "single_speaker", "female", "en_US",]
 
-run_name: LJSpeech
-
-
-trainer:
-  max_steps: 2000000
-  check_val_every_n_epoch: 5
+run_name: emily

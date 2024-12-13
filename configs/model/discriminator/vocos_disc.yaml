@@ -1,4 +1,4 @@
-_target_: optispeech.model.discriminator.vocos_disc.VocosDiscriminator
+_target_: optispeech.model.vocoder.wavenext.disc.VocosDiscriminator
 _partial_: true
 loss_coeffs:
   lambda_mrd: 1.0

@@ -1,4 +1,4 @@
-_target_: optispeech.model.generator.vocoders.wavenext.WaveNeXt
+_target_: optispeech.model.vocoder.wavenext.WaveNeXt
 _partial_: true
 dim: 384
 intermediate_dim: 1152

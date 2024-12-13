@@ -14,6 +14,7 @@ class OptiSpeech(BaseLightningModule):
         self,
         dim,
         generator,
+        vocoder,
         discriminator,
         train_args,
         data_args,
@@ -46,6 +47,7 @@ class OptiSpeech(BaseLightningModule):
 
         self.generator = generator(
             dim=dim,
+            vocoder=vocoder,
             feature_extractor=data_args.feature_extractor,
             data_statistics=data_args.data_statistics,
             num_speakers=self.data_args.num_speakers,

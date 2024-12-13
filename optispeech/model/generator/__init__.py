@@ -28,7 +28,7 @@ class OptiSpeechGenerator(nn.Module):
         pitch_predictor,
         energy_predictor,
         decoder,
-        wav_generator,
+        vocoder,
         loss_coeffs,
         feature_extractor,
         num_speakers,
@@ -56,7 +56,7 @@ class OptiSpeechGenerator(nn.Module):
         self.energy_predictor = energy_predictor(dim=dim)
         self.feature_upsampler = GaussianUpsampling()
         self.decoder = decoder(dim=dim)
-        self.wav_generator = wav_generator(
+        self.vocoder = vocoder(
             input_channels=dim,
             sample_rate=self.sample_rate,
             n_fft=self.n_fft,
@@ -157,7 +157,7 @@ class OptiSpeechGenerator(nn.Module):
         )
 
         # Generate wav
-        wav_hat = self.wav_generator(segment.detach(), f0=f0_cond.detach())
+        wav_hat = self.vocoder(segment.detach(), f0=f0_cond.detach())
 
         # Losses
         loss_coeffs = self.loss_coeffs
@@ -273,7 +273,7 @@ class OptiSpeechGenerator(nn.Module):
             pitch.unsqueeze(-1),
             durations
         )
-        wav = self.wav_generator(
+        wav = self.vocoder(
             y.transpose(1, 2),
             f0=f0_cond.transpose(1, -1),
             padding_mask=target_padding_mask

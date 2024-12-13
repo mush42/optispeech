@@ -1,15 +1,15 @@
 # @package _global_
 
 # to execute this experiment run:
-# python train.py experiment=kareem-convnext
+# python train.py experiment=mike-light
 
 defaults:
-  - override /data: kareem.yaml
-  - override /model: convnext_tts.yaml
+  - override /data: mike.yaml
+  - override /model: light.yaml
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-tags: ["kareem", "single_speaker", "male", "ar",]
+tags: ["mike", "light", "hfc", "single_speaker", "male", "en_US", "lightspeech"]
 
-run_name: kareem-convnext
+run_name: mike-light
