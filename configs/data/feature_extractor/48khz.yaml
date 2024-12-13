@@ -6,5 +6,7 @@ sample_rate: 48000
 n_fft: 2048
 hop_length: 512
 win_length: 2048
-f_min: 0
+f_min: 80
 f_max: 12000
+trim_silence_args:
+  silence_samples_per_chunk: 1440
