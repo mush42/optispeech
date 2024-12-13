@@ -145,7 +145,7 @@ class OptiSpeechGenerator(nn.Module):
         )
 
         # Generate wav
-        wav_hat = self.wav_generator(segment)
+        wav_hat = self.wav_generator(segment.detach())
 
         # Losses
         loss_coeffs = self.loss_coeffs
