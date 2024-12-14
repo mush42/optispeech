@@ -16,13 +16,13 @@ text_processor:
   languages:
     - ar
 data_statistics:  # Computed for this dataset with the params of the above feature extractor
-  pitch_min: 64.64846
-  pitch_max: 498.240082
-  pitch_mean: 138.79863
-  pitch_std: 21.862898
-  energy_min: 0.026917
-  energy_max: 309.626709
-  energy_mean: 53.992496
-  energy_std: 41.48909
-  mel_mean: -3.810084
-  mel_std: 2.044531
+  pitch_min: 57.923134
+  pitch_max: 650.186401
+  pitch_mean: 125.052887
+  pitch_std: 28.03315
+  energy_min: 0.000716
+  energy_max: 241.106476
+  energy_mean: 60.346188
+  energy_std: 46.748428
+  mel_mean: -5.133229
+  mel_std: 2.900002

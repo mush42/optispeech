@@ -3,7 +3,7 @@ name = "optispeech"
 version = "1.0"
 description = "A lightweight End-to-End text-to-speech model"
 dependencies = [
-    "torch==2.5.1",
+    "torch[cuda,full]==2.5.1",
     "torchvision==0.20.1",
     "lightning>=2.0.0",
     "torchmetrics>=0.11.4",
