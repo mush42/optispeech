@@ -95,10 +95,10 @@ class BaseLightningModule(LightningModule, ABC):
         # Scale (grad accumulate)
         loss_g /= loss_scaling_factor
         self.manual_backward(loss_g)
-        self.clip_gradients(
-            opt_g, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm"
-        )
         if should_apply_gradients:
+            self.clip_gradients(
+                opt_g, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm"
+            )
             opt_g.step()
             sched_g.step()
             opt_g.zero_grad()
@@ -114,10 +114,10 @@ class BaseLightningModule(LightningModule, ABC):
         # Scale (grad accumulate)
         loss_d /= loss_scaling_factor
         self.manual_backward(loss_d)
-        self.clip_gradients(
-            opt_d, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm"
-        )
         if should_apply_gradients:
+            self.clip_gradients(
+                opt_d, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm"
+            )
             opt_d.step()
             sched_d.step()
             opt_d.zero_grad()
