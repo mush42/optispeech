@@ -145,7 +145,7 @@ class OptiSpeechGenerator(nn.Module):
 
         # get random segments
         segment_size = min(self.segment_size, y.shape[-2])
-        num_frames = mel_lengths - 8
+        num_frames = mel_lengths - 4
         segment, start_idx = get_random_segments(
             y.transpose(1, 2),
             num_frames.type_as(y),
