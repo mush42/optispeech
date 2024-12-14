@@ -96,7 +96,7 @@ class BaseLightningModule(LightningModule, ABC):
         loss_g /= loss_scaling_factor
         if should_apply_gradients:
             opt_g.zero_grad()
-        self.manual_backward(loss_g, retain_graph=True)
+        self.manual_backward(loss_g)
         self.clip_gradients(
             opt_g, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm"
         )
