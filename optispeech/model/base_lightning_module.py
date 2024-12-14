@@ -113,7 +113,7 @@ class BaseLightningModule(LightningModule, ABC):
         loss_d = self.training_step_d(batch, wav_outputs=wav_outputs)
         # Scale (grad accumulate)
         loss_d /= loss_scaling_factor
-        self.manual_backward(loss_d, retain_graph=True)
+        self.manual_backward(loss_d)
         self.clip_gradients(
             opt_d, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm"
         )
