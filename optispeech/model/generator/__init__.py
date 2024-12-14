@@ -145,10 +145,7 @@ class OptiSpeechGenerator(nn.Module):
 
         # get random segments
         segment_size = min(self.segment_size, y.shape[-2])
-        num_frames = mel_lengths
-        pred_num_frames = torch.LongTensor([y.shape[-2]]).repeat(y.shape[0])
-        if num_frames.max() > pred_num_frames.max():
-            num_frames = pred_num_frames
+        num_frames = mel_lengths - 8
         segment, start_idx = get_random_segments(
             y.transpose(1, 2),
             num_frames.type_as(y),

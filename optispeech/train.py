@@ -1,3 +1,4 @@
+import warnings
 from typing import Any, Dict, List, Optional, Tuple
 
 import hydra
@@ -8,6 +9,9 @@ from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
 
 from optispeech import utils
+
+
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='librosa')
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
