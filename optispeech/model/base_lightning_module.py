@@ -94,14 +94,15 @@ class BaseLightningModule(LightningModule, ABC):
         loss_g, wav_outputs = self.training_step_g(batch, train_discriminator=train_discriminator)
         # Scale (grad accumulate)
         loss_g /= loss_scaling_factor
-        self.manual_backward(loss_g)
         if should_apply_gradients:
-            self.clip_gradients(
-                opt_g, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm"
-            )
+            opt_g.zero_grad()
+        self.manual_backward(loss_g)
+        self.clip_gradients(
+            opt_g, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm"
+        )
+        if should_apply_gradients:
             opt_g.step()
             sched_g.step()
-            opt_g.zero_grad()
         self.untoggle_optimizer(opt_g)
         # train discriminator
         if not train_discriminator:
@@ -113,14 +114,15 @@ class BaseLightningModule(LightningModule, ABC):
         loss_d = self.training_step_d(batch, wav_outputs=wav_outputs)
         # Scale (grad accumulate)
         loss_d /= loss_scaling_factor
-        self.manual_backward(loss_d)
         if should_apply_gradients:
-            self.clip_gradients(
-                opt_d, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm"
-            )
+            opt_d.zero_grad()
+        self.manual_backward(loss_d, retain_graph=True)
+        self.clip_gradients(
+            opt_d, gradient_clip_val=self.train_args.gradient_clip_val, gradient_clip_algorithm="norm"
+        )
+        if should_apply_gradients:
             opt_d.step()
             sched_d.step()
-            opt_d.zero_grad()
         self.untoggle_optimizer(opt_d)
 
     def training_step_g(self, batch, train_discriminator):
